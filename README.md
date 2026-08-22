@@ -2,7 +2,9 @@
 
 A single self-contained page (`index.html`) that renders a 3D Earth globe and marks the
 subsolar point (where the Sun is directly overhead) in real time, with the Sun placed in
-its true direction so the day/night terminator is visible.
+its true direction so the day/night terminator is visible. It also draws the path the
+subsolar point traces over the year at the current time of day: the past in amber and
+the future in blue, meeting at the current marker.
 
 ## Live site
 

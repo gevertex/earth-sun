@@ -41,11 +41,15 @@
   <div>Longitude <span id="lon">--</span></div>
   <div>Solar declination <span id="dec">--</span></div>
   <div class="dim">Equation of time <span id="eot">--</span> min</div>
+  <div class="dim" style="margin-top:6px">Sun path, this time of day:<br><span style="color:#ffb347">━ past</span> &nbsp;·&nbsp; <span style="color:#6fd3ff">━ future</span> &nbsp;(1 yr)</div>
 </div>
 <div id="hint">drag to rotate · scroll to zoom</div>
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { Line2 } from 'three/addons/lines/Line2.js';
+import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 
 const DEG = Math.PI / 180;
 const R = 10; // globe radius
@@ -225,6 +229,37 @@ const lineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), n
 const centerLine = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: 0xffd24a, transparent: true, opacity: 0.55 }));
 scene.add(centerLine);
 
+// Sun path: where the subsolar point was (past) and will be (future) at this
+// time of day, over a full year. Two lines meet at the current marker.
+const PATH_DAYS = 365;
+const pathMat = {
+  past: new LineMaterial({ color: 0xffb347, linewidth: 2.5, transparent: true, opacity: 0.9 }),
+  future: new LineMaterial({ color: 0x6fd3ff, linewidth: 2.5, transparent: true, opacity: 0.9 }),
+};
+for (const m of Object.values(pathMat)) m.resolution.set(innerWidth, innerHeight);
+const pathGeo = { past: new LineGeometry(), future: new LineGeometry() };
+const pathLine = {
+  past: new Line2(pathGeo.past, pathMat.past),
+  future: new Line2(pathGeo.future, pathMat.future),
+};
+scene.add(pathLine.past, pathLine.future);
+
+function buildSunPath(now) {
+  const half = Math.floor(PATH_DAYS / 2);
+  const past = [], future = [];
+  const sample = (arr, k) => {
+    const { latDeg, lonDeg } = subSolarPoint(new Date(now.getTime() + k * 86400000));
+    const r = surfaceRadiusAt((lonDeg + 180) / 360, (latDeg + 90) / 180) + 0.1;
+    arr.push(latLonToVec3(latDeg, lonDeg, r).toArray());
+  };
+  for (let k = -half; k <= 0; k++) sample(past, k);
+  for (let k = 0; k <= half; k++) sample(future, k);
+  pathGeo.past.setPositions(past.flat());
+  pathGeo.future.setPositions(future.flat());
+  pathLine.past.computeLineDistances();
+  pathLine.future.computeLineDistances();
+}
+
 /* ---------- readout + animation ---------- */
 
 const $ = (id) => document.getElementById(id);
@@ -232,6 +267,7 @@ const fmtLat = (v) => `${Math.abs(v).toFixed(2)}° ${v >= 0 ? 'N' : 'S'}`;
 const fmtLon = (v) => `${Math.abs(v).toFixed(2)}° ${v >= 0 ? 'E' : 'W'}`;
 
 const tmpMat = new THREE.Matrix4();
+let lastPathSecond = -1;
 
 function tick() {
   const now = new Date();
@@ -250,6 +286,12 @@ function tick() {
   sunLight.position.copy(dir).multiplyScalar(50);
   lineGeo.setFromPoints([new THREE.Vector3(), dir.clone().multiplyScalar(surfR)]);
 
+  // Rebuild the sun path once per second; it shifts slowly with the time of day.
+  if (now.getUTCSeconds() !== lastPathSecond) {
+    lastPathSecond = now.getUTCSeconds();
+    buildSunPath(now);
+  }
+
   $('utc').textContent = now.toISOString().slice(11, 19);
   $('lat').textContent = fmtLat(latDeg);
   $('lon').textContent = fmtLon(lonDeg);
@@ -266,6 +308,7 @@ addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
+  for (const m of Object.values(pathMat)) m.resolution.set(innerWidth, innerHeight);
 });
 </script>
 </body>
