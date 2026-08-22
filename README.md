@@ -4,6 +4,29 @@ A single self-contained page (`index.html`) that renders a 3D Earth globe and ma
 subsolar point (where the Sun is directly overhead) in real time, with the Sun placed in
 its true direction so the day/night terminator is visible.
 
+## Live site
+
+<https://gevertex.github.io/earth-sun/>
+
+## Deploy
+
+The site is hosted on GitHub Pages. Pages serves the `main` branch as is.
+
+To publish a change:
+
+```sh
+git add -A
+git commit -m "describe the change"
+git push
+```
+
+GitHub Pages rebuilds the site within a minute or two after the push.
+
+Note: Three.js and the Earth textures load from the unpkg.com CDN. Visitors need
+internet access.
+
+## Run locally
+
 Open it from a local server (Three.js loads from a CDN):
 
 ```sh
