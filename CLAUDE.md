@@ -34,8 +34,9 @@ python3 -m http.server 8080
 ```
 
 Three.js, `satellite.js`, and the Earth textures load from the unpkg.com CDN.
-Fresh satellite TLEs load from celestrak.org. The page needs internet access.
-Offline, the globe and sun still work; satellites use embedded fallback TLEs.
+Fresh satellite TLEs load from the satvisor GitHub mirror of Celestrak data
+(Celestrak is the fallback). The page needs internet access. Offline, the
+globe and sun still work; named satellites use embedded fallback TLEs.
 
 ## Deploy
 
@@ -134,11 +135,16 @@ GitHub Pages rebuilds the site within a minute or two after the push.
     Beidou-3 M1/M4.
   - GEO: GOES-16/17/18/19, Himawari-8/9, Meteosat-10/11/12,
     GEO-KOMPSAT-2A, Beidou-2 IGSO-7.
-- `refreshTles()` fetches fresh TLEs from Celestrak
-  (`gp.php?CATNR=<id>&FORMAT=tle`) on load and every 5 minutes while the
-  app runs (`TLE_REFRESH_MS`), and rebuilds if any change. A
-  `visibilitychange` handler re-fetches when the tab returns to view with
-  stale data. It falls back to the embedded TLEs on failure.
+- `refreshTles()` fetches group TLE files from the satvisor GitHub mirror
+  (`raw.githubusercontent.com/satvisorcom/satvisor-data/.../tle/{group}.tle`)
+  on load and every 5 minutes (`TLE_REFRESH_MS`). Groups: stations, weather,
+  resource, science, gnss, oneweb, other-comm, satnogs. It matches records
+  to `SATELLITES` by catalog number and rebuilds if any line changed. Each
+  URL aborts after 12 s (`TLE_FETCH_TIMEOUT_MS`); Celestrak
+  (`gp.php?GROUP=<group>&FORMAT=tle`) is the fallback. A `visibilitychange`
+  handler re-fetches when the tab returns to view with stale data. The
+  embedded TLEs stay if every source fails. `tleRefreshing` is cleared in
+  `finally` so the readout leaves `updating…` when the fetch ends.
 - Each satellite: `sat.twoline2satrec(line1, line2)` builds a `satrec`;
   `sat.propagate(satrec, date)` gives the ECI position (km) each frame.
 - Orbit regime by altitude: LEO < 2000 km (`0x6fd3ff`), MEO 2000–35000 km
@@ -164,22 +170,22 @@ GitHub Pages rebuilds the site within a minute or two after the push.
 
 ### Starlink constellation (full set, live)
 
-- `refreshStarlink()` fetches the whole constellation from Celestrak
-  (`gp.php?GROUP=starlink&FORMAT=tle`, ~10,741 sats) on load and every
-  30 minutes (`STARLINK_REFRESH_MS`). `fetchStarlinkTle()` tries
-  Celestrak first, then a mirror of the same set
-  (`STARLINK_TLE_FALLBACK_URL`, the satvisor-data GitHub repo, updated
-  every few hours). Each fetch aborts after 45 s
-  (`STARLINK_FETCH_TIMEOUT_MS`), so a hung response fails over instead of
-  holding the readout on `fetching…` forever. A failed refresh schedules a
-  retry after 60 s (`STARLINK_RETRY_MS`) until one succeeds; success
-  cancels the retry and the 30 min cycle resumes. There is no embedded
-  fallback: on total failure it keeps the last good points and the readout
-  shows the last good state, or `unavailable` if nothing loaded yet.
+- `refreshStarlink()` fetches the whole constellation on load and every
+  30 minutes (`STARLINK_REFRESH_MS`). `fetchStarlinkTle()` tries the
+  satvisor GitHub mirror first (`STARLINK_TLE_FALLBACK_URL`, updated every
+  few hours), then Celestrak (`gp.php?GROUP=starlink&FORMAT=tle`). Each
+  fetch aborts after 12 s (`TLE_FETCH_TIMEOUT_MS`). A failed refresh
+  schedules a retry after 60 s (`STARLINK_RETRY_MS`) until one succeeds;
+  success cancels the retry and the 30 min cycle resumes. `refreshing`
+  stays true until `initStarlinkPoints` so the readout keeps `fetching…`
+  through the chunked build. There is no embedded fallback: on total
+  failure it keeps the last good points and the readout shows the last
+  good state, or `unavailable` if nothing loaded yet.
 - `parseTleText(text)` splits the TLE text into `{ name, line1, line2 }`
-  records. `buildStarlink(records)` builds the `satrec`s in chunks: 8 ms of
-  `twoline2satrec` per `requestAnimationFrame`, guarded by a generation
-  counter (`slBuildGen`) so a refresh mid-build discards the stale build.
+  records (shared with the named-sat refresh). `buildStarlink(records)`
+  builds the `satrec`s in chunks: 8 ms of `twoline2satrec` per
+  `requestAnimationFrame`, guarded by a generation counter (`slBuildGen`)
+  so a refresh mid-build discards the stale build.
 - All sats render as one `THREE.Points` (one draw call) with a
   `PointsMaterial` (`vertexColors`, `size 0.07`, `opacity 0.9`,
   `depthWrite: false`). A manual `boundingSphere` (radius 15) keeps the

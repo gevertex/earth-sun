@@ -301,7 +301,8 @@ const KM_TO_SCENE = R / EARTH_RADIUS_KM;
 
 // Real satellites: name, NORAD catalog number, and a fallback TLE (epoch 2026-08).
 // The set spans LEO, MEO, and GEO with varied inclinations. Fresh TLEs are
-// fetched from Celestrak on load; the fallback keeps orbits working offline.
+// fetched from the satvisor GitHub mirror on load; the fallback keeps orbits
+// working offline.
 const SATELLITES = [
   { name: 'ISS (ZARYA)', catnr: 25544, line1: '1 25544U 98067A   26234.50053383  .00009133  00000+0  17025-3 0  9997', line2: '2 25544  51.6331 331.8814 0007668  72.6488 287.5339 15.49570248582031' },
   { name: 'CSS (TIANHE)', catnr: 48274, line1: '1 48274U 21035A   26234.46683157  .00014340  00000+0  18184-3 0  9999', line2: '2 48274  41.4688 279.6646 0001556 255.0784 104.9883 15.59157790303510' },
@@ -443,38 +444,93 @@ function buildSatellites() {
   }
 }
 
-// Fetch fresh TLEs from Celestrak and rebuild. Falls back to the embedded TLEs.
-// Runs on load and every TLE_REFRESH_MS while the app runs, so the orbit
-// elements stay current in a long session.
+// Fetch fresh TLEs from the satvisor GitHub mirror (Celestrak is the
+// fallback). One request per group covers the named set. Each fetch aborts
+// after TLE_FETCH_TIMEOUT_MS so a hung source cannot hold the readout on
+// "updating…". Runs on load and every TLE_REFRESH_MS while the app runs.
+const TLE_FETCH_TIMEOUT_MS = 12 * 1000;
+const TLE_MIRROR = 'https://raw.githubusercontent.com/satvisorcom/satvisor-data/master/celestrak/tle';
+const TLE_GROUPS = ['stations', 'weather', 'resource', 'science', 'gnss', 'oneweb', 'other-comm', 'satnogs'];
 const TLE_REFRESH_MS = 5 * 60 * 1000;
 let tleRefreshing = false;
 let tleLive = false;      // true once a fetch has succeeded
 let lastTleUpdate = 0;    // ms timestamp of the last successful fetch
 
+// Celestrak TLE text: a name line, then "1 ..." and "2 ...", per satellite.
+function parseTleText(text) {
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const out = [];
+  for (let i = 0; i < lines.length - 1; i++) {
+    if (lines[i].startsWith('1 ') && lines[i + 1].startsWith('2 ')) {
+      const prev = i > 0 ? lines[i - 1] : '';
+      const name = prev && !prev.startsWith('1 ') && !prev.startsWith('2 ')
+        ? prev : `SAT ${lines[i].slice(2, 7).trim()}`;
+      out.push({ name, line1: lines[i], line2: lines[i + 1] });
+      i++;
+    }
+  }
+  return out;
+}
+
+async function fetchTleText(url) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), TLE_FETCH_TIMEOUT_MS);
+  try {
+    const r = await fetch(url, { signal: ctrl.signal });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const text = await r.text();
+    if (!text.trim()) throw new Error('empty');
+    return text;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Try each URL in order. A 200 with no TLE records counts as a failure so
+// the next source still runs.
+async function fetchTleRecords(urls) {
+  let lastErr;
+  for (const url of urls) {
+    try {
+      const records = parseTleText(await fetchTleText(url));
+      if (records.length === 0) throw new Error('empty TLE set');
+      return records;
+    } catch (err) { lastErr = err; }
+  }
+  throw lastErr || new Error('all TLE sources failed');
+}
+
 async function refreshTles() {
   if (!sat || tleRefreshing) return;
   tleRefreshing = true;
-  const results = await Promise.all(SATELLITES.map(async (def) => {
-    try {
-      const r = await fetch(`https://celestrak.org/NORAD/elements/gp.php?CATNR=${def.catnr}&FORMAT=tle`);
-      if (!r.ok) return null;
-      const lines = (await r.text()).split('\n').map((l) => l.trim()).filter(Boolean);
-      const l1 = lines.find((l) => l.startsWith('1 '));
-      const l2 = lines.find((l) => l.startsWith('2 '));
-      return l1 && l2 ? { line1: l1, line2: l2 } : null;
-    } catch { return null; }
-  }));
-  tleRefreshing = false;
-  let fetched = 0, changed = false;
-  results.forEach((res, i) => {
-    if (!res) return;
-    fetched++;
-    if (res.line1 !== SATELLITES[i].line1 || res.line2 !== SATELLITES[i].line2) changed = true;
-    SATELLITES[i].line1 = res.line1;
-    SATELLITES[i].line2 = res.line2;
-  });
-  if (changed) buildSatellites();
-  if (fetched > 0) { tleLive = true; lastTleUpdate = Date.now(); }
+  try {
+    const byCatnr = new Map();
+    await Promise.all(TLE_GROUPS.map(async (group) => {
+      try {
+        const records = await fetchTleRecords([
+          `${TLE_MIRROR}/${group}.tle`,
+          `https://celestrak.org/NORAD/elements/gp.php?GROUP=${group}&FORMAT=tle`,
+        ]);
+        for (const rec of records) {
+          const n = parseInt(rec.line1.slice(2, 7), 10);
+          if (n) byCatnr.set(n, rec);
+        }
+      } catch { /* this group failed; others may still succeed */ }
+    }));
+    let fetched = 0, changed = false;
+    for (const def of SATELLITES) {
+      const rec = byCatnr.get(def.catnr);
+      if (!rec) continue;
+      fetched++;
+      if (rec.line1 !== def.line1 || rec.line2 !== def.line2) changed = true;
+      def.line1 = rec.line1;
+      def.line2 = rec.line2;
+    }
+    if (changed) buildSatellites();
+    if (fetched > 0) { tleLive = true; lastTleUpdate = Date.now(); }
+  } finally {
+    tleRefreshing = false;
+  }
 }
 
 buildSatellites();
@@ -493,12 +549,11 @@ document.addEventListener('visibilitychange', () => {
 // THREE.Points cloud. Each frame propagates a time-sliced chunk of the set,
 // so the frame rate holds on slow machines. Celestrak rate-limits, so the
 // set refreshes every 30 min (the 47 named satellites refresh every 5 min).
-// A failed refresh retries after 60 s; each fetch times out after 45 s and
-// falls back to a mirror of the Celestrak set.
+// A failed refresh retries after 60 s. The GitHub mirror is tried first.
+// Celestrak is the fallback. Each fetch aborts after TLE_FETCH_TIMEOUT_MS.
 const STARLINK_TLE_URL = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle';
-// Fallback mirror of the same Celestrak set, updated every few hours.
+// Mirror of the same Celestrak set, updated every few hours.
 const STARLINK_TLE_FALLBACK_URL = 'https://raw.githubusercontent.com/satvisorcom/satvisor-data/master/celestrak/tle/starlink.tle';
-const STARLINK_FETCH_TIMEOUT_MS = 45 * 1000;
 const STARLINK_RETRY_MS = 60 * 1000;
 const STARLINK_REFRESH_MS = 30 * 60 * 1000;
 const SL_PROPAGATE_BUDGET_MS = 8;
@@ -517,22 +572,6 @@ const starlink = {
   lastUpdate: 0,
 };
 let slBuildGen = 0;  // invalidates a chunked build a newer build replaces
-
-// Celestrak TLE text: a name line, then "1 ..." and "2 ...", per satellite.
-function parseTleText(text) {
-  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  const out = [];
-  for (let i = 0; i < lines.length - 1; i++) {
-    if (lines[i].startsWith('1 ') && lines[i + 1].startsWith('2 ')) {
-      const prev = i > 0 ? lines[i - 1] : '';
-      const name = prev && !prev.startsWith('1 ') && !prev.startsWith('2 ')
-        ? prev : `SAT ${lines[i].slice(2, 7).trim()}`;
-      out.push({ name, line1: lines[i], line2: lines[i + 1] });
-      i++;
-    }
-  }
-  return out;
-}
 
 function clearStarlink() {
   if (starlink.points) {
@@ -598,6 +637,7 @@ function initStarlinkPoints(sats) {
   starlink.pos = pos;
   starlink.colors = colorsArr;
   starlink.cursor = 0;
+  starlink.refreshing = false;
   updateStarlinkReadout();
 }
 
@@ -635,24 +675,8 @@ function setSlColor(i, c) {
   starlink.points.geometry.attributes.color.needsUpdate = true;
 }
 
-// Celestrak is the primary source; the mirror covers a slow or blocked
-// Celestrak. Each fetch has a timeout, so a hung response fails over
-// instead of holding the readout on "fetching…" forever.
 async function fetchStarlinkTle() {
-  for (const url of [STARLINK_TLE_URL, STARLINK_TLE_FALLBACK_URL]) {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), STARLINK_FETCH_TIMEOUT_MS);
-    try {
-      const r = await fetch(url, { signal: ctrl.signal });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const records = parseTleText(await r.text());
-      if (records.length === 0) throw new Error('empty TLE set');
-      return records;
-    } catch { /* try the next source */ } finally {
-      clearTimeout(timer);
-    }
-  }
-  throw new Error('all Starlink TLE sources failed');
+  return fetchTleRecords([STARLINK_TLE_FALLBACK_URL, STARLINK_TLE_URL]);
 }
 
 let slRetryTimer = 0;
@@ -671,10 +695,10 @@ async function refreshStarlink() {
     starlink.live = true;
     starlink.lastUpdate = Date.now();
     clearTimeout(slRetryTimer); // success: the 30 min cycle resumes
+    // refreshing stays true until initStarlinkPoints fills the cloud
   } catch {
     // keep the old points; the readout shows the last good state
     scheduleStarlinkRetry();
-  } finally {
     starlink.refreshing = false;
     updateStarlinkReadout();
   }

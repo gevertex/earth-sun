@@ -30,10 +30,11 @@ git push
 
 GitHub Pages rebuilds the site within a minute or two after the push.
 
-Note: Three.js, `satellite.js`, and the Earth textures load from the unpkg.com CDN, and
-satellite TLEs load from celestrak.org. Visitors need internet access. Offline, the globe
-and Sun still work; the satellites fall back to embedded TLEs (the Starlink layer needs
-the live feed and shows `unavailable` without it).
+Note: Three.js, `satellite.js`, and the Earth textures load from the unpkg.com CDN.
+Satellite TLEs load from the satvisor GitHub mirror of Celestrak data. Visitors
+need internet access. Offline, the globe and Sun still work; the named satellites
+fall back to embedded TLEs (the Starlink layer needs the live feed and shows
+`unavailable` without it).
 
 ## Run locally
 
