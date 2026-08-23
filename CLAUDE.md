@@ -165,9 +165,16 @@ GitHub Pages rebuilds the site within a minute or two after the push.
 
 - `refreshStarlink()` fetches the whole constellation from Celestrak
   (`gp.php?GROUP=starlink&FORMAT=tle`, ~10,741 sats) on load and every
-  30 minutes (`STARLINK_REFRESH_MS`). There is no embedded fallback: on
-  fetch failure it keeps the last good points and the readout shows the
-  last good state, or `unavailable` if nothing loaded yet.
+  30 minutes (`STARLINK_REFRESH_MS`). `fetchStarlinkTle()` tries
+  Celestrak first, then a mirror of the same set
+  (`STARLINK_TLE_FALLBACK_URL`, the satvisor-data GitHub repo, updated
+  every few hours). Each fetch aborts after 45 s
+  (`STARLINK_FETCH_TIMEOUT_MS`), so a hung response fails over instead of
+  holding the readout on `fetching…` forever. A failed refresh schedules a
+  retry after 60 s (`STARLINK_RETRY_MS`) until one succeeds; success
+  cancels the retry and the 30 min cycle resumes. There is no embedded
+  fallback: on total failure it keeps the last good points and the readout
+  shows the last good state, or `unavailable` if nothing loaded yet.
 - `parseTleText(text)` splits the TLE text into `{ name, line1, line2 }`
   records. `buildStarlink(records)` builds the `satrec`s in chunks: 8 ms of
   `twoline2satrec` per `requestAnimationFrame`, guarded by a generation
@@ -202,6 +209,7 @@ types (LEO/MEO/GEO), the TLE data status (last update time,
 
 ## Recent changes (as of 2026-08-23)
 
+- `2516030` Add a timeout and mirror fallback to the Starlink TLE fetch
 - `08f9290` Add the full Starlink constellation as a live SGP4 point cloud
 - `3573ebc` Add 35 satellites, shrink the marker dot, add a show/hide toggle
 - `f20f0a4` Re-fetch satellite TLEs every 5 minutes while the app runs
