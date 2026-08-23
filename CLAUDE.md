@@ -17,8 +17,7 @@ live from TLE data with the SGP4 model; hovering a satellite shows its name.
 - Repo: https://github.com/gevertex/earth-sun.git
 - Hosting: GitHub Pages serves the `main` branch as is. Push to publish.
 - Deployed state: verified 2026-08-23, the live site serves commit
-  `2516030` (the full Starlink set with the fetch timeout and mirror
-  fallback are present).
+  `d477164` (GitHub-first TLE fetch with a 12 s timeout).
 
 ## Files
 
@@ -216,6 +215,7 @@ types (LEO/MEO/GEO), the TLE data status (last update time,
 
 ## Recent changes (as of 2026-08-23)
 
+- `d477164` Fetch TLE data from the satvisor GitHub mirror first
 - `2516030` Add a timeout and mirror fallback to the Starlink TLE fetch
 - `08f9290` Add the full Starlink constellation as a live SGP4 point cloud
 - `3573ebc` Add 35 satellites, shrink the marker dot, add a show/hide toggle
