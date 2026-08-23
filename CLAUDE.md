@@ -21,7 +21,7 @@ live from TLE data with the SGP4 model; hovering a satellite shows its name.
 
 ## Files
 
-- `index.html` — the entire app: markup, CSS, and JS in one file (~510 lines)
+- `index.html` — the entire app: markup, CSS, and JS in one file (~600 lines)
 - `README.md` — live site link, deploy steps, local run steps
 - `CLAUDE.md` — this file
 
@@ -122,11 +122,17 @@ GitHub Pages rebuilds the site within a minute or two after the push.
 
 ### Satellites (real orbits via SGP4)
 
-- `SATELLITES` holds 12 real satellites (name, NORAD catalog number, and a
-  fallback TLE with a 2026-08 epoch). The set spans LEO, MEO, and GEO with
-  varied inclinations: ISS, CSS (Tianhe), Hubble, NOAA 19, Sentinel-2A,
-  Jason-3, Terra, Aqua, Starlink-1008 (LEO); GPS BIIR-5, Galileo GSAT0101
-  (MEO); GOES-16 (GEO).
+- `SATELLITES` holds 47 real satellites (name, NORAD catalog number, and a
+  fallback TLE with a 2026-08 epoch). The set spans LEO (26), MEO (10), and
+  GEO (11) with varied inclinations:
+  - LEO: ISS (Zarya, Nauka), CSS (Tianhe, Wentian, Mengtian), Hubble,
+    NOAA 19/20/21, MetOp-B/C, Sentinel-2A/3A/3B, Jason-3, Terra, Aqua,
+    Landsat 8/9, ICESat-2, OCO-2, GCOM-W1, TerraSAR-X, Starlink-1008,
+    OneWeb-0050/0250.
+  - MEO: GPS BIIR-5, BIIF-1/4/7, Galileo GSAT0101/0201/0202, O3B FM9,
+    Beidou-3 M1/M4.
+  - GEO: GOES-16/17/18/19, Himawari-8/9, Meteosat-10/11/12,
+    GEO-KOMPSAT-2A, Beidou-2 IGSO-7.
 - `refreshTles()` fetches fresh TLEs from Celestrak
   (`gp.php?CATNR=<id>&FORMAT=tle`) on load and every 5 minutes while the
   app runs (`TLE_REFRESH_MS`), and rebuilds if any change. A
@@ -144,12 +150,16 @@ GitHub Pages rebuilds the site within a minute or two after the push.
 - Orbit path: one full period (`2π / satrec.no`, `satrec.no` in rad/min),
   180 samples propagated in the inertial frame, drawn as a closed `Line2`
   ellipse (linewidth 1.4, opacity 0.45).
-- Each satellite has a visible dot (`SphereGeometry(0.3)`) and a larger
+- Each satellite has a visible dot (`SphereGeometry(0.1)`) and a larger
   invisible hover target (`SphereGeometry(1.1)`, `MeshBasicMaterial` with
   `visible: false`; the raycaster still hits it).
 - Hover: a `pointermove` handler raycasts against the hit targets. On a hit
   it shows `#sat-tip` (a fixed tooltip at the cursor) with the name and
-  orbit type, scales the dot 2x, and brightens its orbit line.
+  orbit type, scales the dot 2x, and brightens its orbit line. The handler
+  skips raycasting while the satellite layer is hidden.
+- Toggle: `#sat-toggle` (a "show satellites" checkbox, top-right; bottom-
+  right on screens under 640px wide) sets `satWorld.visible`. Unchecking
+  hides every dot and orbit line and clears any active hover.
 
 ### Readout (top-left panel)
 

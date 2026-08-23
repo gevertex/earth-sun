@@ -32,6 +32,19 @@
   }
   #sat-tip .name { color: #fff; font-weight: 600; }
   #sat-tip .dim { color: #7f97b8; }
+  #controls {
+    position: fixed; top: 16px; right: 16px;
+    font: 13px/1.5 system-ui, sans-serif;
+    color: #cfe8ff; background: rgba(8, 14, 26, 0.72);
+    border: 1px solid rgba(120, 170, 255, 0.25);
+    border-radius: 8px; padding: 8px 12px;
+    cursor: pointer; user-select: none;
+  }
+  #controls input { margin-right: 7px; vertical-align: -2px; }
+  @media (max-width: 640px) {
+    /* the readout panel takes the top of narrow screens; move the toggle down */
+    #controls { top: auto; bottom: 40px; }
+  }
 </style>
 <script type="importmap">
 {
@@ -57,6 +70,9 @@
   <div class="dim">TLE data <span id="tle">--</span></div>
 </div>
 <div id="sat-tip"></div>
+<div id="controls">
+  <label><input type="checkbox" id="sat-toggle" checked> show satellites</label>
+</div>
 <div id="hint">drag to rotate · scroll to zoom</div>
 <script type="module">
 import * as THREE from 'three';
@@ -282,8 +298,8 @@ const EARTH_RADIUS_KM = 6371;
 const KM_TO_SCENE = R / EARTH_RADIUS_KM;
 
 // Real satellites: name, NORAD catalog number, and a fallback TLE (epoch 2026-08).
-// Fresh TLEs are fetched from Celestrak on load; the fallback keeps orbits working
-// if the fetch fails.
+// The set spans LEO, MEO, and GEO with varied inclinations. Fresh TLEs are
+// fetched from Celestrak on load; the fallback keeps orbits working offline.
 const SATELLITES = [
   { name: 'ISS (ZARYA)', catnr: 25544, line1: '1 25544U 98067A   26234.50053383  .00009133  00000+0  17025-3 0  9997', line2: '2 25544  51.6331 331.8814 0007668  72.6488 287.5339 15.49570248582031' },
   { name: 'CSS (TIANHE)', catnr: 48274, line1: '1 48274U 21035A   26234.46683157  .00014340  00000+0  18184-3 0  9999', line2: '2 48274  41.4688 279.6646 0001556 255.0784 104.9883 15.59157790303510' },
@@ -297,6 +313,41 @@ const SATELLITES = [
   { name: 'GPS BIIR-5 (PRN 22)', catnr: 26407, line1: '1 26407U 00040A   26233.86206892  .00000056  00000+0  00000+0 0  9999', line2: '2 26407  54.8436 212.5546 0119276 303.3328 239.9019  2.00558243191265' },
   { name: 'GALILEO (GSAT0101)', catnr: 37846, line1: '1 37846U 11060A   26231.78617055 -.00000108  00000+0  00000+0 0  9997', line2: '2 37846  56.9695 340.0379 0001315  73.5474 286.4867  1.70475811 92204' },
   { name: 'GOES-16', catnr: 41866, line1: '1 41866U 16071A   26234.60200672 -.00000093  00000+0  00000+0 0  9991', line2: '2 41866   0.4971  84.9997 0001247 103.6337 254.2661  1.00273212 35766' },
+  { name: 'CSS (WENTIAN)', catnr: 53239, line1: '1 53239U 22085A   26234.46683157  .00014340  00000+0  18184-3 0  9992', line2: '2 53239  41.4688 279.6646 0001556 255.0784 104.9883 15.59157790288238' },
+  { name: 'CSS (MENGTIAN)', catnr: 54216, line1: '1 54216U 22143A   26234.46683157  .00014340  00000+0  18184-3 0  9993', line2: '2 54216  41.4688 279.6646 0001556 255.0784 104.9883 15.59157790303894' },
+  { name: 'ISS (NAUKA)', catnr: 49044, line1: '1 49044U 21066A   26234.50053383  .00009133  00000+0  17025-3 0  9993', line2: '2 49044  51.6331 331.8814 0007668  72.6488 287.5339 15.49570248581907' },
+  { name: 'METOP-C', catnr: 43689, line1: '1 43689U 18087A   26234.58419927  .00000048  00000+0  41553-4 0  9999', line2: '2 43689  98.6591 292.9552 0001116  49.6580 310.4695 14.21510699404267' },
+  { name: 'METOP-B', catnr: 38771, line1: '1 38771U 12049A   26234.56798819  .00000057  00000+0  45622-4 0  9996', line2: '2 38771  98.6453 284.7256 0003072 135.3570 224.7855 14.21454425722694' },
+  { name: 'NOAA 21 (JPSS-2)', catnr: 54234, line1: '1 54234U 22150A   26234.57190393  .00000035  00000+0  37274-4 0  9996', line2: '2 54234  98.7072 172.2487 0002302  36.2981 323.8351 14.19546136195965' },
+  { name: 'NOAA 20 (JPSS-1)', catnr: 43013, line1: '1 43013U 17073A   26234.61070757  .00000025  00000+0  32756-4 0  9992', line2: '2 43013  98.7787 173.4885 0002002  78.5172 281.6229 14.19522210453895' },
+  { name: 'SENTINEL-3A', catnr: 41335, line1: '1 41335U 16011A   26234.62951573  .00000054  00000+0  40348-4 0  9991', line2: '2 41335  98.6200 301.0418 0000982  92.9996 267.1297 14.26738854547539' },
+  { name: 'SENTINEL-3B', catnr: 43437, line1: '1 43437U 18039A   26234.18187506  .00000064  00000+0  44591-4 0  9991', line2: '2 43437  98.6200 300.7504 0001666  96.1869 263.9501 14.26738845433537' },
+  { name: 'LANDSAT 8', catnr: 39084, line1: '1 39084U 13008A   26234.63457349  .00000228  00000+0  60751-4 0  9998', line2: '2 39084  98.2253 303.9635 0001266  93.6891 266.4453 14.57103760707575' },
+  { name: 'LANDSAT 9', catnr: 49260, line1: '1 49260U 21088A   26234.60027704  .00000249  00000+0  65257-4 0  9996', line2: '2 49260  98.2234 303.9571 0001287 105.3989 254.7352 14.57099128260677' },
+  { name: 'ICESAT-2', catnr: 43613, line1: '1 43613U 18070A   26234.55075233  .00008001  00000+0  28980-3 0  9998', line2: '2 43613  92.0067 308.9115 0002646 157.5575 202.5791 15.28359032442591' },
+  { name: 'OCO-2', catnr: 40059, line1: '1 40059U 14035A   26234.55794315  .00000311  00000+0  79104-4 0  9996', line2: '2 40059  98.2037 174.8487 0001572  92.0676 268.0703 14.57083814645713' },
+  { name: 'GCOM-W1 (SHIZUKU)', catnr: 38337, line1: '1 38337U 12025A   26233.81694529  .00000361  00000+0  90191-4 0  9997', line2: '2 38337  98.2039 173.3827 0001328  89.3102 325.3168 14.57116850758595' },
+  { name: 'TERRASAR-X', catnr: 31698, line1: '1 31698U 07026A   26233.46720890  .00000717  00000+0  37310-4 0  9996', line2: '2 31698  97.4463 240.2482 0001659  92.1938 267.9487 15.19155768 63131' },
+  { name: 'ONEWEB-0050', catnr: 45453, line1: '1 45453U 20020AF  26234.40766049  .00001367  00000+0  13763-3 0  9997', line2: '2 45453  88.9291 224.2110 0006277  91.2577 268.9371 14.90555407350245' },
+  { name: 'ONEWEB-0250', catnr: 48968, line1: '1 48968U 21060B   26234.41720673 -.00000002  00000+0 -34696-4 0  9996', line2: '2 48968  87.9111 213.1633 0001890  55.6854 304.4461 13.25836877248998' },
+  { name: 'O3B FM9', catnr: 40351, line1: '1 40351U 14083D   26234.58948484 -.00000026  00000+0  00000+0 0  9993', line2: '2 40351   0.0553 346.9721 0002631 161.7636 211.2789  5.00116155213383' },
+  { name: 'BEIDOU-3 M1 (C19)', catnr: 43001, line1: '1 43001U 17069A   26232.56772116 -.00000042  00000+0  00000+0 0  9996', line2: '2 43001  56.7512  60.9655 0007600 327.1533  32.8520  1.86231366 59802' },
+  { name: 'BEIDOU-3 M4 (C22)', catnr: 43207, line1: '1 43207U 18018A   26232.63601696 -.00000041  00000+0  00000+0 0  9990', line2: '2 43207  56.7099  61.0249 0006520  39.7220 320.3787  1.86231266 57942' },
+  { name: 'GALILEO (GSAT0202)', catnr: 40129, line1: '1 40129U 14050B   26232.27248160 -.00000007  00000+0  00000+0 0  9997', line2: '2 40129  48.8245 269.8886 1684689 182.5931 176.4465  1.85520523 81673' },
+  { name: 'GALILEO (GSAT0201)', catnr: 40128, line1: '1 40128U 14050A   26233.63413010  .00000003  00000+0  00000+0 0  9990', line2: '2 40128  48.8061 270.7465 1683497 181.9286 177.3701  1.85519896 79530' },
+  { name: 'GPS BIIF-1 (PRN 25)', catnr: 36585, line1: '1 36585U 10022A   26232.68750000  .00000054  00000+0  00000+0 0  9990', line2: '2 36585  54.2649 205.9651 0127912  66.2672 231.9131  2.00565935118889' },
+  { name: 'GPS BIIF-4 (PRN 27)', catnr: 39166, line1: '1 39166U 13023A   26232.49984772  .00000018  00000+0  00000+0 0  9996', line2: '2 39166  54.4578 266.3492 0141707  51.1209 310.1961  2.00563385 97177' },
+  { name: 'GPS BIIF-7 (PRN 09)', catnr: 40105, line1: '1 40105U 14045A   26232.86996990 -.00000036  00000+0  00000+0 0  9993', line2: '2 40105  55.3976  85.8877 0035762 119.2038 241.2271  2.00562789 87370' },
+  { name: 'HIMAWARI-8', catnr: 40267, line1: '1 40267U 14060A   26234.57929995 -.00000277  00000+0  00000+0 0  9997', line2: '2 40267   0.0329 292.3199 0001123 240.5623 147.1869  1.00275267 43428' },
+  { name: 'HIMAWARI-9', catnr: 41836, line1: '1 41836U 16064A   26234.57929995 -.00000277  00000+0  00000+0 0  9996', line2: '2 41836   0.0158 205.2856 0001101 318.2857 156.6151  1.00269693 35877' },
+  { name: 'GOES-17', catnr: 43226, line1: '1 43226U 18022A   26234.46241947 -.00000185  00000+0  00000+0 0  9997', line2: '2 43226   1.1017  84.6383 0000797  91.9388 231.1670  1.00271669 31086' },
+  { name: 'GOES-18', catnr: 51850, line1: '1 51850U 22021A   26234.59559336  .00000094  00000+0  00000+0 0  9999', line2: '2 51850   0.0068 343.1520 0000445 197.0658 228.0923  1.00273034  7252' },
+  { name: 'GOES-19', catnr: 60133, line1: '1 60133U 24119A   26234.60772676 -.00000251  00000+0  00000+0 0  9995', line2: '2 60133   0.0338 291.9095 0000323 280.4194 262.1628  1.00271258  7639' },
+  { name: 'METEOSAT-11', catnr: 40732, line1: '1 40732U 15034A   26234.62462683  .00000058  00000+0  00000+0 0  9994', line2: '2 40732   3.3629  70.6448 0000761  52.2583  82.3342  1.00265785  7888' },
+  { name: 'METEOSAT-12 (MTG-I1)', catnr: 54743, line1: '1 54743U 22170C   26234.62272015 -.00000009  00000+0  00000+0 0  9995', line2: '2 54743   0.7689  25.5622 0003898  85.3207  83.8816  1.00275485 13640' },
+  { name: 'METEOSAT-10', catnr: 38552, line1: '1 38552U 12035B   26234.33761894 -.00000009  00000+0  00000+0 0  9990', line2: '2 38552   4.8236  60.6583 0001061  74.5637 317.2738  1.00267510 51522' },
+  { name: 'GEO-KOMPSAT-2A', catnr: 43823, line1: '1 43823U 18100A   26234.44975446 -.00000346  00000+0  00000+0 0  9992', line2: '2 43823   0.0120  62.0710 0002262  51.1356 147.7250  1.00272819 28291' },
+  { name: 'BEIDOU-2 IGSO-7 (C16)', catnr: 43539, line1: '1 43539U 18057A   26232.72036689 -.00000161  00000+0  00000+0 0  9998', line2: '2 43539  55.2154 162.5150 0108150 237.0740 300.7554  1.00284975 29771' },
 ];
 
 // Orbit regime by altitude: LEO < 2000 km, MEO 2000-35000 km, GEO above.
@@ -315,7 +366,7 @@ function eciToLocal(p) {
 
 const satWorld = new THREE.Group();
 scene.add(satWorld);
-const dotGeo = new THREE.SphereGeometry(0.3, 12, 12);
+const dotGeo = new THREE.SphereGeometry(0.1, 10, 10);
 const hitGeo = new THREE.SphereGeometry(1.1, 8, 8);
 const sats = [];            // { name, satrec, dot, hit, line, lineMat, type, baseOpacity }
 const orbitMats = [];       // orbit LineMaterials, for resolution updates on resize
@@ -517,7 +568,7 @@ function setHover(s) {
 }
 
 addEventListener('pointermove', (e) => {
-  if (!sat || raycastTargets.length === 0) { setHover(null); satTip.style.display = 'none'; return; }
+  if (!sat || !satWorld.visible || raycastTargets.length === 0) { setHover(null); satTip.style.display = 'none'; return; }
   pointer.x = (e.clientX / innerWidth) * 2 - 1;
   pointer.y = -(e.clientY / innerHeight) * 2 + 1;
   raycaster.setFromCamera(pointer, camera);
@@ -535,6 +586,14 @@ addEventListener('pointermove', (e) => {
     document.body.style.cursor = '';
   }
 });
+
+/* ---------- toggle: show / hide the satellite dots and orbits ---------- */
+const satToggle = document.getElementById('sat-toggle');
+satToggle.addEventListener('change', () => {
+  satWorld.visible = satToggle.checked;
+  if (!satToggle.checked) { setHover(null); satTip.style.display = 'none'; }
+});
+
 </script>
 </body>
 </html>
