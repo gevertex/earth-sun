@@ -10,7 +10,8 @@ marks the subsolar point (where the Sun is directly overhead). The Sun sits
 in its true direction, so the day/night terminator is visible. The app also
 draws the path the subsolar point traces over one year at the current time
 of day: the past in amber, the future in blue, meeting at the current
-marker.
+marker. The app also shows real satellites in their real orbits, propagated
+live from TLE data with the SGP4 model; hovering a satellite shows its name.
 
 - Live site: https://gevertex.github.io/earth-sun/
 - Repo: https://github.com/gevertex/earth-sun.git
@@ -20,7 +21,7 @@ marker.
 
 ## Files
 
-- `index.html` — the entire app: markup, CSS, and JS in one file (~310 lines)
+- `index.html` — the entire app: markup, CSS, and JS in one file (~510 lines)
 - `README.md` — live site link, deploy steps, local run steps
 - `CLAUDE.md` — this file
 
@@ -31,8 +32,9 @@ python3 -m http.server 8080
 # then visit http://127.0.0.1:8080
 ```
 
-Three.js and the Earth textures load from the unpkg.com CDN. The page needs
-internet access.
+Three.js, `satellite.js`, and the Earth textures load from the unpkg.com CDN.
+Fresh satellite TLEs load from celestrak.org. The page needs internet access.
+Offline, the globe and sun still work; satellites use embedded fallback TLEs.
 
 ## Deploy
 
@@ -50,6 +52,8 @@ GitHub Pages rebuilds the site within a minute or two after the push.
 
 - Three.js 0.160.0 via an import map (unpkg CDN). Uses `OrbitControls` and
   `Line2`/`LineGeometry`/`LineMaterial` from `three/addons/`.
+- `satellite.js` 5.0.0 (unpkg CDN) for SGP4 orbit propagation, loaded with a
+  dynamic `import()` so a CDN failure only disables satellites, not the globe.
 - Globe: `SphereGeometry(10, 256, 256)` (high segment count keeps the
   terrain displacement smooth), `MeshPhongMaterial`, radius `R = 10`.
 - Camera: `PerspectiveCamera(45)`, starts at `(0, 8, 30)`.
@@ -116,13 +120,44 @@ GitHub Pages rebuilds the site within a minute or two after the push.
   covers 0..+182 days. `Line2` with linewidth 2.5. Material resolution is
   set on resize. The path rebuilds once per second (`lastPathSecond` check).
 
+### Satellites (real orbits via SGP4)
+
+- `SATELLITES` holds 12 real satellites (name, NORAD catalog number, and a
+  fallback TLE with a 2026-08 epoch). The set spans LEO, MEO, and GEO with
+  varied inclinations: ISS, CSS (Tianhe), Hubble, NOAA 19, Sentinel-2A,
+  Jason-3, Terra, Aqua, Starlink-1008 (LEO); GPS BIIR-5, Galileo GSAT0101
+  (MEO); GOES-16 (GEO).
+- `refreshTles()` fetches fresh TLEs from Celestrak
+  (`gp.php?CATNR=<id>&FORMAT=tle`) on load and rebuilds if any change. It
+  falls back to the embedded TLEs on failure.
+- Each satellite: `sat.twoline2satrec(line1, line2)` builds a `satrec`;
+  `sat.propagate(satrec, date)` gives the ECI position (km) each frame.
+- Orbit regime by altitude: LEO < 2000 km (`0x6fd3ff`), MEO 2000–35000 km
+  (`0x9dff6f`), GEO above (`0xff6fb3`).
+- `eciToLocal(p)` maps an ECI vector to group-local scene coords:
+  `(x, z, -y) * (R / 6371)`. A `satWorld` group holds every orbit line and
+  dot; `tick()` sets `satWorld.rotation.y = -sat.gstime(now)` (GMST) each
+  frame, which rotates the inertial points into the Earth-fixed view. The
+  dot and its orbit line stay aligned because both live in the group.
+- Orbit path: one full period (`2π / satrec.no`, `satrec.no` in rad/min),
+  180 samples propagated in the inertial frame, drawn as a closed `Line2`
+  ellipse (linewidth 1.4, opacity 0.45).
+- Each satellite has a visible dot (`SphereGeometry(0.3)`) and a larger
+  invisible hover target (`SphereGeometry(1.1)`, `MeshBasicMaterial` with
+  `visible: false`; the raycaster still hits it).
+- Hover: a `pointermove` handler raycasts against the hit targets. On a hit
+  it shows `#sat-tip` (a fixed tooltip at the cursor) with the name and
+  orbit type, scales the dot 2x, and brightens its orbit line.
+
 ### Readout (top-left panel)
 
-UTC time, subsolar latitude, subsolar longitude, solar declination, and the
-equation of time. Updated every frame in `tick()`.
+UTC time, subsolar latitude, subsolar longitude, solar declination, the
+equation of time, and a legend for the sun path and the satellite orbit
+types (LEO/MEO/GEO). Updated every frame in `tick()`.
 
 ## Recent changes (as of 2026-08-22)
 
+- `a838c56` Add real satellites with live SGP4 orbits and hover names
 - `1e2735b` Draw the annual subsolar path at the current time of day
 - `0996d31` Document the GitHub Pages deployment in the README
 - `7561a38` Darken the night side so the terminator is visible
