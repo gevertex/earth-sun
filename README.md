@@ -6,6 +6,12 @@ its true direction so the day/night terminator is visible. It also draws the pat
 subsolar point traces over the year at the current time of day: the past in amber and
 the future in blue, meeting at the current marker.
 
+The page also shows real satellites in their real orbits, propagated live from TLE data
+with the SGP4 model. A curated set of 47 named satellites (ISS, CSS, GPS, Galileo,
+GOES, and more) is drawn with orbit lines, and the full Starlink constellation
+(~10,700 satellites) is drawn as a live cloud of points. Hover any satellite to see its
+name. Two checkboxes in the corner show or hide each layer.
+
 ## Live site
 
 <https://gevertex.github.io/earth-sun/>
@@ -24,8 +30,10 @@ git push
 
 GitHub Pages rebuilds the site within a minute or two after the push.
 
-Note: Three.js and the Earth textures load from the unpkg.com CDN. Visitors need
-internet access.
+Note: Three.js, `satellite.js`, and the Earth textures load from the unpkg.com CDN, and
+satellite TLEs load from celestrak.org. Visitors need internet access. Offline, the globe
+and Sun still work; the satellites fall back to embedded TLEs (the Starlink layer needs
+the live feed and shows `unavailable` without it).
 
 ## Run locally
 

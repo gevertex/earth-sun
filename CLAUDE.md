@@ -161,15 +161,48 @@ GitHub Pages rebuilds the site within a minute or two after the push.
   right on screens under 640px wide) sets `satWorld.visible`. Unchecking
   hides every dot and orbit line and clears any active hover.
 
+### Starlink constellation (full set, live)
+
+- `refreshStarlink()` fetches the whole constellation from Celestrak
+  (`gp.php?GROUP=starlink&FORMAT=tle`, ~10,741 sats) on load and every
+  30 minutes (`STARLINK_REFRESH_MS`). There is no embedded fallback: on
+  fetch failure it keeps the last good points and the readout shows the
+  last good state, or `unavailable` if nothing loaded yet.
+- `parseTleText(text)` splits the TLE text into `{ name, line1, line2 }`
+  records. `buildStarlink(records)` builds the `satrec`s in chunks: 8 ms of
+  `twoline2satrec` per `requestAnimationFrame`, guarded by a generation
+  counter (`slBuildGen`) so a refresh mid-build discards the stale build.
+- All sats render as one `THREE.Points` (one draw call) with a
+  `PointsMaterial` (`vertexColors`, `size 0.07`, `opacity 0.9`,
+  `depthWrite: false`). A manual `boundingSphere` (radius 15) keeps the
+  hover raycast cheap; `frustumCulled` is off.
+- The points live in their own `slWorld` group (a sibling of `satWorld`),
+  so the "show satellites" toggle does not hide them. `tick()` sets
+  `slWorld.rotation.y = -gmst` each frame (the same GMST as `satWorld`),
+  which rotates the inertial positions into the Earth-fixed view.
+- `tickStarlink(now)` propagates the sats in time slices: it advances a
+  cursor through the array, calling `sat.propagate` until it has used 8 ms
+  (`SL_PROPAGATE_BUDGET_MS`), then resumes next frame. Unpropagated sats
+  park far away (1e6) until their turn.
+- Color `SL_COLOR` (`0x9fd8ff`); the hovered sat turns `SL_HOVER`
+  (`0xffe28a`). Hover raycasts the `Points` with
+  `raycaster.params.Points.threshold = 0.25` and rejects dots behind the
+  globe; the tooltip shows the name and `Starlink (LEO)`.
+- Toggle: `#starlink-toggle` (a "show Starlink" checkbox) sets
+  `starlink.points.visible` and clears any active hover.
+
 ### Readout (top-left panel)
 
 UTC time, subsolar latitude, subsolar longitude, solar declination, the
 equation of time, a legend for the sun path and the satellite orbit
-types (LEO/MEO/GEO), and the TLE data status (last update time,
-"updating…", or "embedded fallback"). Updated every frame in `tick()`.
+types (LEO/MEO/GEO), the TLE data status (last update time,
+"updating…", or "embedded fallback"), and the Starlink status (`#starlink`:
+`N sats · updated HH:MM:SS UTC`, or `fetching…`, or `unavailable`, or
+`satellite.js failed to load`). Updated every frame in `tick()`.
 
-## Recent changes (as of 2026-08-22)
+## Recent changes (as of 2026-08-23)
 
+- `08f9290` Add the full Starlink constellation as a live SGP4 point cloud
 - `3573ebc` Add 35 satellites, shrink the marker dot, add a show/hide toggle
 - `f20f0a4` Re-fetch satellite TLEs every 5 minutes while the app runs
 - `a838c56` Add real satellites with live SGP4 orbits and hover names
