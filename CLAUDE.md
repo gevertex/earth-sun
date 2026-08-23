@@ -230,15 +230,25 @@ GitHub Pages rebuilds the site within a minute or two after the push.
 
 ### Readout (top-left panel)
 
-UTC time, subsolar latitude, subsolar longitude, solar declination, the
-equation of time, a legend for the sun path and the satellite orbit
-types (LEO/MEO/GEO), the TLE data status (last update time,
-"updating…", or "embedded fallback"), and the Starlink status (`#starlink`:
-`N sats · updated HH:MM:SS UTC`, or `fetching…`, or `unavailable`, or
-`satellite.js failed to load`). Updated every frame in `tick()`.
+The panel starts collapsed to a one-line summary (`#readout-summary`,
+`Subsolar <lat> · <lon> · HH:MM UTC`). Tapping the line (`#readout-head`,
+`role="button"`; Enter and Space also toggle) shows the full body
+(`#readout-body`). The caret shows `▸` when collapsed, `▾` when expanded.
+The head has `pointer-events: auto` (the rest of the panel stays
+`pointer-events: none` so drags pass through to the globe). On screens
+under 640px wide the panel font drops to 12px so the summary stays on
+one line. The summary updates every frame in `tick()`.
+
+The body shows UTC time, subsolar latitude, subsolar longitude, solar
+declination, the equation of time, a legend for the sun path and the
+satellite orbit types (LEO/MEO/GEO), the TLE data status (last update
+time, "updating…", or "embedded fallback"), and the Starlink status
+(`#starlink`: `N sats · updated HH:MM:SS UTC`, or `fetching…`, or
+`unavailable`, or `satellite.js failed to load`).
 
 ## Recent changes (as of 2026-08-23)
 
+- `b3a91e0` Collapse the readout to a one-line summary, tap to expand
 - `eb8e9d2` Add a location pin from the browser's public IP via IP2GeoAPI
 - `d477164` Fetch TLE data from the satvisor GitHub mirror first
 - `2516030` Add a timeout and mirror fallback to the Starlink TLE fetch

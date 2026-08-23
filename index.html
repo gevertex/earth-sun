@@ -15,6 +15,14 @@
     border-radius: 8px; padding: 10px 14px;
     pointer-events: none; min-width: 250px;
   }
+  #readout-head {
+    display: flex; align-items: baseline; gap: 7px;
+    color: #fff; font-weight: 600; white-space: nowrap;
+    pointer-events: auto; cursor: pointer;
+    user-select: none; touch-action: manipulation;
+  }
+  #readout-head .caret { color: #7f97b8; font-size: 11px; }
+  #readout.collapsed #readout-body { display: none; }
   #readout .title { color: #fff; font-weight: 600; margin-bottom: 4px; }
   #readout .dim { color: #7f97b8; }
   #hint {
@@ -44,6 +52,8 @@
   @media (max-width: 640px) {
     /* the readout panel takes the top of narrow screens; move the toggle down */
     #controls { top: auto; bottom: 40px; }
+    /* keep the one-line summary on one line on narrow screens */
+    #readout { font-size: 12px; }
   }
 </style>
 <script type="importmap">
@@ -58,18 +68,21 @@
 </head>
 <body>
 <div id="app"></div>
-<div id="readout">
-  <div class="title">Subsolar point (where the Sun is overhead)</div>
-  <div>UTC <span id="utc">--:--:--</span></div>
-  <div>Latitude <span id="lat">--</span></div>
-  <div>Longitude <span id="lon">--</span></div>
-  <div>Solar declination <span id="dec">--</span></div>
-  <div class="dim">Equation of time <span id="eot">--</span> min</div>
-  <div class="dim" style="margin-top:6px">Sun path, this time of day:<br><span style="color:#ffb347">━ past</span> &nbsp;·&nbsp; <span style="color:#6fd3ff">━ future</span> &nbsp;(1 yr)</div>
-  <div class="dim" style="margin-top:6px">Satellites, real orbits (hover a dot):<br><span style="color:#6fd3ff">● LEO</span> &nbsp;·&nbsp; <span style="color:#9dff6f">● MEO</span> &nbsp;·&nbsp; <span style="color:#ff6fb3">● GEO</span></div>
-  <div class="dim">TLE data <span id="tle">--</span></div>
-  <div class="dim">Starlink <span id="starlink">--</span></div>
-  <div class="dim"><span style="color:#ff5450">●</span> Your location <span id="myloc">--</span></div>
+<div id="readout" class="collapsed">
+  <div id="readout-head" role="button" tabindex="0"><span id="readout-summary">--</span><span class="caret">▸</span></div>
+  <div id="readout-body">
+    <div class="title">Subsolar point (where the Sun is overhead)</div>
+    <div>UTC <span id="utc">--:--:--</span></div>
+    <div>Latitude <span id="lat">--</span></div>
+    <div>Longitude <span id="lon">--</span></div>
+    <div>Solar declination <span id="dec">--</span></div>
+    <div class="dim">Equation of time <span id="eot">--</span> min</div>
+    <div class="dim" style="margin-top:6px">Sun path, this time of day:<br><span style="color:#ffb347">━ past</span> &nbsp;·&nbsp; <span style="color:#6fd3ff">━ future</span> &nbsp;(1 yr)</div>
+    <div class="dim" style="margin-top:6px">Satellites, real orbits (hover a dot):<br><span style="color:#6fd3ff">● LEO</span> &nbsp;·&nbsp; <span style="color:#9dff6f">● MEO</span> &nbsp;·&nbsp; <span style="color:#ff6fb3">● GEO</span></div>
+    <div class="dim">TLE data <span id="tle">--</span></div>
+    <div class="dim">Starlink <span id="starlink">--</span></div>
+    <div class="dim"><span style="color:#ff5450">●</span> Your location <span id="myloc">--</span></div>
+  </div>
 </div>
 <div id="sat-tip"></div>
 <div id="controls">
@@ -791,6 +804,18 @@ setInterval(refreshStarlink, STARLINK_REFRESH_MS);
 
 const $ = (id) => document.getElementById(id);
 
+// The readout starts collapsed to a one-line summary; tap the line to expand.
+const readout = document.getElementById('readout');
+const readoutHead = document.getElementById('readout-head');
+const readoutCaret = document.querySelector('#readout-head .caret');
+const toggleReadout = () => {
+  readoutCaret.textContent = readout.classList.toggle('collapsed') ? '▸' : '▾';
+};
+readoutHead.addEventListener('click', toggleReadout);
+readoutHead.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleReadout(); }
+});
+
 const tmpMat = new THREE.Matrix4();
 let lastPathSecond = -1;
 
@@ -837,6 +862,8 @@ function tick() {
   }
 
   $('utc').textContent = now.toISOString().slice(11, 19);
+  $('readout-summary').textContent =
+    `Subsolar ${fmtLat(latDeg)} · ${fmtLon(lonDeg)} · ${now.toISOString().slice(11, 16)} UTC`;
   $('lat').textContent = fmtLat(latDeg);
   $('lon').textContent = fmtLon(lonDeg);
   $('dec').textContent = `${latDeg >= 0 ? '+' : ''}${latDeg.toFixed(2)}°`;
