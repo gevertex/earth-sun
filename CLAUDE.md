@@ -19,7 +19,7 @@ public IP via IP2GeoAPI (no location permission prompt).
 - Repo: https://github.com/gevertex/earth-sun.git
 - Hosting: GitHub Pages serves the `main` branch as is. Push to publish.
 - Deployed state: verified 2026-08-23, the live site serves commit
-  `d477164` (GitHub-first TLE fetch with a 12 s timeout).
+  `c1eb424` (location pin from the browser's public IP via IP2GeoAPI).
 
 ## Files
 
