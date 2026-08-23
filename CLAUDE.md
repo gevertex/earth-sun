@@ -170,6 +170,7 @@ types (LEO/MEO/GEO), and the TLE data status (last update time,
 
 ## Recent changes (as of 2026-08-22)
 
+- `3573ebc` Add 35 satellites, shrink the marker dot, add a show/hide toggle
 - `f20f0a4` Re-fetch satellite TLEs every 5 minutes while the app runs
 - `a838c56` Add real satellites with live SGP4 orbits and hover names
 - `1e2735b` Draw the annual subsolar path at the current time of day
