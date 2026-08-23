@@ -128,8 +128,10 @@ GitHub Pages rebuilds the site within a minute or two after the push.
   Jason-3, Terra, Aqua, Starlink-1008 (LEO); GPS BIIR-5, Galileo GSAT0101
   (MEO); GOES-16 (GEO).
 - `refreshTles()` fetches fresh TLEs from Celestrak
-  (`gp.php?CATNR=<id>&FORMAT=tle`) on load and rebuilds if any change. It
-  falls back to the embedded TLEs on failure.
+  (`gp.php?CATNR=<id>&FORMAT=tle`) on load and every 5 minutes while the
+  app runs (`TLE_REFRESH_MS`), and rebuilds if any change. A
+  `visibilitychange` handler re-fetches when the tab returns to view with
+  stale data. It falls back to the embedded TLEs on failure.
 - Each satellite: `sat.twoline2satrec(line1, line2)` builds a `satrec`;
   `sat.propagate(satrec, date)` gives the ECI position (km) each frame.
 - Orbit regime by altitude: LEO < 2000 km (`0x6fd3ff`), MEO 2000–35000 km
@@ -152,8 +154,9 @@ GitHub Pages rebuilds the site within a minute or two after the push.
 ### Readout (top-left panel)
 
 UTC time, subsolar latitude, subsolar longitude, solar declination, the
-equation of time, and a legend for the sun path and the satellite orbit
-types (LEO/MEO/GEO). Updated every frame in `tick()`.
+equation of time, a legend for the sun path and the satellite orbit
+types (LEO/MEO/GEO), and the TLE data status (last update time,
+"updating…", or "embedded fallback"). Updated every frame in `tick()`.
 
 ## Recent changes (as of 2026-08-22)
 

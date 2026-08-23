@@ -54,6 +54,7 @@
   <div class="dim">Equation of time <span id="eot">--</span> min</div>
   <div class="dim" style="margin-top:6px">Sun path, this time of day:<br><span style="color:#ffb347">━ past</span> &nbsp;·&nbsp; <span style="color:#6fd3ff">━ future</span> &nbsp;(1 yr)</div>
   <div class="dim" style="margin-top:6px">Satellites, real orbits (hover a dot):<br><span style="color:#6fd3ff">● LEO</span> &nbsp;·&nbsp; <span style="color:#9dff6f">● MEO</span> &nbsp;·&nbsp; <span style="color:#ff6fb3">● GEO</span></div>
+  <div class="dim">TLE data <span id="tle">--</span></div>
 </div>
 <div id="sat-tip"></div>
 <div id="hint">drag to rotate · scroll to zoom</div>
@@ -333,6 +334,9 @@ function clearSatellites() {
   orbitMats.length = 0;
   raycastTargets.length = 0;
   hovered = null;
+  // A rebuild can happen while the cursor is on a dot: hide the stale tooltip.
+  document.getElementById('sat-tip').style.display = 'none';
+  document.body.style.cursor = '';
 }
 
 function buildSatellites() {
@@ -383,8 +387,16 @@ function buildSatellites() {
 }
 
 // Fetch fresh TLEs from Celestrak and rebuild. Falls back to the embedded TLEs.
+// Runs on load and every TLE_REFRESH_MS while the app runs, so the orbit
+// elements stay current in a long session.
+const TLE_REFRESH_MS = 5 * 60 * 1000;
+let tleRefreshing = false;
+let tleLive = false;      // true once a fetch has succeeded
+let lastTleUpdate = 0;    // ms timestamp of the last successful fetch
+
 async function refreshTles() {
-  if (!sat) return;
+  if (!sat || tleRefreshing) return;
+  tleRefreshing = true;
   const results = await Promise.all(SATELLITES.map(async (def) => {
     try {
       const r = await fetch(`https://celestrak.org/NORAD/elements/gp.php?CATNR=${def.catnr}&FORMAT=tle`);
@@ -395,15 +407,27 @@ async function refreshTles() {
       return l1 && l2 ? { line1: l1, line2: l2 } : null;
     } catch { return null; }
   }));
-  let changed = false;
+  tleRefreshing = false;
+  let fetched = 0, changed = false;
   results.forEach((res, i) => {
-    if (res) { SATELLITES[i].line1 = res.line1; SATELLITES[i].line2 = res.line2; changed = true; }
+    if (!res) return;
+    fetched++;
+    if (res.line1 !== SATELLITES[i].line1 || res.line2 !== SATELLITES[i].line2) changed = true;
+    SATELLITES[i].line1 = res.line1;
+    SATELLITES[i].line2 = res.line2;
   });
   if (changed) buildSatellites();
+  if (fetched > 0) { tleLive = true; lastTleUpdate = Date.now(); }
 }
 
 buildSatellites();
 refreshTles();
+// Live updates: re-fetch while the app runs, and catch up when the tab
+// returns to view (background tabs throttle timers).
+setInterval(refreshTles, TLE_REFRESH_MS);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && Date.now() - lastTleUpdate > TLE_REFRESH_MS) refreshTles();
+});
 
 /* ---------- readout + animation ---------- */
 
@@ -455,6 +479,10 @@ function tick() {
   $('lon').textContent = fmtLon(lonDeg);
   $('dec').textContent = `${latDeg >= 0 ? '+' : ''}${latDeg.toFixed(2)}°`;
   $('eot').textContent = `${eotMin >= 0 ? '+' : ''}${eotMin.toFixed(1)}`;
+  $('tle').textContent = !sat ? 'satellite.js failed to load'
+    : tleRefreshing ? 'updating…'
+    : tleLive ? `updated ${new Date(lastTleUpdate).toISOString().slice(11, 19)} UTC`
+    : 'embedded fallback';
 
   controls.update();
   renderer.render(scene, camera);
