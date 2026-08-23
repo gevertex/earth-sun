@@ -68,10 +68,12 @@
   <div class="dim" style="margin-top:6px">Sun path, this time of day:<br><span style="color:#ffb347">━ past</span> &nbsp;·&nbsp; <span style="color:#6fd3ff">━ future</span> &nbsp;(1 yr)</div>
   <div class="dim" style="margin-top:6px">Satellites, real orbits (hover a dot):<br><span style="color:#6fd3ff">● LEO</span> &nbsp;·&nbsp; <span style="color:#9dff6f">● MEO</span> &nbsp;·&nbsp; <span style="color:#ff6fb3">● GEO</span></div>
   <div class="dim">TLE data <span id="tle">--</span></div>
+  <div class="dim">Starlink <span id="starlink">--</span></div>
 </div>
 <div id="sat-tip"></div>
 <div id="controls">
-  <label><input type="checkbox" id="sat-toggle" checked> show satellites</label>
+  <label><input type="checkbox" id="sat-toggle" checked> show satellites</label><br>
+  <label><input type="checkbox" id="starlink-toggle" checked> show Starlink</label>
 </div>
 <div id="hint">drag to rotate · scroll to zoom</div>
 <script type="module">
@@ -366,6 +368,10 @@ function eciToLocal(p) {
 
 const satWorld = new THREE.Group();
 scene.add(satWorld);
+// The Starlink points live in their own GMST-rotating group so the
+// "show satellites" toggle (satWorld.visible) does not hide them too.
+const slWorld = new THREE.Group();
+scene.add(slWorld);
 const dotGeo = new THREE.SphereGeometry(0.1, 10, 10);
 const hitGeo = new THREE.SphereGeometry(1.1, 8, 8);
 const sats = [];            // { name, satrec, dot, hit, line, lineMat, type, baseOpacity }
@@ -477,8 +483,187 @@ refreshTles();
 // returns to view (background tabs throttle timers).
 setInterval(refreshTles, TLE_REFRESH_MS);
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && Date.now() - lastTleUpdate > TLE_REFRESH_MS) refreshTles();
+  if (document.visibilityState !== 'visible') return;
+  if (Date.now() - lastTleUpdate > TLE_REFRESH_MS) refreshTles();
+  if (Date.now() - starlink.lastUpdate > STARLINK_REFRESH_MS) refreshStarlink();
 });
+
+/* ---------- Starlink: the full constellation, one dot per satellite ---------- */
+// The set is too large for per-satellite orbit lines, so it renders as one
+// THREE.Points cloud. Each frame propagates a time-sliced chunk of the set,
+// so the frame rate holds on slow machines. Celestrak rate-limits, so the
+// set refreshes every 30 min (the 47 named satellites refresh every 5 min).
+const STARLINK_TLE_URL = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle';
+const STARLINK_REFRESH_MS = 30 * 60 * 1000;
+const SL_PROPAGATE_BUDGET_MS = 8;
+const SL_COLOR = 0x9fd8ff;
+const SL_HOVER = 0xffe28a;
+const slCol = (c, shift) => ((c >> shift) & 255) / 255;
+
+const starlink = {
+  sats: [],          // { name, satrec, idx, type }
+  points: null,      // THREE.Points, in satWorld
+  pos: null,         // Float32Array of group-local positions
+  colors: null,      // Float32Array of per-point colors
+  cursor: 0,         // time-slice cursor into sats
+  refreshing: false,
+  live: false,
+  lastUpdate: 0,
+};
+let slBuildGen = 0;  // invalidates a chunked build a newer build replaces
+
+// Celestrak TLE text: a name line, then "1 ..." and "2 ...", per satellite.
+function parseTleText(text) {
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const out = [];
+  for (let i = 0; i < lines.length - 1; i++) {
+    if (lines[i].startsWith('1 ') && lines[i + 1].startsWith('2 ')) {
+      const prev = i > 0 ? lines[i - 1] : '';
+      const name = prev && !prev.startsWith('1 ') && !prev.startsWith('2 ')
+        ? prev : `SAT ${lines[i].slice(2, 7).trim()}`;
+      out.push({ name, line1: lines[i], line2: lines[i + 1] });
+      i++;
+    }
+  }
+  return out;
+}
+
+function clearStarlink() {
+  if (starlink.points) {
+    slWorld.remove(starlink.points);
+    starlink.points.geometry.dispose();
+    starlink.points.material.dispose();
+  }
+  starlink.sats.length = 0;
+  starlink.points = null;
+  starlink.pos = null;
+  starlink.colors = null;
+  starlink.cursor = 0;
+  hovered = null;
+  document.getElementById('sat-tip').style.display = 'none';
+  document.body.style.cursor = '';
+}
+
+// Build satrecs in ~8 ms chunks across frames: 10,000+ TLEs take over a
+// second to parse in one go.
+function buildStarlink(records) {
+  clearStarlink();
+  const gen = ++slBuildGen;
+  const sats = [];
+  let i = 0;
+  const step = () => {
+    if (gen !== slBuildGen) return; // a newer build took over
+    const t0 = performance.now();
+    while (i < records.length && performance.now() - t0 < 8) {
+      const r = records[i++];
+      try {
+        sats.push({ name: r.name, satrec: sat.twoline2satrec(r.line1, r.line2), idx: sats.length, type: 'Starlink (LEO)' });
+      } catch { /* skip the bad TLE */ }
+    }
+    if (i < records.length) requestAnimationFrame(step);
+    else if (gen === slBuildGen) initStarlinkPoints(sats);
+  };
+  step();
+}
+
+function initStarlinkPoints(sats) {
+  const n = sats.length;
+  const pos = new Float32Array(n * 3);
+  const colors = new THREE.Color(SL_COLOR);
+  const colorsArr = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    pos[i * 3] = pos[i * 3 + 1] = pos[i * 3 + 2] = 1e6; // park until propagated
+    colorsArr[i * 3] = colors.r;
+    colorsArr[i * 3 + 1] = colors.g;
+    colorsArr[i * 3 + 2] = colors.b;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colorsArr, 3));
+  // Orbits sit just above the globe; a fixed sphere keeps the raycast cheap.
+  geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 15);
+  const points = new THREE.Points(geo, new THREE.PointsMaterial({
+    size: 0.07, vertexColors: true, transparent: true, opacity: 0.9, depthWrite: false,
+  }));
+  points.frustumCulled = false;
+  slWorld.add(points);
+  starlink.sats = sats;
+  starlink.points = points;
+  starlink.pos = pos;
+  starlink.colors = colorsArr;
+  starlink.cursor = 0;
+  updateStarlinkReadout();
+}
+
+// Propagate a time-sliced chunk of the constellation. Each satellite updates
+// a few times per second; the stagger is below what the eye sees.
+function tickStarlink(now) {
+  const sats = starlink.sats;
+  if (!starlink.points || sats.length === 0) return;
+  const pos = starlink.pos;
+  const n = sats.length;
+  const t0 = performance.now();
+  let i = starlink.cursor;
+  while (performance.now() - t0 < SL_PROPAGATE_BUDGET_MS) {
+    const pv = sat.propagate(sats[i].satrec, now);
+    const o = i * 3;
+    if (pv && pv.position && isFinite(pv.position.x)) {
+      pos[o] = pv.position.x * KM_TO_SCENE;
+      pos[o + 1] = pv.position.z * KM_TO_SCENE;
+      pos[o + 2] = -pv.position.y * KM_TO_SCENE;
+    } else {
+      pos[o] = pos[o + 1] = pos[o + 2] = 1e6;
+    }
+    i = (i + 1) % n;
+  }
+  starlink.cursor = i;
+  starlink.points.geometry.attributes.position.needsUpdate = true;
+}
+
+function setSlColor(i, c) {
+  const col = new THREE.Color(c);
+  const o = i * 3;
+  starlink.colors[o] = col.r;
+  starlink.colors[o + 1] = col.g;
+  starlink.colors[o + 2] = col.b;
+  starlink.points.geometry.attributes.color.needsUpdate = true;
+}
+
+async function refreshStarlink() {
+  if (!sat || starlink.refreshing) return;
+  starlink.refreshing = true;
+  updateStarlinkReadout();
+  try {
+    const r = await fetch(STARLINK_TLE_URL);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const records = parseTleText(await r.text());
+    if (records.length === 0) throw new Error('empty TLE set');
+    buildStarlink(records);
+    starlink.live = true;
+    starlink.lastUpdate = Date.now();
+  } catch {
+    // keep the old points; the readout shows the last good state
+  } finally {
+    starlink.refreshing = false;
+    updateStarlinkReadout();
+  }
+}
+
+function updateStarlinkReadout() {
+  const el = document.getElementById('starlink');
+  if (!sat) { el.textContent = 'satellite.js failed to load'; return; }
+  if (starlink.sats.length > 0) {
+    const when = new Date(starlink.lastUpdate).toISOString().slice(11, 19);
+    el.textContent = `${starlink.sats.length.toLocaleString('en-US')} sats · updated ${when} UTC`;
+  } else if (starlink.refreshing) {
+    el.textContent = 'fetching…';
+  } else {
+    el.textContent = 'unavailable';
+  }
+}
+
+refreshStarlink();
+setInterval(refreshStarlink, STARLINK_REFRESH_MS);
 
 /* ---------- readout + animation ---------- */
 
@@ -514,7 +699,9 @@ function tick() {
 
   // Move each satellite along its orbit; rotate the group to the Earth-fixed view.
   if (sat) {
-    satWorld.rotation.y = -sat.gstime(now);
+    const gmst = sat.gstime(now);
+    satWorld.rotation.y = -gmst;
+    slWorld.rotation.y = -gmst;
     for (const s of sats) {
       const pv = sat.propagate(s.satrec, now);
       if (pv && pv.position) {
@@ -523,6 +710,7 @@ function tick() {
         s.hit.position.copy(p);
       }
     }
+    tickStarlink(now);
   }
 
   $('utc').textContent = now.toISOString().slice(11, 19);
@@ -557,23 +745,42 @@ const satTip = document.getElementById('sat-tip');
 function setHover(s) {
   if (s === hovered) return;
   if (hovered) {
-    hovered.dot.scale.setScalar(1);
-    hovered.lineMat.opacity = hovered.baseOpacity;
+    if (hovered.dot) {
+      hovered.dot.scale.setScalar(1);
+      hovered.lineMat.opacity = hovered.baseOpacity;
+    } else {
+      setSlColor(hovered.idx, SL_COLOR);
+    }
   }
   hovered = s;
   if (hovered) {
-    hovered.dot.scale.setScalar(2);
-    hovered.lineMat.opacity = 0.9;
+    if (hovered.dot) {
+      hovered.dot.scale.setScalar(2);
+      hovered.lineMat.opacity = 0.9;
+    } else {
+      setSlColor(hovered.idx, SL_HOVER);
+    }
   }
 }
 
 addEventListener('pointermove', (e) => {
-  if (!sat || !satWorld.visible || raycastTargets.length === 0) { setHover(null); satTip.style.display = 'none'; return; }
+  if (!sat || !satWorld.visible) { setHover(null); satTip.style.display = 'none'; return; }
   pointer.x = (e.clientX / innerWidth) * 2 - 1;
   pointer.y = -(e.clientY / innerHeight) * 2 + 1;
   raycaster.setFromCamera(pointer, camera);
+  let s = null;
   const hits = raycaster.intersectObjects(raycastTargets, false);
-  const s = hits.length ? hits[0].object.userData.sat : null;
+  if (hits.length) {
+    s = hits[0].object.userData.sat;
+  } else if (starlink.points && starlink.points.visible && starlink.sats.length) {
+    raycaster.params.Points.threshold = 0.25;
+    const ph = raycaster.intersectObject(starlink.points, false);
+    if (ph.length) {
+      // Reject dots hidden behind the globe.
+      const gh = raycaster.intersectObject(globe, false);
+      if (!gh.length || gh[0].distance > ph[0].distance) s = starlink.sats[ph[0].index];
+    }
+  }
   setHover(s);
   if (s) {
     satTip.style.display = 'block';
@@ -592,6 +799,11 @@ const satToggle = document.getElementById('sat-toggle');
 satToggle.addEventListener('change', () => {
   satWorld.visible = satToggle.checked;
   if (!satToggle.checked) { setHover(null); satTip.style.display = 'none'; }
+});
+const starlinkToggle = document.getElementById('starlink-toggle');
+starlinkToggle.addEventListener('change', () => {
+  if (starlink.points) starlink.points.visible = starlinkToggle.checked;
+  if (!starlinkToggle.checked) { setHover(null); satTip.style.display = 'none'; }
 });
 
 </script>
