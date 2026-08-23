@@ -493,7 +493,13 @@ document.addEventListener('visibilitychange', () => {
 // THREE.Points cloud. Each frame propagates a time-sliced chunk of the set,
 // so the frame rate holds on slow machines. Celestrak rate-limits, so the
 // set refreshes every 30 min (the 47 named satellites refresh every 5 min).
+// A failed refresh retries after 60 s; each fetch times out after 45 s and
+// falls back to a mirror of the Celestrak set.
 const STARLINK_TLE_URL = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle';
+// Fallback mirror of the same Celestrak set, updated every few hours.
+const STARLINK_TLE_FALLBACK_URL = 'https://raw.githubusercontent.com/satvisorcom/satvisor-data/master/celestrak/tle/starlink.tle';
+const STARLINK_FETCH_TIMEOUT_MS = 45 * 1000;
+const STARLINK_RETRY_MS = 60 * 1000;
 const STARLINK_REFRESH_MS = 30 * 60 * 1000;
 const SL_PROPAGATE_BUDGET_MS = 8;
 const SL_COLOR = 0x9fd8ff;
@@ -502,7 +508,7 @@ const slCol = (c, shift) => ((c >> shift) & 255) / 255;
 
 const starlink = {
   sats: [],          // { name, satrec, idx, type }
-  points: null,      // THREE.Points, in satWorld
+  points: null,      // THREE.Points, in slWorld
   pos: null,         // Float32Array of group-local positions
   colors: null,      // Float32Array of per-point colors
   cursor: 0,         // time-slice cursor into sats
@@ -629,20 +635,45 @@ function setSlColor(i, c) {
   starlink.points.geometry.attributes.color.needsUpdate = true;
 }
 
+// Celestrak is the primary source; the mirror covers a slow or blocked
+// Celestrak. Each fetch has a timeout, so a hung response fails over
+// instead of holding the readout on "fetching…" forever.
+async function fetchStarlinkTle() {
+  for (const url of [STARLINK_TLE_URL, STARLINK_TLE_FALLBACK_URL]) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), STARLINK_FETCH_TIMEOUT_MS);
+    try {
+      const r = await fetch(url, { signal: ctrl.signal });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const records = parseTleText(await r.text());
+      if (records.length === 0) throw new Error('empty TLE set');
+      return records;
+    } catch { /* try the next source */ } finally {
+      clearTimeout(timer);
+    }
+  }
+  throw new Error('all Starlink TLE sources failed');
+}
+
+let slRetryTimer = 0;
+function scheduleStarlinkRetry() {
+  clearTimeout(slRetryTimer);
+  slRetryTimer = setTimeout(refreshStarlink, STARLINK_RETRY_MS);
+}
+
 async function refreshStarlink() {
   if (!sat || starlink.refreshing) return;
   starlink.refreshing = true;
   updateStarlinkReadout();
   try {
-    const r = await fetch(STARLINK_TLE_URL);
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const records = parseTleText(await r.text());
-    if (records.length === 0) throw new Error('empty TLE set');
+    const records = await fetchStarlinkTle();
     buildStarlink(records);
     starlink.live = true;
     starlink.lastUpdate = Date.now();
+    clearTimeout(slRetryTimer); // success: the 30 min cycle resumes
   } catch {
     // keep the old points; the readout shows the last good state
+    scheduleStarlinkRetry();
   } finally {
     starlink.refreshing = false;
     updateStarlinkReadout();
