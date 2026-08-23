@@ -22,12 +22,23 @@
     font: 12px/1.4 system-ui, sans-serif; color: #6d84a3;
     pointer-events: none;
   }
+  #sat-tip {
+    position: fixed; top: 0; left: 0; display: none; z-index: 10;
+    pointer-events: none; white-space: nowrap;
+    font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: #cfe8ff; background: rgba(8, 14, 26, 0.92);
+    border: 1px solid rgba(120, 170, 255, 0.4);
+    border-radius: 6px; padding: 5px 9px;
+  }
+  #sat-tip .name { color: #fff; font-weight: 600; }
+  #sat-tip .dim { color: #7f97b8; }
 </style>
 <script type="importmap">
 {
   "imports": {
     "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+    "satellite.js": "https://unpkg.com/satellite.js@5.0.0/dist/satellite.es.js"
   }
 }
 </script>
@@ -42,7 +53,9 @@
   <div>Solar declination <span id="dec">--</span></div>
   <div class="dim">Equation of time <span id="eot">--</span> min</div>
   <div class="dim" style="margin-top:6px">Sun path, this time of day:<br><span style="color:#ffb347">━ past</span> &nbsp;·&nbsp; <span style="color:#6fd3ff">━ future</span> &nbsp;(1 yr)</div>
+  <div class="dim" style="margin-top:6px">Satellites, real orbits (hover a dot):<br><span style="color:#6fd3ff">● LEO</span> &nbsp;·&nbsp; <span style="color:#9dff6f">● MEO</span> &nbsp;·&nbsp; <span style="color:#ff6fb3">● GEO</span></div>
 </div>
+<div id="sat-tip"></div>
 <div id="hint">drag to rotate · scroll to zoom</div>
 <script type="module">
 import * as THREE from 'three';
@@ -260,6 +273,138 @@ function buildSunPath(now) {
   pathLine.future.computeLineDistances();
 }
 
+/* ---------- satellites: real orbits via SGP4 (satellite.js) ---------- */
+// Loaded dynamically so a CDN failure only disables satellites, not the globe.
+const sat = await import('satellite.js').catch(() => null);
+
+const EARTH_RADIUS_KM = 6371;
+const KM_TO_SCENE = R / EARTH_RADIUS_KM;
+
+// Real satellites: name, NORAD catalog number, and a fallback TLE (epoch 2026-08).
+// Fresh TLEs are fetched from Celestrak on load; the fallback keeps orbits working
+// if the fetch fails.
+const SATELLITES = [
+  { name: 'ISS (ZARYA)', name2: 'ZARYA', catnr: 25544, line1: '1 25544U 98067A   26234.50053383  .00009133  00000+0  17025-3 0  9997', line2: '2 25544  51.6331 331.8814 0007668  72.6488 287.5339 15.49570248582031' },
+  { name: 'CSS (TIANHE)', catnr: 48274, line1: '1 48274U 21035A   26234.46683157  .00014340  00000+0  18184-3 0  9999', line2: '2 48274  41.4688 279.6646 0001556 255.0784 104.9883 15.59157790303510' },
+  { name: 'HUBBLE', catnr: 20580, line1: '1 20580U 90037B   26234.62763700  .00005984  00000+0  18408-3 0  9991', line2: '2 20580  28.4738 346.2416 0002063 150.3073 209.7640 15.31421310798761' },
+  { name: 'NOAA 19', catnr: 33591, line1: '1 33591U 09005A   26234.58969731  .00000005  00000+0  26610-4 0  9993', line2: '2 33591  98.9474 305.4971 0013475 198.3441 161.7247 14.13482941903864' },
+  { name: 'SENTINEL-2A', catnr: 40697, line1: '1 40697U 15028A   26234.64824256  .00001698  00000+0  66441-3 0  9993', line2: '2 40697  98.5642 308.5426 0001446  83.6589 276.4758 14.30817207583237' },
+  { name: 'JASON-3', catnr: 41240, line1: '1 41240U 16002A   26234.64351578 -.00000043  00000+0  77213-4 0  9997', line2: '2 41240  66.0446 346.1162 0008296 267.4347  92.5722 12.87626358495801' },
+  { name: 'TERRA', catnr: 25994, line1: '1 25994U 99068A   26234.60019697  .00000275  00000+0  64813-4 0  9995', line2: '2 25994  97.9406 281.4964 0003021  47.3925 112.8934 14.61146993419305' },
+  { name: 'AQUA', catnr: 27424, line1: '1 27424U 02022A   26234.66015816  .00000614  00000+0  13188-3 0  9999', line2: '2 27424  98.4347 205.2938 0001811  85.9128  87.8197 14.62173921292985' },
+  { name: 'STARLINK-1008', catnr: 44714, line1: '1 44714U 19074B   26234.17284867  .00077595  00000+0  89842-3 0  9997', line2: '2 44714  53.1481 110.2629 0005172  75.9267 284.2321 15.61165912374481' },
+  { name: 'GPS BIIR-5 (PRN 22)', catnr: 26407, line1: '1 26407U 00040A   26233.86206892  .00000056  00000+0  00000+0 0  9999', line2: '2 26407  54.8436 212.5546 0119276 303.3328 239.9019  2.00558243191265' },
+  { name: 'GALILEO (GSAT0101)', catnr: 37846, line1: '1 37846U 11060A   26231.78617055 -.00000108  00000+0  00000+0 0  9997', line2: '2 37846  56.9695 340.0379 0001315  73.5474 286.4867  1.70475811 92204' },
+  { name: 'GOES-16', catnr: 41866, line1: '1 41866U 16071A   26234.60200672 -.00000093  00000+0  00000+0 0  9991', line2: '2 41866   0.4971  84.9997 0001247 103.6337 254.2661  1.00273212 35766' },
+];
+
+// Orbit regime by altitude: LEO < 2000 km, MEO 2000-35000 km, GEO above.
+const TYPE_COLOR = { LEO: 0x6fd3ff, MEO: 0x9dff6f, GEO: 0xff6fb3 };
+function orbitType(altKm) {
+  if (altKm < 2000) return 'LEO';
+  if (altKm < 35000) return 'MEO';
+  return 'GEO';
+}
+
+// ECI position (km) -> group-local coords. The group is rotated by -GMST each
+// frame, which turns these inertial points into the Earth-fixed view.
+function eciToLocal(p) {
+  return new THREE.Vector3(p.x, p.z, -p.y).multiplyScalar(KM_TO_SCENE);
+}
+
+const satWorld = new THREE.Group();
+scene.add(satWorld);
+const dotGeo = new THREE.SphereGeometry(0.3, 12, 12);
+const hitGeo = new THREE.SphereGeometry(1.1, 8, 8);
+const sats = [];            // { name, satrec, dot, hit, line, lineMat, type, baseOpacity }
+const orbitMats = [];       // orbit LineMaterials, for resolution updates on resize
+const raycastTargets = [];  // hit meshes, for hover
+let hovered = null;         // the satellite under the cursor, if any
+
+function clearSatellites() {
+  for (const s of sats) {
+    satWorld.remove(s.dot, s.hit, s.line);
+    s.dot.material.dispose();
+    s.hit.material.dispose();
+    s.line.geometry.dispose();
+    s.lineMat.dispose();
+  }
+  sats.length = 0;
+  orbitMats.length = 0;
+  raycastTargets.length = 0;
+  hovered = null;
+}
+
+function buildSatellites() {
+  if (!sat) return;
+  clearSatellites();
+  const now = new Date();
+  for (const def of SATELLITES) {
+    let rec;
+    try { rec = sat.twoline2satrec(def.line1, def.line2); }
+    catch { continue; }
+    const pv = sat.propagate(rec, now);
+    if (!pv || !pv.position) continue;
+
+    const altKm = eciToLocal(pv.position).length() / KM_TO_SCENE - EARTH_RADIUS_KM;
+    const type = orbitType(altKm);
+    const color = TYPE_COLOR[type];
+
+    // Visible dot plus a larger invisible hover target, in group-local coords.
+    const dot = new THREE.Mesh(dotGeo, new THREE.MeshBasicMaterial({ color }));
+    dot.position.copy(eciToLocal(pv.position));
+    const hit = new THREE.Mesh(hitGeo, new THREE.MeshBasicMaterial({ visible: false }));
+    hit.position.copy(dot.position);
+
+    // Orbit path: one full period in the inertial frame, a closed ellipse.
+    const periodMin = (2 * Math.PI) / rec.no;
+    const N = 180;
+    const pts = [];
+    for (let i = 0; i <= N; i++) {
+      const t = new Date(now.getTime() + (i / N) * periodMin * 60000);
+      const pp = sat.propagate(rec, t);
+      if (pp && pp.position) pts.push(eciToLocal(pp.position).toArray());
+    }
+    const geo = new LineGeometry();
+    geo.setPositions(pts.flat());
+    const lineMat = new LineMaterial({ color, linewidth: 1.4, transparent: true, opacity: 0.45 });
+    lineMat.resolution.set(innerWidth, innerHeight);
+    const line = new Line2(geo, lineMat);
+    line.computeLineDistances();
+
+    satWorld.add(dot, hit, line);
+    orbitMats.push(lineMat);
+    raycastTargets.push(hit);
+    const s = { name: def.name, satrec: rec, dot, hit, line, lineMat, type, baseOpacity: 0.45 };
+    dot.userData.sat = s;
+    hit.userData.sat = s;
+    sats.push(s);
+  }
+}
+
+// Fetch fresh TLEs from Celestrak and rebuild. Falls back to the embedded TLEs.
+async function refreshTles() {
+  if (!sat) return;
+  const results = await Promise.all(SATELLITES.map(async (def) => {
+    try {
+      const r = await fetch(`https://celestrak.org/NORAD/elements/gp.php?CATNR=${def.catnr}&FORMAT=tle`);
+      if (!r.ok) return null;
+      const lines = (await r.text()).split('\n').map((l) => l.trim()).filter(Boolean);
+      const l1 = lines.find((l) => l.startsWith('1 '));
+      const l2 = lines.find((l) => l.startsWith('2 '));
+      return l1 && l2 ? { line1: l1, line2: l2 } : null;
+    } catch { return null; }
+  }));
+  let changed = false;
+  results.forEach((res, i) => {
+    if (res) { SATELLITES[i].line1 = res.line1; SATELLITES[i].line2 = res.line2; changed = true; }
+  });
+  if (changed) buildSatellites();
+}
+
+buildSatellites();
+refreshTles();
+
 /* ---------- readout + animation ---------- */
 
 const $ = (id) => document.getElementById(id);
@@ -292,6 +437,19 @@ function tick() {
     buildSunPath(now);
   }
 
+  // Move each satellite along its orbit; rotate the group to the Earth-fixed view.
+  if (sat) {
+    satWorld.rotation.y = -sat.gstime(now);
+    for (const s of sats) {
+      const pv = sat.propagate(s.satrec, now);
+      if (pv && pv.position) {
+        const p = eciToLocal(pv.position);
+        s.dot.position.copy(p);
+        s.hit.position.copy(p);
+      }
+    }
+  }
+
   $('utc').textContent = now.toISOString().slice(11, 19);
   $('lat').textContent = fmtLat(latDeg);
   $('lon').textContent = fmtLon(lonDeg);
@@ -309,6 +467,45 @@ addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
   for (const m of Object.values(pathMat)) m.resolution.set(innerWidth, innerHeight);
+  for (const m of orbitMats) m.resolution.set(innerWidth, innerHeight);
+});
+
+/* ---------- hover: show the satellite name under the cursor ---------- */
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+const satTip = document.getElementById('sat-tip');
+
+function setHover(s) {
+  if (s === hovered) return;
+  if (hovered) {
+    hovered.dot.scale.setScalar(1);
+    hovered.lineMat.opacity = hovered.baseOpacity;
+  }
+  hovered = s;
+  if (hovered) {
+    hovered.dot.scale.setScalar(2);
+    hovered.lineMat.opacity = 0.9;
+  }
+}
+
+addEventListener('pointermove', (e) => {
+  if (!sat || raycastTargets.length === 0) { setHover(null); satTip.style.display = 'none'; return; }
+  pointer.x = (e.clientX / innerWidth) * 2 - 1;
+  pointer.y = -(e.clientY / innerHeight) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObjects(raycastTargets, false);
+  const s = hits.length ? hits[0].object.userData.sat : null;
+  setHover(s);
+  if (s) {
+    satTip.style.display = 'block';
+    satTip.style.left = (e.clientX + 14) + 'px';
+    satTip.style.top = (e.clientY + 14) + 'px';
+    satTip.innerHTML = `<span class="name">${s.name}</span><br><span class="dim">${s.type}</span>`;
+    document.body.style.cursor = 'pointer';
+  } else {
+    satTip.style.display = 'none';
+    document.body.style.cursor = '';
+  }
 });
 </script>
 </body>
