@@ -12,6 +12,10 @@ GOES, and more) is drawn with orbit lines, and the full Starlink constellation
 (~10,700 satellites) is drawn as a live cloud of points. Hover any satellite to see its
 name. Two checkboxes in the corner show or hide each layer.
 
+The page also paints a pin where you are, resolved from your browser's public IP
+address via IP2GeoAPI. No location permission prompt: the lookup uses the IP,
+not the GPS.
+
 ## Live site
 
 <https://gevertex.github.io/earth-sun/>
@@ -34,7 +38,8 @@ Note: Three.js, `satellite.js`, and the Earth textures load from the unpkg.com C
 Satellite TLEs load from the satvisor GitHub mirror of Celestrak data. Visitors
 need internet access. Offline, the globe and Sun still work; the named satellites
 fall back to embedded TLEs (the Starlink layer needs the live feed and shows
-`unavailable` without it).
+`unavailable` without it). The location pin needs the IP2GeoAPI lookup and shows
+`unavailable` without it.
 
 ## Run locally
 

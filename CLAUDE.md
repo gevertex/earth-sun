@@ -12,6 +12,8 @@ draws the path the subsolar point traces over one year at the current time
 of day: the past in amber, the future in blue, meeting at the current
 marker. The app also shows real satellites in their real orbits, propagated
 live from TLE data with the SGP4 model; hovering a satellite shows its name.
+The app also paints a pin where the user is, resolved from the browser's
+public IP via IP2GeoAPI (no location permission prompt).
 
 - Live site: https://gevertex.github.io/earth-sun/
 - Repo: https://github.com/gevertex/earth-sun.git
@@ -35,7 +37,8 @@ python3 -m http.server 8080
 Three.js, `satellite.js`, and the Earth textures load from the unpkg.com CDN.
 Fresh satellite TLEs load from the satvisor GitHub mirror of Celestrak data
 (Celestrak is the fallback). The page needs internet access. Offline, the
-globe and sun still work; named satellites use embedded fallback TLEs.
+globe and sun still work; named satellites use embedded fallback TLEs; the
+location pin shows `unavailable`.
 
 ## Deploy
 
@@ -120,6 +123,27 @@ GitHub Pages rebuilds the site within a minute or two after the push.
   `past` (amber `0xffb347`) covers -182..0 days, `future` (blue `0x6fd3ff`)
   covers 0..+182 days. `Line2` with linewidth 2.5. Material resolution is
   set on resize. The path rebuilds once per second (`lastPathSecond` check).
+
+### Your location pin (IP2GeoAPI)
+
+- `fetchMyLocation()` runs once on load. It fetches
+  `https://api.ip2geoapi.com/ip/check?key=...` (`IP2GEO_API_KEY`). The
+  service resolves the browser's public IP to a position. No location
+  permission prompt: the lookup uses the IP, not the GPS. The fetch aborts
+  after 12 s (`LOC_FETCH_TIMEOUT_MS`).
+- On success, `myLoc` holds `{ latDeg, lonDeg, city, region, country }` and
+  `myLocState` is `'ok'`. `tick()` calls `placePin()` every frame so the pin
+  base follows the terrain height once the topology texture loads.
+- The pin is a `THREE.Group` (red `0xff5450`): a thin cylinder (the needle,
+  0.7 long, base at the surface) and a sphere head (radius 0.22) at the tip.
+  `placePin` puts the base at `surfaceRadiusAt(u, v)` and orients the group
+  with `quaternion.setFromUnitVectors((0,1,0), dir)`.
+- Readout line "Your location" (`#myloc`): `locating…` while the fetch runs,
+  then `City, Region, Country · lat, lon`, or `unavailable` on failure (bad
+  key, network error, timeout, missing coordinates). On failure the pin stays
+  hidden.
+- The API key is embedded in the page: the static site has no backend. The
+  free plan allows 100,000 lookups per month.
 
 ### Satellites (real orbits via SGP4)
 
@@ -215,6 +239,7 @@ types (LEO/MEO/GEO), the TLE data status (last update time,
 
 ## Recent changes (as of 2026-08-23)
 
+- `eb8e9d2` Add a location pin from the browser's public IP via IP2GeoAPI
 - `d477164` Fetch TLE data from the satvisor GitHub mirror first
 - `2516030` Add a timeout and mirror fallback to the Starlink TLE fetch
 - `08f9290` Add the full Starlink constellation as a live SGP4 point cloud
