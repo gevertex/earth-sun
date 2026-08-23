@@ -17,7 +17,7 @@ live from TLE data with the SGP4 model; hovering a satellite shows its name.
 - Repo: https://github.com/gevertex/earth-sun.git
 - Hosting: GitHub Pages serves the `main` branch as is. Push to publish.
 - Deployed state: verified 2026-08-22, the live site serves commit
-  `f20f0a4` (the live TLE refresh is present).
+  `e23a193` (the 47-satellite set and the show/hide toggle are present).
 
 ## Files
 
