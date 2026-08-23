@@ -69,6 +69,7 @@
   <div class="dim" style="margin-top:6px">Satellites, real orbits (hover a dot):<br><span style="color:#6fd3ff">● LEO</span> &nbsp;·&nbsp; <span style="color:#9dff6f">● MEO</span> &nbsp;·&nbsp; <span style="color:#ff6fb3">● GEO</span></div>
   <div class="dim">TLE data <span id="tle">--</span></div>
   <div class="dim">Starlink <span id="starlink">--</span></div>
+  <div class="dim"><span style="color:#ff5450">●</span> Your location <span id="myloc">--</span></div>
 </div>
 <div id="sat-tip"></div>
 <div id="controls">
@@ -239,6 +240,9 @@ function surfaceRadiusAt(u, v) {
   return R + (hData[(y * hW + x) * 4] / 255) * DISPLACEMENT;
 }
 
+const fmtLat = (v) => `${Math.abs(v).toFixed(2)}° ${v >= 0 ? 'N' : 'S'}`;
+const fmtLon = (v) => `${Math.abs(v).toFixed(2)}° ${v >= 0 ? 'E' : 'W'}`;
+
 // Sun: small sphere + the directional light that creates the day/night terminator.
 const sunMesh = new THREE.Mesh(
   new THREE.SphereGeometry(1.6, 24, 24),
@@ -260,6 +264,69 @@ scene.add(marker);
 const lineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
 const centerLine = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: 0xffd24a, transparent: true, opacity: 0.55 }));
 scene.add(centerLine);
+
+/* ---------- your location: a pin at the IP-geolocated position ---------- */
+// IP2GeoAPI (ip2geoapi.com) resolves the browser's public IP to a position.
+// No location permission prompt: the lookup uses the IP, not the GPS.
+const PIN_COLOR = 0xff5450;
+const pin = new THREE.Group();
+{
+  const mat = new THREE.MeshBasicMaterial({ color: PIN_COLOR });
+  const needle = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.7, 8), mat);
+  needle.position.y = 0.35; // base at the surface, head at +0.7
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 16), mat);
+  head.position.y = 0.7;
+  pin.add(needle, head);
+}
+pin.visible = false;
+scene.add(pin);
+
+const PIN_UP = new THREE.Vector3(0, 1, 0);
+function placePin(latDeg, lonDeg) {
+  const r = surfaceRadiusAt((lonDeg + 180) / 360, (latDeg + 90) / 180);
+  const dir = latLonToVec3(latDeg, lonDeg, 1);
+  pin.position.copy(dir).multiplyScalar(r);
+  pin.quaternion.setFromUnitVectors(PIN_UP, dir);
+  pin.visible = true;
+}
+
+const IP2GEO_API_KEY = 'f7126251e3400f82ef36cebb0856fb04';
+const IP2GEO_CHECK_URL = `https://api.ip2geoapi.com/ip/check?key=${IP2GEO_API_KEY}`;
+const LOC_FETCH_TIMEOUT_MS = 12 * 1000;
+let myLoc = null;          // { latDeg, lonDeg, city, region, country }
+let myLocState = 'pending'; // 'pending' | 'ok' | 'failed'
+
+function updateMyLocReadout() {
+  const el = document.getElementById('myloc');
+  if (myLocState === 'ok' && myLoc) {
+    const place = [myLoc.city, myLoc.region, myLoc.country].filter(Boolean).join(', ');
+    el.textContent = `${place} · ${fmtLat(myLoc.latDeg)}, ${fmtLon(myLoc.lonDeg)}`;
+  } else {
+    el.textContent = myLocState === 'pending' ? 'locating…' : 'unavailable';
+  }
+}
+
+async function fetchMyLocation() {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), LOC_FETCH_TIMEOUT_MS);
+  try {
+    const r = await fetch(IP2GEO_CHECK_URL, { signal: ctrl.signal });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    if (!data.success || !data.geo) throw new Error(data.error || 'lookup failed');
+    const { latitude, longitude, city, region, country } = data.geo;
+    if (typeof latitude !== 'number' || typeof longitude !== 'number') throw new Error('no coordinates');
+    myLoc = { latDeg: latitude, lonDeg: longitude, city, region, country };
+    myLocState = 'ok';
+  } catch {
+    myLocState = 'failed';
+  } finally {
+    clearTimeout(timer);
+  }
+  updateMyLocReadout();
+}
+
+fetchMyLocation();
 
 // Sun path: where the subsolar point was (past) and will be (future) at this
 // time of day, over a full year. Two lines meet at the current marker.
@@ -723,8 +790,6 @@ setInterval(refreshStarlink, STARLINK_REFRESH_MS);
 /* ---------- readout + animation ---------- */
 
 const $ = (id) => document.getElementById(id);
-const fmtLat = (v) => `${Math.abs(v).toFixed(2)}° ${v >= 0 ? 'N' : 'S'}`;
-const fmtLon = (v) => `${Math.abs(v).toFixed(2)}° ${v >= 0 ? 'E' : 'W'}`;
 
 const tmpMat = new THREE.Matrix4();
 let lastPathSecond = -1;
@@ -745,6 +810,9 @@ function tick() {
   sunMesh.position.copy(dir).multiplyScalar(70);
   sunLight.position.copy(dir).multiplyScalar(50);
   lineGeo.setFromPoints([new THREE.Vector3(), dir.clone().multiplyScalar(surfR)]);
+
+  // The pin base follows the terrain height (the height map loads late).
+  if (myLoc) placePin(myLoc.latDeg, myLoc.lonDeg);
 
   // Rebuild the sun path once per second; it shifts slowly with the time of day.
   if (now.getUTCSeconds() !== lastPathSecond) {
