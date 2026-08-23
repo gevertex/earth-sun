@@ -17,7 +17,7 @@ live from TLE data with the SGP4 model; hovering a satellite shows its name.
 - Repo: https://github.com/gevertex/earth-sun.git
 - Hosting: GitHub Pages serves the `main` branch as is. Push to publish.
 - Deployed state: verified 2026-08-22, the live site serves commit
-  `486caf3` (the satellite feature is present).
+  `f20f0a4` (the live TLE refresh is present).
 
 ## Files
 
@@ -160,6 +160,7 @@ types (LEO/MEO/GEO), and the TLE data status (last update time,
 
 ## Recent changes (as of 2026-08-22)
 
+- `f20f0a4` Re-fetch satellite TLEs every 5 minutes while the app runs
 - `a838c56` Add real satellites with live SGP4 orbits and hover names
 - `1e2735b` Draw the annual subsolar path at the current time of day
 - `0996d31` Document the GitHub Pages deployment in the README
