@@ -14,7 +14,9 @@ of day: the past in amber, the future in blue, meeting at the current
 marker. The app also shows real satellites in their real orbits, propagated
 live from TLE data with the SGP4 model; hovering a satellite shows its name.
 The app also paints a pin where the user is, resolved from the browser's
-public IP via IP2GeoAPI (no location permission prompt).
+public IP via IP2GeoAPI (no location permission prompt). The app also draws
+country borders and US state borders on the globe; tapping a region shows
+its name (state in the US, country elsewhere).
 
 - Live site: https://earth.4runner.online/ (the GitHub Pages URL
   https://gevertex.github.io/earth-sun/ 301-redirects there via a CNAME
@@ -22,12 +24,13 @@ public IP via IP2GeoAPI (no location permission prompt).
 - Repo: https://github.com/gevertex/earth-sun.git
 - Hosting: GitHub Pages serves the `main` branch as is. Push to publish.
 - Deployed state: pushed 2026-08-24, the live site serves the true-scale
-  Sun (commit `6a3c17c`). The custom domain is fronted by Cloudflare and
-  did not resolve from the dev machine, so the live page was not verified.
+  Sun and the country/state borders (commit `91070f0`). The custom domain
+  is fronted by Cloudflare and did not resolve from the dev machine, so the
+  live page was not verified.
 
 ## Files
 
-- `index.html` — the entire app: markup, CSS, and JS in one file (~600 lines)
+- `index.html` — the entire app: markup, CSS, and JS in one file (~1200 lines)
 - `favicon.svg` — the app logo, used as the browser favicon
 - `apple-touch-icon.png` — 180 px PNG render of the logo, for iOS home screens
 - `README.md` — live site link, deploy steps, local run steps
@@ -44,7 +47,7 @@ Three.js, `satellite.js`, and the Earth textures load from the unpkg.com CDN.
 Fresh satellite TLEs load from the satvisor GitHub mirror of Celestrak data
 (Celestrak is the fallback). The page needs internet access. Offline, the
 globe and sun still work; named satellites use embedded fallback TLEs; the
-location pin shows `unavailable`.
+location pin shows `unavailable`; the borders do not load.
 
 ## Deploy
 
@@ -163,6 +166,40 @@ GitHub Pages rebuilds the site within a minute or two after the push.
 - The API key is embedded in the page: the static site has no backend. The
   free plan allows 100,000 lookups per month.
 
+### Country and state borders (tap to name a region)
+
+- `loadBorders()` fetches two GeoJSON files on load (GitHub raw, CORS-open,
+  like the TLE fetches): world countries
+  (`raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json`,
+  180 features) and US states
+  (`raw.githubusercontent.com/PublicaMundi/MappingAPI/master/data/geojson/us-states.json`,
+  52 features). A failed fetch leaves the set empty; offline the globe works
+  without borders.
+- Rendering: `makeBorderLines()` builds one `THREE.LineSegments` per set
+  (one draw call each). Country lines are white (`0xffffff`, opacity 0.4);
+  state lines are light blue (`0x9fd8ff`, opacity 0.6). Each vertex sits at
+  `surfaceRadiusAt(u, v) + 0.03`, so the lines follow the displaced terrain.
+  `rebuildBorders()` runs both when the GeoJSON arrives and when the
+  topology texture loads, so the async load order does not matter.
+- Picking: `buildPickCanvas()` fills a 2048×1024 equirectangular canvas, one
+  color per region, where the RGB encodes the region index (index 0 is open
+  water). Countries fill first, US states on top, so a tap in the US resolves
+  to the state. Rings that cross the antimeridian are unwrapped to
+  continuous longitudes and drawn at three shifts (-360, 0, +360) with
+  `fill('nonzero')`, so such polygons fill on both canvas edges.
+  `pickRegionIndex(lat, lon)` reads the pixel.
+- Tap: `pointerdown`/`pointerup` on the canvas. A tap is a pointer that moved
+  less than 6 px in under 500 ms (a drag rotates the globe and must not pick).
+  `onTapGlobe` raycasts the globe, converts the hit to lat/lon, and looks up
+  the region. A hit sets `tapped = { point, name, kind }` and shows
+  `#region-tip`; a tap on open water hides the label.
+- Label: `#region-tip` is a fixed tooltip (name over kind, e.g. "Texas /
+  state"). `tick()` calls `updateRegionTip()` each frame, which projects the
+  point to the screen and hides the label when the point faces away from the
+  camera (`dir.dot(toCam) <= 0.02`).
+- Toggle: `#borders-toggle` (a "show borders" checkbox, checked by default)
+  sets `.visible` on both line sets.
+
 ### Satellites (real orbits via SGP4)
 
 - `SATELLITES` holds 47 real satellites (name, NORAD catalog number, and a
@@ -277,6 +314,7 @@ time, "updating…", or "embedded fallback"), and the Starlink status
 
 ## Recent changes (as of 2026-08-24)
 
+- `91070f0` Add country and US state borders, tap the globe to name a region
 - `6a3c17c` Put the Sun at true scale and distance (1 AU away, 0.53° across)
 - `5d2a1aa` Add a logo and set it as the favicon
 - `cde6ee9` Collapse the readout to a one-line summary, tap to expand
