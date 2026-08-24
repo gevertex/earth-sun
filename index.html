@@ -103,6 +103,7 @@
 <div id="controls">
   <label><input type="checkbox" id="sat-toggle" checked> show satellites</label><br>
   <label><input type="checkbox" id="starlink-toggle" checked> show Starlink</label><br>
+  <label><input type="checkbox" id="starlink-orbits-toggle" checked> show Starlink orbits</label><br>
   <label><input type="checkbox" id="borders-toggle" checked> show borders</label>
 </div>
 <div id="hint">drag to rotate · scroll to zoom</div>
@@ -920,12 +921,13 @@ document.addEventListener('visibilitychange', () => {
 });
 
 /* ---------- Starlink: the full constellation, one dot per satellite ---------- */
-// The set is too large for per-satellite orbit lines, so it renders as one
-// THREE.Points cloud. Each frame propagates a time-sliced chunk of the set,
-// so the frame rate holds on slow machines. Celestrak rate-limits, so the
-// set refreshes every 30 min (the 47 named satellites refresh every 5 min).
-// A failed refresh retries after 60 s. The GitHub mirror is tried first.
-// Celestrak is the fallback. Each fetch aborts after TLE_FETCH_TIMEOUT_MS.
+// The set is too large for per-satellite draw calls, so the dots render as
+// one THREE.Points cloud and the orbit lines as one merged LineSegments.
+// Each frame propagates a time-sliced chunk of the set, so the frame rate
+// holds on slow machines. Celestrak rate-limits, so the set refreshes every
+// 30 min (the 47 named satellites refresh every 5 min). A failed refresh
+// retries after 60 s. The GitHub mirror is tried first. Celestrak is the
+// fallback. Each fetch aborts after TLE_FETCH_TIMEOUT_MS.
 const STARLINK_TLE_URL = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle';
 // Mirror of the same Celestrak set, updated every few hours.
 const STARLINK_TLE_FALLBACK_URL = 'https://raw.githubusercontent.com/satvisorcom/satvisor-data/master/celestrak/tle/starlink.tle';
@@ -933,6 +935,8 @@ const STARLINK_RETRY_MS = 60 * 1000;
 const STARLINK_REFRESH_MS = 30 * 60 * 1000;
 const SL_PROPAGATE_BUDGET_MS = 8;
 const SL_COLOR = 0x9fd8ff;
+const SL_ORBIT_SAMPLES = 64;   // points around each orbit ellipse
+const SL_ORBIT_FLOATS = SL_ORBIT_SAMPLES * 2 * 3; // LineSegments: 2 vertices per segment
 const slCol = (c, shift) => ((c >> shift) & 255) / 255;
 
 const starlink = {
@@ -940,6 +944,9 @@ const starlink = {
   points: null,      // THREE.Points, in slWorld
   pos: null,         // Float32Array of group-local positions
   colors: null,      // Float32Array of per-point colors
+  orbits: null,      // one LineSegments with every satellite's orbit, in slWorld
+  orbitPos: null,    // Float32Array of orbit vertices, group-local
+  orbitsBuilt: 0,    // orbits filled so far (built in index order)
   cursor: 0,         // time-slice cursor into sats
   refreshing: false,
   live: false,
@@ -953,10 +960,18 @@ function clearStarlink() {
     starlink.points.geometry.dispose();
     starlink.points.material.dispose();
   }
+  if (starlink.orbits) {
+    slWorld.remove(starlink.orbits);
+    starlink.orbits.geometry.dispose();
+    starlink.orbits.material.dispose();
+  }
   starlink.sats.length = 0;
   starlink.points = null;
   starlink.pos = null;
   starlink.colors = null;
+  starlink.orbits = null;
+  starlink.orbitPos = null;
+  starlink.orbitsBuilt = 0;
   starlink.cursor = 0;
   hideSatTip();
 }
@@ -1004,13 +1019,93 @@ function initStarlinkPoints(sats) {
   }));
   points.frustumCulled = false;
   slWorld.add(points);
+
+  // One merged LineSegments holds every satellite's orbit (one draw call).
+  // Vertices start at zero: an unfilled orbit is a degenerate segment at the
+  // globe center, hidden by the globe. tickStarlink fills them in order.
+  const orbitPos = new Float32Array(n * SL_ORBIT_FLOATS);
+  const orbitGeo = new THREE.BufferGeometry();
+  orbitGeo.setAttribute('position', new THREE.BufferAttribute(orbitPos, 3));
+  orbitGeo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 15);
+  const orbits = new THREE.LineSegments(orbitGeo, new THREE.LineBasicMaterial({
+    color: SL_COLOR, transparent: true, opacity: 0.05, depthWrite: false,
+  }));
+  orbits.frustumCulled = false;
+  orbits.visible =
+    document.getElementById('starlink-toggle').checked &&
+    document.getElementById('starlink-orbits-toggle').checked;
+  slWorld.add(orbits);
+
   starlink.sats = sats;
   starlink.points = points;
   starlink.pos = pos;
   starlink.colors = colorsArr;
+  starlink.orbits = orbits;
+  starlink.orbitPos = orbitPos;
+  starlink.orbitsBuilt = 0;
   starlink.cursor = 0;
   starlink.refreshing = false;
   updateStarlinkReadout();
+}
+
+// Orbit ellipse from an ECI state vector: semi-major axis, eccentricity, and
+// an in-plane basis (u toward perigee, v 90 deg ahead). SGP4 gives the
+// osculating state, so the ellipse passes through the dot's current position.
+function orbitBasis(p, v) {
+  const MU = 398600.4418; // km^3/s^2
+  const r = Math.hypot(p.x, p.y, p.z);
+  const v2 = v.x * v.x + v.y * v.y + v.z * v.z;
+  const a = 1 / (2 / r - v2 / MU);
+  const pdv = p.x * v.x + p.y * v.y + p.z * v.z;
+  const ex = ((v2 - MU / r) * p.x - pdv * v.x) / MU;
+  const ey = ((v2 - MU / r) * p.y - pdv * v.y) / MU;
+  const ez = ((v2 - MU / r) * p.z - pdv * v.z) / MU;
+  const e = Math.hypot(ex, ey, ez);
+  const hx = p.y * v.z - p.z * v.y;
+  const hy = p.z * v.x - p.x * v.z;
+  const hz = p.x * v.y - p.y * v.x;
+  const hn = Math.hypot(hx, hy, hz);
+  let ux, uy, uz;
+  if (e > 1e-6) {
+    ux = ex / e; uy = ey / e; uz = ez / e;
+  } else {
+    // Near-circular: any in-plane axis works. Pick the world axis least
+    // aligned with the plane normal, then project it onto the plane.
+    const ax = Math.abs(hx / hn), ay = Math.abs(hy / hn), az = Math.abs(hz / hn);
+    if (ax <= ay && ax <= az) { ux = 1; uy = 0; uz = 0; }
+    else if (ay <= az) { ux = 0; uy = 1; uz = 0; }
+    else { ux = 0; uy = 0; uz = 1; }
+    const d = ux * hx + uy * hy + uz * hz;
+    ux -= d * hx / (hn * hn);
+    uy -= d * hy / (hn * hn);
+    uz -= d * hz / (hn * hn);
+    const un = Math.hypot(ux, uy, uz);
+    ux /= un; uy /= un; uz /= un;
+  }
+  const vx = (hy * uz - hz * uy) / hn;
+  const vy = (hz * ux - hx * uz) / hn;
+  const vz = (hx * uy - hy * ux) / hn;
+  return { a, e, ux, uy, uz, vx, vy, vz };
+}
+
+// Fill one orbit's SL_ORBIT_SAMPLES segments into the shared buffer at float
+// offset o, in group-local coords (the same mapping as eciToLocal).
+function fillOrbitLine(buf, o, b) {
+  const p0 = b.a * (1 - b.e * b.e);
+  for (let k = 0; k < SL_ORBIT_SAMPLES; k++) {
+    for (let m = 0; m < 2; m++) {
+      const nu = ((k + m) / SL_ORBIT_SAMPLES) * 2 * Math.PI;
+      const rr = p0 / (1 + b.e * Math.cos(nu));
+      const cx = Math.cos(nu), sx = Math.sin(nu);
+      const x = rr * (cx * b.ux + sx * b.vx);
+      const y = rr * (cx * b.uy + sx * b.vy);
+      const z = rr * (cx * b.uz + sx * b.vz);
+      const j = o + (k * 2 + m) * 3;
+      buf[j] = x * KM_TO_SCENE;
+      buf[j + 1] = z * KM_TO_SCENE;
+      buf[j + 2] = -y * KM_TO_SCENE;
+    }
+  }
 }
 
 // Propagate a time-sliced chunk of the constellation. Each satellite updates
@@ -1022,13 +1117,19 @@ function tickStarlink(now) {
   const n = sats.length;
   const t0 = performance.now();
   let i = starlink.cursor;
+  const builtBefore = starlink.orbitsBuilt;
   while (performance.now() - t0 < SL_PROPAGATE_BUDGET_MS) {
     const pv = sat.propagate(sats[i].satrec, now);
     const o = i * 3;
-    if (pv && pv.position && isFinite(pv.position.x)) {
+    if (pv && pv.position && isFinite(pv.position.x) && pv.velocity && isFinite(pv.velocity.x)) {
       pos[o] = pv.position.x * KM_TO_SCENE;
       pos[o + 1] = pv.position.z * KM_TO_SCENE;
       pos[o + 2] = -pv.position.y * KM_TO_SCENE;
+      // Build the orbit line on the first successful pass of each satellite.
+      if (i === starlink.orbitsBuilt) {
+        fillOrbitLine(starlink.orbitPos, i * SL_ORBIT_FLOATS, orbitBasis(pv.position, pv.velocity));
+        starlink.orbitsBuilt++;
+      }
     } else {
       pos[o] = pos[o + 1] = pos[o + 2] = 1e6;
     }
@@ -1036,6 +1137,13 @@ function tickStarlink(now) {
   }
   starlink.cursor = i;
   starlink.points.geometry.attributes.position.needsUpdate = true;
+  // Upload only the orbits filled this frame (the cursor fills them in order).
+  if (starlink.orbitsBuilt > builtBefore) {
+    const attr = starlink.orbits.geometry.attributes.position;
+    attr.clearUpdateRanges();
+    attr.addUpdateRange(builtBefore * SL_ORBIT_FLOATS, (starlink.orbitsBuilt - builtBefore) * SL_ORBIT_FLOATS);
+    attr.needsUpdate = true;
+  }
 }
 
 async function fetchStarlinkTle() {
@@ -1217,9 +1325,15 @@ satToggle.addEventListener('change', () => {
   if (!satToggle.checked && tappedSat && tappedSat.kind === 'sat') hideSatTip();
 });
 const starlinkToggle = document.getElementById('starlink-toggle');
+const starlinkOrbitsToggle = document.getElementById('starlink-orbits-toggle');
 starlinkToggle.addEventListener('change', () => {
   if (starlink.points) starlink.points.visible = starlinkToggle.checked;
+  // The orbits belong to the Starlink layer: they hide with it.
+  if (starlink.orbits) starlink.orbits.visible = starlinkToggle.checked && starlinkOrbitsToggle.checked;
   if (!starlinkToggle.checked && tappedSat && tappedSat.kind === 'starlink') hideSatTip();
+});
+starlinkOrbitsToggle.addEventListener('change', () => {
+  if (starlink.orbits) starlink.orbits.visible = starlinkOrbitsToggle.checked && starlinkToggle.checked;
 });
 </script>
 </body>

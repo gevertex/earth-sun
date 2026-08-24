@@ -284,6 +284,17 @@ GitHub Pages rebuilds the site within a minute or two after the push.
   cursor through the array, calling `sat.propagate` until it has used 8 ms
   (`SL_PROPAGATE_BUDGET_MS`), then resumes next frame. Unpropagated sats
   park far away (1e6) until their turn.
+- Orbit lines: one merged `THREE.LineSegments` in `slWorld` (one draw
+  call, `LineBasicMaterial`, `SL_COLOR`, opacity 0.05, `depthWrite:
+  false`, `frustumCulled` off) holds every satellite's orbit, 64 samples
+  each (`SL_ORBIT_SAMPLES`). The buffer starts zeroed (an unfilled orbit
+  is a degenerate segment at the globe center). `tickStarlink` builds each
+  orbit on the first successful propagation of its satellite: `orbitBasis`
+  derives the osculating ellipse (semi-major axis, eccentricity, in-plane
+  basis) from the ECI position and velocity, and `fillOrbitLine` writes
+  the ellipse in group-local coords. The per-frame upload covers only the
+  newly filled range (`addUpdateRange`), so the full set builds within the
+  first propagation cycle (~1 s) without blocking a frame.
 - Color `SL_COLOR` (`0x9fd8ff`). Tap raycasts the `Points` with
   `raycaster.params.Points.threshold = 0.1` (tight: the shell is dense, and
   a wide threshold steals taps meant for the globe), rejects dots behind
@@ -291,7 +302,10 @@ GitHub Pages rebuilds the site within a minute or two after the push.
   may sit off to the side). `onTap` then shows the same `#sat-tip` tag as
   the named satellites, with the name and `Starlink (LEO)`.
 - Toggle: `#starlink-toggle` (a "show Starlink" checkbox) sets
-  `starlink.points.visible` and hides the tag if it belongs to this layer.
+  `starlink.points.visible` and `starlink.orbits.visible` (the orbits
+  belong to the layer) and hides the tag if it belongs to this layer.
+  `#starlink-orbits-toggle` (a "show Starlink orbits" checkbox) sets
+  `starlink.orbits.visible` on its own.
 
 ### Readout (top-left panel)
 

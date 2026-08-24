@@ -9,8 +9,8 @@ the future in blue, meeting at the current marker.
 The page also shows real satellites in their real orbits, propagated live from TLE data
 with the SGP4 model. A curated set of 47 named satellites (ISS, CSS, GPS, Galileo,
 GOES, and more) is drawn with orbit lines, and the full Starlink constellation
-(~10,700 satellites) is drawn as a live cloud of points. Hover any satellite to see its
-name. Two checkboxes in the corner show or hide each layer.
+(~10,700 satellites) is drawn as a live cloud of points with its orbit lines.
+Tap any satellite to see its name. Checkboxes in the corner show or hide each layer.
 
 The page also paints a pin where you are, resolved from your browser's public IP
 address via IP2GeoAPI. No location permission prompt: the lookup uses the IP,
