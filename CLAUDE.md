@@ -25,8 +25,8 @@ its name (state in the US, country elsewhere).
 - Hosting: GitHub Pages serves the `main` branch as is. Push to publish.
 - Deployed state: pushed 2026-08-24, the live site serves the true-scale
   Sun and the country/state borders (commit `91070f0`). The custom domain
-  is fronted by Cloudflare and did not resolve from the dev machine, so the
-  live page was not verified.
+  is fronted by Cloudflare and resolves; the live page was verified to
+  serve the borders code.
 
 ## Files
 
