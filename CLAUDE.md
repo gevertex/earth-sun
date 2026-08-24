@@ -338,6 +338,7 @@ time, "updating…", or "embedded fallback"), and the Starlink status
 
 ## Recent changes (as of 2026-08-24)
 
+- `7fec186` Add Starlink orbit lines with a show/hide toggle
 - `dd971fb` Show satellite names on tap; the tag tracks the dot and hides
   with its layer toggle
 - `91070f0` Add country and US state borders, tap the globe to name a region
