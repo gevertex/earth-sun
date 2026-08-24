@@ -324,8 +324,8 @@ time, "updating…", or "embedded fallback"), and the Starlink status
 
 ## Recent changes (as of 2026-08-24)
 
-- `TBD` Show satellite names on tap (was hover); the tag tracks the dot and
-  hides with its layer toggle
+- `dd971fb` Show satellite names on tap; the tag tracks the dot and hides
+  with its layer toggle
 - `91070f0` Add country and US state borders, tap the globe to name a region
 - `6a3c17c` Put the Sun at true scale and distance (1 AU away, 0.53° across)
 - `5d2a1aa` Add a logo and set it as the favicon
