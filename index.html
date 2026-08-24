@@ -32,6 +32,7 @@
     font: 12px/1.4 system-ui, sans-serif; color: #6d84a3;
     pointer-events: none;
   }
+  #hint a { color: #8fa8c8; pointer-events: auto; }
   #sat-tip {
     position: fixed; top: 0; left: 0; display: none; z-index: 10;
     pointer-events: none; white-space: nowrap; text-align: center;
@@ -95,6 +96,7 @@
     <div class="dim" style="margin-top:6px">Satellites, real orbits (tap a dot):<br><span style="color:#6fd3ff">● LEO</span> &nbsp;·&nbsp; <span style="color:#9dff6f">● MEO</span> &nbsp;·&nbsp; <span style="color:#ff6fb3">● GEO</span></div>
     <div class="dim">TLE data <span id="tle">--</span></div>
     <div class="dim">Starlink <span id="starlink">--</span></div>
+    <div class="dim">Weather radar <span id="weather">--</span></div>
     <div class="dim"><span style="color:#ff5450">●</span> Your location <span id="myloc">--</span></div>
   </div>
 </div>
@@ -104,9 +106,10 @@
   <label><input type="checkbox" id="sat-toggle" checked> show satellites</label><br>
   <label><input type="checkbox" id="starlink-toggle" checked> show Starlink</label><br>
   <label><input type="checkbox" id="starlink-orbits-toggle" checked> show Starlink orbits</label><br>
-  <label><input type="checkbox" id="borders-toggle" checked> show borders</label>
+  <label><input type="checkbox" id="borders-toggle" checked> show borders</label><br>
+  <label><input type="checkbox" id="weather-toggle" checked> show weather</label>
 </div>
-<div id="hint">drag to rotate · scroll to zoom</div>
+<div id="hint">drag to rotate · scroll to zoom · weather data by <a href="https://www.rainviewer.com/" target="_blank" rel="noopener">RainViewer</a></div>
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -918,6 +921,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return;
   if (Date.now() - lastTleUpdate > TLE_REFRESH_MS) refreshTles();
   if (Date.now() - starlink.lastUpdate > STARLINK_REFRESH_MS) refreshStarlink();
+  if (Date.now() - weather.lastUpdate > WEATHER_REFRESH_MS) refreshWeather();
 });
 
 /* ---------- Starlink: the full constellation, one dot per satellite ---------- */
@@ -1190,6 +1194,140 @@ function updateStarlinkReadout() {
 
 refreshStarlink();
 setInterval(refreshStarlink, STARLINK_REFRESH_MS);
+
+/* ---------- weather: live global rain radar (RainViewer) ---------- */
+// RainViewer composites the world's radar and satellite rain data every
+// 10 minutes. Its tiles are Web Mercator; they are remapped to an
+// equirectangular texture that matches the globe's UV layout. A failed
+// refresh keeps the last good frame.
+const WEATHER_JSON_URL = 'https://api.rainviewer.com/public/weather-maps.json';
+const WEATHER_REFRESH_MS = 10 * 60 * 1000;
+const WEATHER_ZOOM = 2;             // 4x4 tiles -> 1024 px Web Mercator square
+const WEATHER_TILE = 256;
+const WEATHER_TEX_W = 2048, WEATHER_TEX_H = 1024;
+const MERC_MAX_LAT = 85.051129;     // Web Mercator latitude limit, deg
+
+const weather = {
+  frameTime: 0,      // unix seconds of the shown frame
+  refreshing: false,
+  live: false,
+  lastUpdate: 0,
+};
+
+const weatherCanvas = document.createElement('canvas');
+weatherCanvas.width = WEATHER_TEX_W;
+weatherCanvas.height = WEATHER_TEX_H;
+const weatherTex = new THREE.CanvasTexture(weatherCanvas);
+weatherTex.colorSpace = THREE.SRGBColorSpace;
+weatherTex.minFilter = THREE.LinearFilter; // no mipmaps: they haze the sparse alpha
+
+// The overlay sits above the displaced terrain (R + DISPLACEMENT max).
+const weatherOverlay = new THREE.Mesh(
+  new THREE.SphereGeometry(R + DISPLACEMENT + 0.08, 96, 96),
+  new THREE.MeshBasicMaterial({
+    map: weatherTex, transparent: true, opacity: 0.9, depthWrite: false,
+  }),
+);
+weatherOverlay.visible = false;
+scene.add(weatherOverlay);
+
+const weatherToggle = document.getElementById('weather-toggle');
+function applyWeatherToggle() {
+  weatherOverlay.visible = weatherToggle.checked && weather.live;
+}
+weatherToggle.addEventListener('change', applyWeatherToggle);
+
+// Stitch the frame's tiles into one Web Mercator square, then remap it to
+// the equirectangular texture. Each output row is one latitude band; the
+// Web Mercator y for a latitude is nonlinear, so each row is drawn from its
+// exact source band. The polar caps have no Web Mercator data and stay clear.
+function applyWeatherFrame(host, path, frameTime) {
+  const n = 1 << WEATHER_ZOOM;
+  const size = n * WEATHER_TILE;
+  const merc = document.createElement('canvas');
+  merc.width = merc.height = size;
+  const mctx = merc.getContext('2d');
+  return Promise.all(
+    Array.from({ length: n * n }, (_, i) => {
+      const x = i % n, y = (i / n) | 0;
+      const url = `${host}${path}/${WEATHER_TILE}/${WEATHER_ZOOM}/${x}/${y}/2/1_0.png`;
+      return fetch(url)
+        .then((r) => {
+          if (r.status === 404) return null; // no data in that tile
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.blob();
+        })
+        .then((b) => (b ? createImageBitmap(b) : null))
+        .then((img) => { if (img) mctx.drawImage(img, x * WEATHER_TILE, y * WEATHER_TILE); });
+    }),
+  ).then(() => {
+    const yOf = (lat) => {
+      const lr = lat * DEG;
+      return (1 - Math.log(Math.tan(lr) + 1 / Math.cos(lr)) / Math.PI) / 2 * size;
+    };
+    const ctx = weatherCanvas.getContext('2d');
+    ctx.clearRect(0, 0, WEATHER_TEX_W, WEATHER_TEX_H);
+    for (let py = 0; py < WEATHER_TEX_H; py++) {
+      const latTop = 90 - (py / WEATHER_TEX_H) * 180;
+      const latBot = 90 - ((py + 1) / WEATHER_TEX_H) * 180;
+      if (latBot >= MERC_MAX_LAT || latTop <= -MERC_MAX_LAT) continue;
+      const a = yOf(Math.min(latTop, MERC_MAX_LAT));
+      const b = yOf(Math.max(latBot, -MERC_MAX_LAT));
+      ctx.drawImage(merc, 0, a, size, b - a, 0, py, WEATHER_TEX_W, 1);
+    }
+    // The row stretch blends rain rows into low-alpha residue; drop it.
+    const img = ctx.getImageData(0, 0, WEATHER_TEX_W, WEATHER_TEX_H);
+    const d = img.data;
+    for (let i = 3; i < d.length; i += 4) if (d[i] < 32) d[i] = 0;
+    ctx.putImageData(img, 0, 0);
+    weatherTex.needsUpdate = true;
+    weather.frameTime = frameTime;
+    weather.live = true;
+    weather.lastUpdate = Date.now();
+    applyWeatherToggle();
+    updateWeatherReadout();
+  });
+}
+
+async function refreshWeather() {
+  if (weather.refreshing) return;
+  weather.refreshing = true;
+  updateWeatherReadout();
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), TLE_FETCH_TIMEOUT_MS);
+    let data;
+    try {
+      const r = await fetch(WEATHER_JSON_URL, { signal: ctrl.signal });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      data = await r.json();
+    } finally {
+      clearTimeout(timer);
+    }
+    const past = data.radar && data.radar.past;
+    if (!data.host || !past || past.length === 0) throw new Error('no frames');
+    const latest = past[past.length - 1];
+    await applyWeatherFrame(data.host, latest.path, latest.time);
+  } catch {
+    // keep the last good frame
+  } finally {
+    weather.refreshing = false;
+    updateWeatherReadout();
+  }
+}
+
+function updateWeatherReadout() {
+  const el = document.getElementById('weather');
+  if (weather.live) {
+    const when = new Date(weather.frameTime * 1000).toISOString().slice(11, 19);
+    el.textContent = `updated ${when} UTC`;
+  } else {
+    el.textContent = weather.refreshing ? 'fetching…' : 'unavailable';
+  }
+}
+
+refreshWeather();
+setInterval(refreshWeather, WEATHER_REFRESH_MS);
 
 /* ---------- readout + animation ---------- */
 
