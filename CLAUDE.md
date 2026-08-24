@@ -24,6 +24,8 @@ public IP via IP2GeoAPI (no location permission prompt).
 ## Files
 
 - `index.html` — the entire app: markup, CSS, and JS in one file (~600 lines)
+- `favicon.svg` — the app logo, used as the browser favicon
+- `apple-touch-icon.png` — 180 px PNG render of the logo, for iOS home screens
 - `README.md` — live site link, deploy steps, local run steps
 - `CLAUDE.md` — this file
 
@@ -245,6 +247,17 @@ satellite orbit types (LEO/MEO/GEO), the TLE data status (last update
 time, "updating…", or "embedded fallback"), and the Starlink status
 (`#starlink`: `N sats · updated HH:MM:SS UTC`, or `fetching…`, or
 `unavailable`, or `satellite.js failed to load`).
+
+### Logo and favicon
+
+- `favicon.svg` is the app logo: a dark rounded square holding a blue
+  globe with a night-side crescent and city lights, a glowing sun, the
+  amber/blue sun path meeting at the subsolar marker, and a satellite
+  orbit with a dot.
+- `apple-touch-icon.png` is a 180 px PNG render of the same mark, for
+  iOS home screens.
+- `index.html` links both in the head: `rel="icon"` (SVG) and
+  `rel="apple-touch-icon"` (PNG).
 
 ## Recent changes (as of 2026-08-23)
 
