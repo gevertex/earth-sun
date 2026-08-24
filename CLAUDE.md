@@ -16,7 +16,9 @@ live from TLE data with the SGP4 model; tapping a satellite shows its name.
 The app also paints a pin where the user is, resolved from the browser's
 public IP via IP2GeoAPI (no location permission prompt). The app also draws
 country borders and US state borders on the globe; tapping a region shows
-its name (state in the US, country elsewhere).
+its name (state in the US, country elsewhere). The app also paints live
+radar precipitation over the globe from the RainViewer public API, behind a
+"show weather" toggle.
 
 - Live site: https://earth.4runner.online/ (the GitHub Pages URL
   https://gevertex.github.io/earth-sun/ 301-redirects there via a CNAME
@@ -307,6 +309,37 @@ GitHub Pages rebuilds the site within a minute or two after the push.
   `#starlink-orbits-toggle` (a "show Starlink orbits" checkbox) sets
   `starlink.orbits.visible` on its own.
 
+### Weather radar (live, RainViewer)
+
+- `refreshWeather()` fetches `https://api.rainviewer.com/public/weather-maps.json`
+  on load and every 10 minutes (`WEATHER_REFRESH_MS`). The service is public,
+  keyless, and CORS-open. The JSON gives a `host` and a `radar.past` list of
+  frames; the last frame is the current one (~10-min cadence). The fetch
+  aborts after 12 s (`TLE_FETCH_TIMEOUT_MS`). A failed refresh keeps the last
+  good frame.
+- `applyWeatherFrame(host, path, frameTime)` fetches the current frame as a
+  4×4 grid of 256 px Web Mercator tiles (zoom `WEATHER_ZOOM` = 2, color
+  scheme 2 "Universal Blue"):
+  `{host}{path}/256/2/{x}/{y}/2/1_0.png`. It composites the grid onto a
+  1024×1024 Mercator canvas, then remaps it to a 2048×1024 equirectangular
+  canvas (`weatherCanvas`). The remap draws one output row per latitude
+  band, stretching the matching Mercator band; the polar caps (|lat| ≥
+  85.05°) stay clear. A post-pass drops pixels with alpha < 32 (the row
+  stretch leaves low-alpha residue that would haze the globe).
+- `weatherTex` is a `THREE.CanvasTexture` on `weatherCanvas`, sRGB, with
+  `minFilter = LinearFilter` (no mipmaps: they haze the sparse alpha). The
+  overlay is a translucent sphere at `R + DISPLACEMENT + 0.08`
+  (`MeshBasicMaterial`, `opacity 0.9`, `depthWrite: false`), so it sits above
+  the displaced terrain and matches the globe UV mapping.
+- The overlay is a separate mesh and is not in the tap raycast targets, so it
+  does not block satellite or region picks.
+- Toggle: `#weather-toggle` (a "show weather" checkbox, checked by default)
+  sets `weatherOverlay.visible` (only when a frame has loaded).
+- Readout line "Weather radar" (`#weather`): `updated HH:MM:SS UTC` (the
+  frame time), or `fetching…`, or `unavailable` when no frame has loaded.
+- The `visibilitychange` handler re-fetches when the tab returns with stale
+  data. The hint line credits RainViewer (required by their API terms).
+
 ### Readout (top-left panel)
 
 The panel starts collapsed to a one-line summary (`#readout-summary`,
@@ -321,9 +354,11 @@ one line. The summary updates every frame in `tick()`.
 The body shows UTC time, subsolar latitude, subsolar longitude, solar
 declination, the equation of time, a legend for the sun path and the
 satellite orbit types (LEO/MEO/GEO), the TLE data status (last update
-time, "updating…", or "embedded fallback"), and the Starlink status
+time, "updating…", or "embedded fallback"), the Starlink status
 (`#starlink`: `N sats · updated HH:MM:SS UTC`, or `fetching…`, or
-`unavailable`, or `satellite.js failed to load`).
+`unavailable`, or `satellite.js failed to load`), and the weather radar
+status (`#weather`: `updated HH:MM:SS UTC`, or `fetching…`, or
+`unavailable`).
 
 ### Logo and favicon
 
@@ -338,6 +373,7 @@ time, "updating…", or "embedded fallback"), and the Starlink status
 
 ## Recent changes (as of 2026-08-24)
 
+- `16446e5` Add live weather radar from RainViewer with a show/hide toggle
 - `7fec186` Add Starlink orbit lines with a show/hide toggle
 - `dd971fb` Show satellite names on tap; the tag tracks the dot and hides
   with its layer toggle
