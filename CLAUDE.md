@@ -12,7 +12,7 @@ day/night terminator is visible. The app also
 draws the path the subsolar point traces over one year at the current time
 of day: the past in amber, the future in blue, meeting at the current
 marker. The app also shows real satellites in their real orbits, propagated
-live from TLE data with the SGP4 model; hovering a satellite shows its name.
+live from TLE data with the SGP4 model; tapping a satellite shows its name.
 The app also paints a pin where the user is, resolved from the browser's
 public IP via IP2GeoAPI (no location permission prompt). The app also draws
 country borders and US state borders on the globe; tapping a region shows
@@ -190,9 +190,11 @@ GitHub Pages rebuilds the site within a minute or two after the push.
   `pickRegionIndex(lat, lon)` reads the pixel.
 - Tap: `pointerdown`/`pointerup` on the canvas. A tap is a pointer that moved
   less than 6 px in under 500 ms (a drag rotates the globe and must not pick).
-  `onTapGlobe` raycasts the globe, converts the hit to lat/lon, and looks up
+  `onTap` first raycasts the satellite tap targets (named sats, then
+  Starlink, each only when its toggle is on) and shows `#sat-tip` on a hit.
+  Otherwise it raycasts the globe, converts the hit to lat/lon, and looks up
   the region. A hit sets `tapped = { point, name, kind }` and shows
-  `#region-tip`; a tap on open water hides the label.
+  `#region-tip`; a tap on open water or empty space hides both labels.
 - Label: `#region-tip` is a fixed tooltip (name over kind, e.g. "Texas /
   state"). `tick()` calls `updateRegionTip()` each frame, which projects the
   point to the screen and hides the label when the point faces away from the
@@ -236,15 +238,21 @@ GitHub Pages rebuilds the site within a minute or two after the push.
   180 samples propagated in the inertial frame, drawn as a closed `Line2`
   ellipse (linewidth 1.4, opacity 0.45).
 - Each satellite has a visible dot (`SphereGeometry(0.1)`) and a larger
-  invisible hover target (`SphereGeometry(1.1)`, `MeshBasicMaterial` with
+  invisible tap target (`SphereGeometry(0.4)`, `MeshBasicMaterial` with
   `visible: false`; the raycaster still hits it).
-- Hover: a `pointermove` handler raycasts against the hit targets. On a hit
-  it shows `#sat-tip` (a fixed tooltip at the cursor) with the name and
-  orbit type, scales the dot 2x, and brightens its orbit line. The handler
-  skips raycasting while the satellite layer is hidden.
+- Tap: `onTap` (the same pointer tap as the region lookup) raycasts the hit
+  targets before the globe. On a hit it sets `tappedSat` and shows
+  `#sat-tip` (a fixed tooltip anchored above the dot, `translate(-50%,
+  -135%)`) with the name and orbit type. `tick()` calls `updateSatTip()`
+  each frame, which projects the dot's world position to the screen, so the
+  tag tracks the satellite as it moves; the tag hides while the dot faces
+  away from the camera (`dir.dot(toCam) <= 0.02`). Tapping the globe or
+  empty space clears the tag; the tag and the region label are mutually
+  exclusive (one tap shows one tag).
 - Toggle: `#sat-toggle` (a "show satellites" checkbox, top-right; bottom-
   right on screens under 640px wide) sets `satWorld.visible`. Unchecking
-  hides every dot and orbit line and clears any active hover.
+  hides every dot and orbit line and hides the tag if it belongs to this
+  layer.
 
 ### Starlink constellation (full set, live)
 
@@ -267,7 +275,7 @@ GitHub Pages rebuilds the site within a minute or two after the push.
 - All sats render as one `THREE.Points` (one draw call) with a
   `PointsMaterial` (`vertexColors`, `size 0.07`, `opacity 0.9`,
   `depthWrite: false`). A manual `boundingSphere` (radius 15) keeps the
-  hover raycast cheap; `frustumCulled` is off.
+  tap raycast cheap; `frustumCulled` is off.
 - The points live in their own `slWorld` group (a sibling of `satWorld`),
   so the "show satellites" toggle does not hide them. `tick()` sets
   `slWorld.rotation.y = -gmst` each frame (the same GMST as `satWorld`),
@@ -276,12 +284,14 @@ GitHub Pages rebuilds the site within a minute or two after the push.
   cursor through the array, calling `sat.propagate` until it has used 8 ms
   (`SL_PROPAGATE_BUDGET_MS`), then resumes next frame. Unpropagated sats
   park far away (1e6) until their turn.
-- Color `SL_COLOR` (`0x9fd8ff`); the hovered sat turns `SL_HOVER`
-  (`0xffe28a`). Hover raycasts the `Points` with
-  `raycaster.params.Points.threshold = 0.25` and rejects dots behind the
-  globe; the tooltip shows the name and `Starlink (LEO)`.
+- Color `SL_COLOR` (`0x9fd8ff`). Tap raycasts the `Points` with
+  `raycaster.params.Points.threshold = 0.1` (tight: the shell is dense, and
+  a wide threshold steals taps meant for the globe), rejects dots behind
+  the globe, and picks the dot closest to the tap ray (the frontmost dot
+  may sit off to the side). `onTap` then shows the same `#sat-tip` tag as
+  the named satellites, with the name and `Starlink (LEO)`.
 - Toggle: `#starlink-toggle` (a "show Starlink" checkbox) sets
-  `starlink.points.visible` and clears any active hover.
+  `starlink.points.visible` and hides the tag if it belongs to this layer.
 
 ### Readout (top-left panel)
 
@@ -314,6 +324,8 @@ time, "updating…", or "embedded fallback"), and the Starlink status
 
 ## Recent changes (as of 2026-08-24)
 
+- `TBD` Show satellite names on tap (was hover); the tag tracks the dot and
+  hides with its layer toggle
 - `91070f0` Add country and US state borders, tap the globe to name a region
 - `6a3c17c` Put the Sun at true scale and distance (1 AU away, 0.53° across)
 - `5d2a1aa` Add a logo and set it as the favicon
