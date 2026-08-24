@@ -274,7 +274,7 @@ time, "updating…", or "embedded fallback"), and the Starlink status
 
 ## Recent changes (as of 2026-08-24)
 
-- `d5f4ef0` Put the Sun at true scale and distance (1 AU away, 0.53° across)
+- `06c9783` Put the Sun at true scale and distance (1 AU away, 0.53° across)
 - `0f1f312` Add a logo and set it as the favicon
 - `cde6ee9` Collapse the readout to a one-line summary, tap to expand
 - `eb8e9d2` Add a location pin from the browser's public IP via IP2GeoAPI
