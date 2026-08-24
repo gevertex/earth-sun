@@ -361,3 +361,7 @@ Verify this list with `git log` before relying on it.
 - Never use the negative-positive antithesis ("not X, but Y"). Write the
   true statement in one sentence. Delete any clause that names a rejected
   idea or a contrast.
+- Batch responses so a single reply stays under the maximum response
+  length. Group independent tool calls into one message. Keep replies
+  short; give the full detail in a follow-up message only if the user
+  asks.
