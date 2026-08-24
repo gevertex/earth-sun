@@ -16,11 +16,14 @@ live from TLE data with the SGP4 model; hovering a satellite shows its name.
 The app also paints a pin where the user is, resolved from the browser's
 public IP via IP2GeoAPI (no location permission prompt).
 
-- Live site: https://gevertex.github.io/earth-sun/
+- Live site: https://earth.4runner.online/ (the GitHub Pages URL
+  https://gevertex.github.io/earth-sun/ 301-redirects there via a CNAME
+  file in the repo)
 - Repo: https://github.com/gevertex/earth-sun.git
 - Hosting: GitHub Pages serves the `main` branch as is. Push to publish.
-- Deployed state: verified 2026-08-23, the live site serves commit
-  `cde6ee9` (collapsible readout with a one-line summary).
+- Deployed state: pushed 2026-08-24, the live site serves the true-scale
+  Sun (commit `6a3c17c`). The custom domain is fronted by Cloudflare and
+  did not resolve from the dev machine, so the live page was not verified.
 
 ## Files
 
@@ -274,8 +277,8 @@ time, "updating…", or "embedded fallback"), and the Starlink status
 
 ## Recent changes (as of 2026-08-24)
 
-- `06c9783` Put the Sun at true scale and distance (1 AU away, 0.53° across)
-- `0f1f312` Add a logo and set it as the favicon
+- `6a3c17c` Put the Sun at true scale and distance (1 AU away, 0.53° across)
+- `5d2a1aa` Add a logo and set it as the favicon
 - `cde6ee9` Collapse the readout to a one-line summary, tap to expand
 - `eb8e9d2` Add a location pin from the browser's public IP via IP2GeoAPI
 - `d477164` Fetch TLE data from the satvisor GitHub mirror first
