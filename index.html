@@ -42,6 +42,17 @@
   }
   #sat-tip .name { color: #fff; font-weight: 600; }
   #sat-tip .dim { color: #7f97b8; }
+  #region-tip {
+    position: fixed; top: 0; left: 0; display: none; z-index: 10;
+    pointer-events: none; white-space: nowrap; text-align: center;
+    font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: #fff; background: rgba(8, 14, 26, 0.92);
+    border: 1px solid rgba(120, 170, 255, 0.4);
+    border-radius: 6px; padding: 4px 9px;
+    transform: translate(-50%, -135%);
+  }
+  #region-tip .name { font-weight: 600; }
+  #region-tip .dim { color: #7f97b8; }
   #controls {
     position: fixed; top: 16px; right: 16px;
     font: 13px/1.5 system-ui, sans-serif;
@@ -87,9 +98,11 @@
   </div>
 </div>
 <div id="sat-tip"></div>
+<div id="region-tip"></div>
 <div id="controls">
   <label><input type="checkbox" id="sat-toggle" checked> show satellites</label><br>
-  <label><input type="checkbox" id="starlink-toggle" checked> show Starlink</label>
+  <label><input type="checkbox" id="starlink-toggle" checked> show Starlink</label><br>
+  <label><input type="checkbox" id="borders-toggle" checked> show borders</label>
 </div>
 <div id="hint">drag to rotate · scroll to zoom</div>
 <script type="module">
@@ -254,6 +267,7 @@ new THREE.TextureLoader().load(
     hData = ctx.getImageData(0, 0, img.width, img.height).data;
     hW = img.width;
     hH = img.height;
+    rebuildBorders(); // the border lines now follow the terrain height
   },
   undefined,
   () => {}, // offline: keep a smooth globe
@@ -355,6 +369,237 @@ async function fetchMyLocation() {
 }
 
 fetchMyLocation();
+
+/* ---------- borders: country + US state lines, tap the globe to name a region ---------- */
+// Country borders (world) and US state borders, from GeoJSON. The borders
+// render as 3D line segments that follow the terrain. Tapping the globe shows
+// the name of the region under the tap. A color-coded equirectangular canvas
+// maps each tap to a region; color index 0 is open water.
+const COUNTRIES_URL = 'https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json';
+const US_STATES_URL = 'https://raw.githubusercontent.com/PublicaMundi/MappingAPI/master/data/geojson/us-states.json';
+const PICK_W = 2048, PICK_H = 1024;
+
+const borders = {
+  country: null,        // THREE.LineSegments
+  state: null,          // THREE.LineSegments
+  countryFeatures: null,
+  stateFeatures: null,
+  regions: [],          // regions[index] = { name, kind }
+  pickData: null,       // pixel data of the picking canvas
+};
+let tapped = null;      // { point: Vector3 on the surface, name, kind }
+
+const countryBorderMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4 });
+const stateBorderMat = new THREE.LineBasicMaterial({ color: 0x9fd8ff, transparent: true, opacity: 0.6 });
+
+const bordersToggle = document.getElementById('borders-toggle');
+function applyBordersToggle() {
+  const on = bordersToggle.checked;
+  if (borders.country) borders.country.visible = on;
+  if (borders.state) borders.state.visible = on;
+}
+bordersToggle.addEventListener('change', applyBordersToggle);
+
+// [lon, lat] -> picking canvas pixel. Matches the equirectangular texture
+// mapping (u=0 at 180°W, v=0 at the south pole).
+function lonLatToPick(lon, lat) {
+  return [ (lon + 180) / 360 * PICK_W, (90 - lat) / 180 * PICK_H ];
+}
+
+// Add one ring to the current path. The ring is unwrapped so its longitudes
+// are continuous, then shifted by lonShift. Drawing each ring at three shifts
+// (-360, 0, +360) fills antimeridian-crossing polygons on both canvas edges.
+function addPickRing(ctx, ring, lonShift) {
+  let prev = ring[0][0];
+  for (let i = 0; i < ring.length; i++) {
+    let lon = ring[i][0];
+    while (lon - prev > 180) lon -= 360;
+    while (lon - prev < -180) lon += 360;
+    const [x, y] = lonLatToPick(lon + lonShift, ring[i][1]);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+    prev = lon;
+  }
+  ctx.closePath();
+}
+
+function fillPickPolygon(ctx, poly) {
+  ctx.beginPath();
+  for (const shift of [-360, 0, 360]) {
+    for (const ring of poly) addPickRing(ctx, ring, shift);
+  }
+  ctx.fill('nonzero');
+}
+
+function fillPickGeometry(ctx, geometry) {
+  const polys = geometry.type === 'Polygon' ? [geometry.coordinates] : geometry.coordinates;
+  for (const poly of polys) fillPickPolygon(ctx, poly);
+}
+
+// Build the picking canvas: each region is filled with a unique color that
+// encodes its index. Countries first, US states on top (so a tap in the US
+// resolves to the state, not the country).
+function buildPickCanvas() {
+  const canvas = document.createElement('canvas');
+  canvas.width = PICK_W;
+  canvas.height = PICK_H;
+  const ctx = canvas.getContext('2d');
+  const fillFeature = (ft) => {
+    const i = ft._idx;
+    ctx.fillStyle = `rgb(${(i >> 16) & 255},${(i >> 8) & 255},${i & 255})`;
+    fillPickGeometry(ctx, ft.geometry);
+  };
+  for (const ft of borders.countryFeatures) fillFeature(ft);
+  for (const ft of borders.stateFeatures) fillFeature(ft);
+  borders.pickData = ctx.getImageData(0, 0, PICK_W, PICK_H).data;
+}
+
+// Build the 3D border lines for a feature set. Each vertex sits just above
+// the terrain so the lines follow the displaced surface.
+function makeBorderLines(features, mat) {
+  const pts = [];
+  const polysOf = (g) => (g.type === 'Polygon' ? [g.coordinates] : g.coordinates);
+  for (const ft of features) {
+    const g = ft.geometry;
+    if (!g) continue;
+    for (const poly of polysOf(g)) {
+      for (const ring of poly) {
+        for (let i = 0; i < ring.length - 1; i++) {
+          const [lonA, latA] = ring[i];
+          const [lonB, latB] = ring[i + 1];
+          const rA = surfaceRadiusAt((lonA + 180) / 360, (latA + 90) / 180) + 0.03;
+          const rB = surfaceRadiusAt((lonB + 180) / 360, (latB + 90) / 180) + 0.03;
+          const a = latLonToVec3(latA, lonA, rA);
+          const b = latLonToVec3(latB, lonB, rB);
+          pts.push(a.x, a.y, a.z, b.x, b.y, b.z);
+        }
+      }
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  return new THREE.LineSegments(geo, mat);
+}
+
+// (Re)build both border line sets. Called when the GeoJSON arrives and again
+// when the terrain height map loads (the lines must follow the displacement).
+function rebuildBorders() {
+  for (const key of ['country', 'state']) {
+    if (borders[key]) { scene.remove(borders[key]); borders[key].geometry.dispose(); borders[key] = null; }
+  }
+  if (borders.countryFeatures) {
+    borders.country = makeBorderLines(borders.countryFeatures, countryBorderMat);
+    scene.add(borders.country);
+  }
+  if (borders.stateFeatures) {
+    borders.state = makeBorderLines(borders.stateFeatures, stateBorderMat);
+    scene.add(borders.state);
+  }
+  applyBordersToggle();
+}
+
+function buildBordersData(countries, states) {
+  const regions = [];
+  const countryFeatures = [];
+  const stateFeatures = [];
+  let idx = 1; // 0 is reserved for open water
+  const collect = (fc, list, kind) => {
+    if (!fc) return;
+    for (const ft of fc.features) {
+      const name = ft.properties && ft.properties.name;
+      if (!name || !ft.geometry) continue;
+      regions[idx] = { name, kind };
+      ft._idx = idx++;
+      list.push(ft);
+    }
+  };
+  collect(countries, countryFeatures, 'country');
+  collect(states, stateFeatures, 'state');
+  borders.regions = regions;
+  borders.countryFeatures = countryFeatures;
+  borders.stateFeatures = stateFeatures;
+  buildPickCanvas();
+  rebuildBorders();
+}
+
+async function loadBorders() {
+  let countries = null, states = null;
+  try {
+    const [cRes, sRes] = await Promise.all([fetch(COUNTRIES_URL), fetch(US_STATES_URL)]);
+    if (cRes.ok) countries = await cRes.json();
+    if (sRes.ok) states = await sRes.json();
+  } catch { /* offline: the globe works without borders */ }
+  if (countries || states) buildBordersData(countries, states);
+}
+
+// Sample the picking canvas at a lat/lon and return the region index.
+function pickRegionIndex(lat, lon) {
+  if (!borders.pickData) return 0;
+  const [x, y] = lonLatToPick(lon, lat);
+  const px = Math.min(PICK_W - 1, Math.max(0, Math.floor(x)));
+  const py = Math.min(PICK_H - 1, Math.max(0, Math.floor(y)));
+  const o = (py * PICK_W + px) * 4;
+  const d = borders.pickData;
+  return (d[o] << 16) | (d[o + 1] << 8) | d[o + 2];
+}
+
+const regionTip = document.getElementById('region-tip');
+function showRegionTip() {
+  if (!tapped) return;
+  regionTip.innerHTML = `<span class="name">${tapped.name}</span><br><span class="dim">${tapped.kind}</span>`;
+  regionTip.style.display = 'block';
+}
+function hideRegionTip() {
+  tapped = null;
+  regionTip.style.display = 'none';
+}
+
+// Reposition the label to track the tapped region as the globe rotates.
+function updateRegionTip() {
+  if (!tapped) return;
+  const dir = tapped.point.clone().normalize();
+  const toCam = camera.position.clone().sub(tapped.point).normalize();
+  if (dir.dot(toCam) <= 0.02) { regionTip.style.display = 'none'; return; }
+  const v = tapped.point.clone().project(camera);
+  regionTip.style.display = 'block';
+  regionTip.style.left = ((v.x + 1) / 2 * innerWidth) + 'px';
+  regionTip.style.top = ((-v.y + 1) / 2 * innerHeight) + 'px';
+}
+
+// A tap is a pointer down and up that barely moved, within a short time.
+// (A drag rotates the globe via OrbitControls and must not trigger a pick.)
+let tapDown = null;
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  tapDown = { x: e.clientX, y: e.clientY, t: performance.now() };
+});
+renderer.domElement.addEventListener('pointerup', (e) => {
+  if (!tapDown) return;
+  const moved = Math.hypot(e.clientX - tapDown.x, e.clientY - tapDown.y);
+  const dt = performance.now() - tapDown.t;
+  tapDown = null;
+  if (moved < 6 && dt < 500) onTapGlobe(e.clientX, e.clientY);
+});
+
+function onTapGlobe(clientX, clientY) {
+  pointer.x = (clientX / innerWidth) * 2 - 1;
+  pointer.y = -(clientY / innerHeight) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObject(globe, false);
+  if (!hits.length) { hideRegionTip(); return; }
+  const dir = hits[0].point.clone().normalize();
+  const lat = Math.asin(dir.y) / DEG;
+  const lon = Math.atan2(-dir.z, dir.x) / DEG;
+  const region = borders.regions[pickRegionIndex(lat, lon)];
+  if (region) {
+    const r = surfaceRadiusAt((lon + 180) / 360, (lat + 90) / 180);
+    tapped = { point: dir.clone().multiplyScalar(r), name: region.name, kind: region.kind };
+    showRegionTip();
+  } else {
+    hideRegionTip();
+  }
+}
+
+loadBorders();
 
 // Sun path: where the subsolar point was (past) and will be (future) at this
 // time of day, over a full year. Two lines meet at the current marker.
@@ -885,6 +1130,9 @@ function tick() {
     : tleLive ? `updated ${new Date(lastTleUpdate).toISOString().slice(11, 19)} UTC`
     : 'embedded fallback';
 
+  // Keep the region label on the tapped point as the globe rotates.
+  if (tapped) updateRegionTip();
+
   controls.update();
   renderer.render(scene, camera);
   requestAnimationFrame(tick);
@@ -967,7 +1215,6 @@ starlinkToggle.addEventListener('change', () => {
   if (starlink.points) starlink.points.visible = starlinkToggle.checked;
   if (!starlinkToggle.checked) { setHover(null); satTip.style.display = 'none'; }
 });
-
 </script>
 </body>
 </html>
