@@ -261,6 +261,7 @@ time, "updating…", or "embedded fallback"), and the Starlink status
 
 ## Recent changes (as of 2026-08-23)
 
+- `0f1f312` Add a logo and set it as the favicon
 - `cde6ee9` Collapse the readout to a one-line summary, tap to expand
 - `eb8e9d2` Add a location pin from the browser's public IP via IP2GeoAPI
 - `d477164` Fetch TLE data from the satvisor GitHub mirror first
