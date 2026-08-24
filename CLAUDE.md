@@ -7,7 +7,8 @@ Project context for any agent working in this repo. Run `git status` and
 
 A single-page web app that renders a 3D Earth globe in real time. The app
 marks the subsolar point (where the Sun is directly overhead). The Sun sits
-in its true direction, so the day/night terminator is visible. The app also
+in its true direction at true scale (1 AU away, 0.53° across), so the
+day/night terminator is visible. The app also
 draws the path the subsolar point traces over one year at the current time
 of day: the past in amber, the future in blue, meeting at the current
 marker. The app also shows real satellites in their real orbits, propagated
@@ -62,9 +63,19 @@ GitHub Pages rebuilds the site within a minute or two after the push.
   dynamic `import()` so a CDN failure only disables satellites, not the globe.
 - Globe: `SphereGeometry(10, 256, 256)` (high segment count keeps the
   terrain displacement smooth), `MeshPhongMaterial`, radius `R = 10`.
-- Camera: `PerspectiveCamera(45)`, starts at `(0, 8, 30)`.
+- Camera: `PerspectiveCamera(45)`, starts at `(0, 8, 30)`, far plane
+  1,000,000 (covers the starfield shell and the Sun at 1 AU).
 - `OrbitControls`: damping 0.05, distance clamped to 12–120.
-- Starfield: 2500 random points on a shell at radius 500–800.
+- Starfield: 2500 random points on a shell at radius 400,000–800,000,
+  beyond the Sun so the stars sit behind every object in the scene.
+
+### Scale
+
+- `R = 10` scene units is one Earth radius (`EARTH_RADIUS_KM = 6371`,
+  `KM_TO_SCENE = R / EARTH_RADIUS_KM`).
+- The Sun is at true scale: `SUN_RADIUS_KM = 696340` → `SUN_RADIUS`
+  (≈ 1093), `AU_KM = 149597870.7` → `SUN_DISTANCE` (≈ 234,811). The disk
+  is 0.53° across, the true apparent size of the Sun from Earth.
 
 ### Solar math (low-precision, Meeus/NOAA style)
 
@@ -113,10 +124,12 @@ GitHub Pages rebuilds the site within a minute or two after the push.
 
 ### Sun, marker, and sun path
 
-- Sun: sphere (radius 1.6, `0xffe28a`) at distance 70 in the subsolar
-  direction.
-- `DirectionalLight` (`0xfff2d8`, intensity 4.5) at distance 50 creates the
-  terminator.
+- Sun: sphere at true scale in the subsolar direction: radius
+  `SUN_RADIUS` (≈ 1093, 109× the Earth radius), distance `SUN_DISTANCE`
+  (≈ 234,811, 1 AU), color `0xffe28a`. The disk is 0.53° across, the true
+  apparent size of the Sun from Earth.
+- `DirectionalLight` (`0xfff2d8`, intensity 4.5) at the Sun's position
+  creates the terminator (a directional light uses only the direction).
 - `AmbientLight` (`0x8899bb`, intensity 0.05): kept very low so the
   terminator stays a crisp edge.
 - Subsolar marker: sphere (radius 0.35, `0xffd24a`) at surface radius + 0.12,
@@ -259,8 +272,9 @@ time, "updating…", or "embedded fallback"), and the Starlink status
 - `index.html` links both in the head: `rel="icon"` (SVG) and
   `rel="apple-touch-icon"` (PNG).
 
-## Recent changes (as of 2026-08-23)
+## Recent changes (as of 2026-08-24)
 
+- `d5f4ef0` Put the Sun at true scale and distance (1 AU away, 0.53° across)
 - `0f1f312` Add a logo and set it as the favicon
 - `cde6ee9` Collapse the readout to a one-line summary, tap to expand
 - `eb8e9d2` Add a location pin from the browser's public IP via IP2GeoAPI

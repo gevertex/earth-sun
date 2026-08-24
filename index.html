@@ -100,7 +100,17 @@ import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 
 const DEG = Math.PI / 180;
-const R = 10; // globe radius
+const R = 10; // globe radius, in scene units
+
+// Scale: R is one Earth radius. The Sun keeps its true size and distance
+// relative to Earth: 109.2 Earth radii across, 1 AU = 23,481 Earth radii
+// away. Its apparent disk is 0.53 deg, the true size of the sun from Earth.
+const EARTH_RADIUS_KM = 6371;
+const KM_TO_SCENE = R / EARTH_RADIUS_KM;
+const SUN_RADIUS_KM = 696340;
+const AU_KM = 149597870.7;
+const SUN_RADIUS = SUN_RADIUS_KM * KM_TO_SCENE;  // ~1093
+const SUN_DISTANCE = AU_KM * KM_TO_SCENE;        // ~234,811
 
 /* ---------- solar position (low-precision, Meeus/NOAA style) ---------- */
 
@@ -146,7 +156,8 @@ function latLonToVec3(latDeg, lonDeg, radius) {
 /* ---------- scene ---------- */
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 2000);
+// Far plane covers the starfield shell and the Sun at 1 AU.
+const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 1e6);
 camera.position.set(0, 8, 30);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -160,12 +171,13 @@ controls.dampingFactor = 0.05;
 controls.minDistance = 12;
 controls.maxDistance = 120;
 
-// Starfield: random points on a distant shell.
+// Starfield: random points on a distant shell, beyond the Sun so the stars
+// sit behind every object in the scene.
 {
   const n = 2500;
   const pos = new Float32Array(n * 3);
   for (let i = 0; i < n; i++) {
-    const v = new THREE.Vector3().randomDirection().multiplyScalar(500 + Math.random() * 300);
+    const v = new THREE.Vector3().randomDirection().multiplyScalar(400000 + Math.random() * 400000);
     pos.set([v.x, v.y, v.z], i * 3);
   }
   const g = new THREE.BufferGeometry();
@@ -258,9 +270,10 @@ function surfaceRadiusAt(u, v) {
 const fmtLat = (v) => `${Math.abs(v).toFixed(2)}° ${v >= 0 ? 'N' : 'S'}`;
 const fmtLon = (v) => `${Math.abs(v).toFixed(2)}° ${v >= 0 ? 'E' : 'W'}`;
 
-// Sun: small sphere + the directional light that creates the day/night terminator.
+// Sun: a sphere at true scale (0.53 deg across from Earth) plus the
+// directional light that creates the day/night terminator.
 const sunMesh = new THREE.Mesh(
-  new THREE.SphereGeometry(1.6, 24, 24),
+  new THREE.SphereGeometry(SUN_RADIUS, 48, 24),
   new THREE.MeshBasicMaterial({ color: 0xffe28a }),
 );
 scene.add(sunMesh);
@@ -377,9 +390,6 @@ function buildSunPath(now) {
 /* ---------- satellites: real orbits via SGP4 (satellite.js) ---------- */
 // Loaded dynamically so a CDN failure only disables satellites, not the globe.
 const sat = await import('satellite.js').catch(() => null);
-
-const EARTH_RADIUS_KM = 6371;
-const KM_TO_SCENE = R / EARTH_RADIUS_KM;
 
 // Real satellites: name, NORAD catalog number, and a fallback TLE (epoch 2026-08).
 // The set spans LEO, MEO, and GEO with varied inclinations. Fresh TLEs are
@@ -834,8 +844,8 @@ function tick() {
   // Float the marker just above the local terrain height.
   const surfR = surfaceRadiusAt((lonDeg + 180) / 360, (latDeg + 90) / 180);
   marker.position.copy(dir).multiplyScalar(surfR + 0.12);
-  sunMesh.position.copy(dir).multiplyScalar(70);
-  sunLight.position.copy(dir).multiplyScalar(50);
+  sunMesh.position.copy(dir).multiplyScalar(SUN_DISTANCE);
+  sunLight.position.copy(dir).multiplyScalar(SUN_DISTANCE);
   lineGeo.setFromPoints([new THREE.Vector3(), dir.clone().multiplyScalar(surfR)]);
 
   // The pin base follows the terrain height (the height map loads late).
