@@ -937,7 +937,7 @@ const STARLINK_TLE_URL = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=star
 const STARLINK_TLE_FALLBACK_URL = 'https://raw.githubusercontent.com/satvisorcom/satvisor-data/master/celestrak/tle/starlink.tle';
 const STARLINK_RETRY_MS = 60 * 1000;
 const STARLINK_REFRESH_MS = 30 * 60 * 1000;
-const SL_PROPAGATE_BUDGET_MS = 8;
+const SL_PROPAGATE_FRAMES = 60; // frames per full pass: each sat updates at 1 Hz
 const SL_COLOR = 0x9fd8ff;
 const SL_ORBIT_SAMPLES = 64;   // points around each orbit ellipse
 const SL_ORBIT_FLOATS = SL_ORBIT_SAMPLES * 2 * 3; // LineSegments: 2 vertices per segment
@@ -1112,17 +1112,20 @@ function fillOrbitLine(buf, o, b) {
   }
 }
 
-// Propagate a time-sliced chunk of the constellation. Each satellite updates
-// a few times per second; the stagger is below what the eye sees.
+// Propagate a fixed slice of the constellation per frame: n/60 sats, so
+// each satellite updates once per second. A LEO sat moves 0.065 deg/s, so
+// the 1 s step is about 0.5 px on a 4 px dot. The GMST group rotation runs
+// every frame, so the shell keeps moving smoothly between updates.
 function tickStarlink(now) {
   const sats = starlink.sats;
   if (!starlink.points || sats.length === 0) return;
   const pos = starlink.pos;
   const n = sats.length;
-  const t0 = performance.now();
-  let i = starlink.cursor;
+  const slice = Math.max(1, Math.floor(n / SL_PROPAGATE_FRAMES));
+  const start = starlink.cursor;
+  let i = start;
   const builtBefore = starlink.orbitsBuilt;
-  while (performance.now() - t0 < SL_PROPAGATE_BUDGET_MS) {
+  for (let c = 0; c < slice; c++) {
     const pv = sat.propagate(sats[i].satrec, now);
     const o = i * 3;
     if (pv && pv.position && isFinite(pv.position.x) && pv.velocity && isFinite(pv.velocity.x)) {
@@ -1140,13 +1143,22 @@ function tickStarlink(now) {
     i = (i + 1) % n;
   }
   starlink.cursor = i;
-  starlink.points.geometry.attributes.position.needsUpdate = true;
+  // Upload only the slice updated this frame (it wraps at the end).
+  const attr = starlink.points.geometry.attributes.position;
+  attr.clearUpdateRanges();
+  if (start + slice <= n) {
+    attr.addUpdateRange(start * 3, slice * 3);
+  } else {
+    attr.addUpdateRange(start * 3, (n - start) * 3);
+    attr.addUpdateRange(0, (start + slice - n) * 3);
+  }
+  attr.needsUpdate = true;
   // Upload only the orbits filled this frame (the cursor fills them in order).
   if (starlink.orbitsBuilt > builtBefore) {
-    const attr = starlink.orbits.geometry.attributes.position;
-    attr.clearUpdateRanges();
-    attr.addUpdateRange(builtBefore * SL_ORBIT_FLOATS, (starlink.orbitsBuilt - builtBefore) * SL_ORBIT_FLOATS);
-    attr.needsUpdate = true;
+    const oattr = starlink.orbits.geometry.attributes.position;
+    oattr.clearUpdateRanges();
+    oattr.addUpdateRange(builtBefore * SL_ORBIT_FLOATS, (starlink.orbitsBuilt - builtBefore) * SL_ORBIT_FLOATS);
+    oattr.needsUpdate = true;
   }
 }
 
