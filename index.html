@@ -939,7 +939,7 @@ const STARLINK_RETRY_MS = 60 * 1000;
 const STARLINK_REFRESH_MS = 30 * 60 * 1000;
 const SL_PROPAGATE_FRAMES = 60; // frames per full pass: each sat updates at 1 Hz
 const SL_COLOR = 0x9fd8ff;
-const SL_ORBIT_SAMPLES = 64;   // points around each orbit ellipse
+const SL_ORBIT_SAMPLES = 32;   // points around each orbit ellipse
 const SL_ORBIT_FLOATS = SL_ORBIT_SAMPLES * 2 * 3; // LineSegments: 2 vertices per segment
 const slCol = (c, shift) => ((c >> shift) & 255) / 255;
 
