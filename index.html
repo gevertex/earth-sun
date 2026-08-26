@@ -1363,7 +1363,7 @@ readoutHead.addEventListener('keydown', (e) => {
 });
 
 const tmpMat = new THREE.Matrix4();
-let lastPathSecond = -1;
+let lastPathSlot = -1;
 
 function tick() {
   const now = new Date();
@@ -1385,9 +1385,10 @@ function tick() {
   // The pin base follows the terrain height (the height map loads late).
   if (myLoc) placePin(myLoc.latDeg, myLoc.lonDeg);
 
-  // Rebuild the sun path once per second; it shifts slowly with the time of day.
-  if (now.getUTCSeconds() !== lastPathSecond) {
-    lastPathSecond = now.getUTCSeconds();
+  // Rebuild the sun path every 30 s; it shifts 0.004 deg/s with the time of day.
+  const pathSlot = Math.floor(now.getTime() / 30000);
+  if (pathSlot !== lastPathSlot) {
+    lastPathSlot = pathSlot;
     buildSunPath(now);
   }
 
