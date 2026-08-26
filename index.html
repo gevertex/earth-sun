@@ -278,6 +278,7 @@ new THREE.TextureLoader().load(
     hW = img.width;
     hH = img.height;
     rebuildBorders(); // the border lines now follow the terrain height
+    if (myLoc) placePin(myLoc.latDeg, myLoc.lonDeg);
   },
   undefined,
   () => {}, // offline: keep a smooth globe
@@ -314,6 +315,7 @@ const marker = new THREE.Mesh(
 );
 scene.add(marker);
 const lineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+lineGeo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), R + 1);
 const centerLine = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: 0xffd24a, transparent: true, opacity: 0.55 }));
 scene.add(centerLine);
 
@@ -370,6 +372,7 @@ async function fetchMyLocation() {
     if (typeof latitude !== 'number' || typeof longitude !== 'number') throw new Error('no coordinates');
     myLoc = { latDeg: latitude, lonDeg: longitude, city, region, country };
     myLocState = 'ok';
+    placePin(myLoc.latDeg, myLoc.lonDeg);
   } catch {
     myLocState = 'failed';
   } finally {
@@ -1348,7 +1351,13 @@ setInterval(refreshWeather, WEATHER_REFRESH_MS);
 
 /* ---------- readout + animation ---------- */
 
-const $ = (id) => document.getElementById(id);
+const elUtc = document.getElementById('utc');
+const elSummary = document.getElementById('readout-summary');
+const elLat = document.getElementById('lat');
+const elLon = document.getElementById('lon');
+const elDec = document.getElementById('dec');
+const elEot = document.getElementById('eot');
+const elTle = document.getElementById('tle');
 
 // The readout starts collapsed to a one-line summary; tap the line to expand.
 const readout = document.getElementById('readout');
@@ -1380,10 +1389,10 @@ function tick() {
   marker.position.copy(dir).multiplyScalar(surfR + 0.12);
   sunMesh.position.copy(dir).multiplyScalar(SUN_DISTANCE);
   sunLight.position.copy(dir).multiplyScalar(SUN_DISTANCE);
-  lineGeo.setFromPoints([new THREE.Vector3(), dir.clone().multiplyScalar(surfR)]);
-
-  // The pin base follows the terrain height (the height map loads late).
-  if (myLoc) placePin(myLoc.latDeg, myLoc.lonDeg);
+  const linePos = lineGeo.attributes.position;
+  linePos.setXYZ(0, 0, 0, 0);
+  linePos.setXYZ(1, dir.x * surfR, dir.y * surfR, dir.z * surfR);
+  linePos.needsUpdate = true;
 
   // Rebuild the sun path every 30 s; it shifts 0.004 deg/s with the time of day.
   const pathSlot = Math.floor(now.getTime() / 30000);
@@ -1408,14 +1417,14 @@ function tick() {
     tickStarlink(now);
   }
 
-  $('utc').textContent = now.toISOString().slice(11, 19);
-  $('readout-summary').textContent =
+  elUtc.textContent = now.toISOString().slice(11, 19);
+  elSummary.textContent =
     `Subsolar ${fmtLat(latDeg)} · ${fmtLon(lonDeg)} · ${now.toISOString().slice(11, 16)} UTC`;
-  $('lat').textContent = fmtLat(latDeg);
-  $('lon').textContent = fmtLon(lonDeg);
-  $('dec').textContent = `${latDeg >= 0 ? '+' : ''}${latDeg.toFixed(2)}°`;
-  $('eot').textContent = `${eotMin >= 0 ? '+' : ''}${eotMin.toFixed(1)}`;
-  $('tle').textContent = !sat ? 'satellite.js failed to load'
+  elLat.textContent = fmtLat(latDeg);
+  elLon.textContent = fmtLon(lonDeg);
+  elDec.textContent = `${latDeg >= 0 ? '+' : ''}${latDeg.toFixed(2)}°`;
+  elEot.textContent = `${eotMin >= 0 ? '+' : ''}${eotMin.toFixed(1)}`;
+  elTle.textContent = !sat ? 'satellite.js failed to load'
     : tleRefreshing ? 'updating…'
     : tleLive ? `updated ${new Date(lastTleUpdate).toISOString().slice(11, 19)} UTC`
     : 'embedded fallback';
