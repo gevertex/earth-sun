@@ -152,6 +152,12 @@
     background: rgba(50, 90, 150, 0.4);
     border-color: rgba(120, 170, 255, 0.5);
   }
+  #controls .body-focus {
+    color: #7f97b8;
+    font-size: 11px;
+    line-height: 1.4;
+    margin: 4px 0 2px;
+  }
   @media (max-width: 640px) {
     /* the readout panel takes the top of narrow screens; move the toggle down */
     #controls { top: auto; bottom: 40px; }
@@ -219,6 +225,7 @@
         <button type="button" data-body="neptune">Neptune</button>
         <button type="button" data-body="pluto">Pluto</button>
       </div>
+      <div class="body-focus" id="body-focus">Earth</div>
     </div>
   </div>
   <div class="ctrl-section">
@@ -330,8 +337,8 @@ function latLonToVec3(latDeg, lonDeg, radius) {
 /* ---------- scene ---------- */
 
 const scene = new THREE.Scene();
-// Far plane covers the starfield shell and the Sun at 1 AU.
-const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 1e7);
+// Far plane covers Pluto at ~39 AU (aphelion ~49 AU) plus margin.
+const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 3e7);
 camera.position.set(0, 8, 30);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -620,13 +627,46 @@ PLANET_EL.forEach((el, i) => {
 });
 const saturnGeoR = Math.max(PLANET_EL[4].r * KM_TO_SCENE, 0.5);
 const saturnRing = new THREE.Mesh(
-  new THREE.RingGeometry(1.11 * saturnGeoR, 2.27 * saturnGeoR, 32),
+  new THREE.RingGeometry(1.2 * saturnGeoR, 2.3 * saturnGeoR, 32),
   new THREE.MeshBasicMaterial({ color: 0xc4b48a, side: THREE.DoubleSide, transparent: true, opacity: 0.55, depthWrite: false })
 );
 saturnRing.rotation.x = Math.PI / 2;
 saturnRing.raycast = () => {};
 saturnRing.visible = false;
 planetMeshes[4].add(saturnRing);
+
+const jupiterGeoR = Math.max(PLANET_EL[3].r * KM_TO_SCENE, 0.5);
+const GALILEAN = [
+  { name: 'Io', p: 1.769, aR: 2.0, rR: 0.12, c: 0xe8d090, phase: 0.35 },
+  { name: 'Europa', p: 3.551, aR: 3.2, rR: 0.10, c: 0xd0ccc4, phase: 2.10 },
+  { name: 'Ganymede', p: 7.155, aR: 5.1, rR: 0.16, c: 0xb8b0a0, phase: 3.90 },
+  { name: 'Callisto', p: 16.689, aR: 8.9, rR: 0.14, c: 0x8a7058, phase: 5.40 },
+];
+const galileanGroup = new THREE.Group();
+galileanGroup.visible = false;
+galileanGroup.rotation.x = 0.054;
+planetMeshes[3].add(galileanGroup);
+const galileanMeshes = [];
+for (let i = 0; i < 4; i++) {
+  const g = GALILEAN[i];
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(g.rR * jupiterGeoR, 8, 6),
+    new THREE.MeshBasicMaterial({ color: g.c }),
+  );
+  mesh.raycast = () => {};
+  galileanGroup.add(mesh);
+  galileanMeshes.push(mesh);
+}
+function updateGalilean(now) {
+  if (!galileanGroup.visible) return;
+  const day = julianDate(now) - 2451545.0;
+  for (let i = 0; i < 4; i++) {
+    const g = GALILEAN[i];
+    const th = day / g.p * Math.PI * 2 + g.phase;
+    const a = g.aR * jupiterGeoR;
+    galileanMeshes[i].position.set(Math.cos(th) * a, 0, Math.sin(th) * a);
+  }
+}
 
 const pGeo = new THREE.BufferGeometry();
 pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
@@ -639,7 +679,13 @@ planetPoints.raycast = () => {};
 planetWorld.add(planetPoints);
 
 function updatePlanets(now, lonDeg) {
-  if (!planetWorld.visible) return;
+  if (!planetWorld.visible) {
+    for (let i = 0; i < 8; i++) {
+      const sp = bodyLabel[planetMeshes[i].userData.body];
+      if (sp) sp.visible = false;
+    }
+    return;
+  }
   const T = (julianDate(now) - 2451545.0) / 36525.0;
   const eh = _helio(EARTH_EL, T);
   const se = _eclToEq(-eh[0], -eh[1], -eh[2], T);
@@ -656,6 +702,11 @@ function updatePlanets(now, lonDeg) {
     const p = latLonToVec3(Dec, lon, dist);
     planetMeshes[i].position.copy(p);
     pPos[i*3] = p.x; pPos[i*3+1] = p.y; pPos[i*3+2] = p.z;
+    const lbl = bodyLabel[planetMeshes[i].userData.body];
+    if (lbl) {
+      lbl.position.copy(planetMeshes[i].position);
+      lbl.visible = planetMeshes[i].userData.body !== focusedBody;
+    }
   }
   pGeo.attributes.position.needsUpdate = true;
 }
@@ -675,6 +726,39 @@ const moonMesh = new THREE.Mesh(
 );
 moonWorld.add(moonMesh);
 moonMesh.userData.body = 'moon';
+
+const BODY_TITLE = {
+  sun: 'Sun', mercury: 'Mercury', venus: 'Venus', earth: 'Earth', moon: 'Moon',
+  mars: 'Mars', jupiter: 'Jupiter', saturn: 'Saturn', uranus: 'Uranus',
+  neptune: 'Neptune', pluto: 'Pluto',
+};
+const bodyLabel = {};
+for (const id of Object.keys(BODY_TITLE)) {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 64;
+  const ctx = c.getContext('2d');
+  ctx.font = 'bold 36px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const title = BODY_TITLE[id];
+  const tw = ctx.measureText(title).width;
+  const bw = Math.min(248, tw + 32);
+  ctx.fillStyle = 'rgba(8, 14, 26, 0.72)';
+  ctx.fillRect((256 - bw) / 2, 10, bw, 44);
+  ctx.fillStyle = '#cfe8ff';
+  ctx.fillText(title, 128, 32);
+  const tex = new THREE.CanvasTexture(c);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: tex, sizeAttenuation: false, depthTest: false, transparent: true,
+  }));
+  sp.scale.set(0.16, 0.04, 1);
+  sp.center.set(0.5, 0);
+  sp.raycast = () => {};
+  scene.add(sp);
+  bodyLabel[id] = sp;
+}
+bodyLabel.earth.position.set(0, R + 0.2, 0);
+bodyLabel.earth.visible = false;
 
 new THREE.TextureLoader().load(
   'https://raw.githubusercontent.com/mrdoob/three.js/r160/examples/textures/planets/moon_1024.jpg',
@@ -2713,7 +2797,9 @@ const elDec = document.getElementById('dec');
 const elEot = document.getElementById('eot');
 const elTle = document.getElementById('tle');
 const elMoon = document.getElementById('moon-phase');
+const elBodyFocus = document.getElementById('body-focus');
 let lastMoonReadout = 0;
+let lastFocusReadout = 0;
 
 function updateMoonReadout(now) {
   const t = performance.now();
@@ -2831,6 +2917,52 @@ const BODY_MESH = {
   neptune: planetMeshes[6], pluto: planetMeshes[7],
 };
 const BODY_INSPECT = { sun: 25, mercury: 10, venus: 12, earth: 0, moon: 10, mars: 10, jupiter: 20, saturn: 20, uranus: 16, neptune: 16, pluto: 10 };
+const BODY_TEX = {
+  sun: 'https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/sunmap.jpg',
+  mercury: 'https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/mercurymap.jpg',
+  venus: 'https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/venusmap.jpg',
+  mars: 'https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/marsmap1k.jpg',
+  jupiter: 'https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/jupitermap.jpg',
+  saturn: 'https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/saturnmap.jpg',
+  uranus: 'https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/uranusmap.jpg',
+  neptune: 'https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/neptunemap.jpg',
+};
+const bodyTexState = Object.create(null);
+function ensureBodyTexture(id) {
+  if (!BODY_TEX[id] || bodyTexState[id]) return;
+  const mesh = BODY_MESH[id];
+  if (!mesh) return;
+  bodyTexState[id] = 'load';
+  new THREE.TextureLoader().load(
+    BODY_TEX[id],
+    (tex) => {
+      tex.colorSpace = THREE.SRGBColorSpace;
+      mesh.material.map = tex;
+      mesh.material.color.set(0xffffff);
+      mesh.material.needsUpdate = true;
+      bodyTexState[id] = 'ok';
+    },
+    undefined,
+    () => { bodyTexState[id] = 'fail'; },
+  );
+}
+function updateFocusReadout() {
+  const t = performance.now();
+  if (t - lastFocusReadout < 250) return;
+  lastFocusReadout = t;
+  const id = focusedBody;
+  let line = BODY_TITLE[id] || id;
+  const mesh = BODY_MESH[id];
+  if (id !== 'earth' && mesh) {
+    const km = mesh.position.length() / KM_TO_SCENE;
+    if (id === 'moon') line += ' · ' + Math.round(km) + ' km';
+    else line += ' · ' + (km / AU_KM).toFixed(2) + ' AU';
+  }
+  const planetIdx = ['mercury','venus','mars','jupiter','saturn','uranus','neptune','pluto'].indexOf(id);
+  if (planetIdx >= 0) line += ' · radius ' + Math.round(PLANET_EL[planetIdx].r) + ' km';
+  if (id === 'jupiter') line += ' · Io Europa Ganymede Callisto';
+  elBodyFocus.textContent = line;
+}
 const _bodyPos = new THREE.Vector3();
 const _bodyOff = new THREE.Vector3();
 const _flyFromCam = new THREE.Vector3();
@@ -2847,6 +2979,7 @@ function flyToBody(id) {
   const prevMesh = BODY_MESH[prev];
   if (prevMesh) prevMesh.scale.set(1, 1, 1);
   if (prev === 'saturn') saturnRing.visible = false;
+  if (prev === 'jupiter') galileanGroup.visible = false;
 
   focusedBody = id;
   const mesh = BODY_MESH[id];
@@ -2854,7 +2987,9 @@ function flyToBody(id) {
     const geoR = id === 'sun' ? SUN_RADIUS : id === 'moon' ? 1737.4 * KM_TO_SCENE : Math.max(PLANET_EL[['mercury','venus','mars','jupiter','saturn','uranus','neptune','pluto'].indexOf(id)].r * KM_TO_SCENE, 0.5);
     mesh.scale.setScalar(BODY_INSPECT[id] / geoR);
     if (id === 'saturn') saturnRing.visible = true;
+    if (id === 'jupiter') { galileanGroup.visible = true; updateGalilean(simNow()); }
   }
+  ensureBodyTexture(id);
 
   if (id === 'mercury' || id === 'venus' || id === 'mars' || id === 'jupiter' || id === 'saturn' || id === 'uranus' || id === 'neptune' || id === 'pluto') {
     if (!planetsToggle.checked) { planetsToggle.checked = true; planetsToggle.dispatchEvent(new Event('change')); }
@@ -2922,6 +3057,13 @@ function tick() {
   }
   updatePlanets(now, lonDeg);
   updateMoon(now);
+  updateGalilean(now);
+  bodyLabel.sun.position.copy(sunMesh.position);
+  bodyLabel.sun.visible = focusedBody !== 'sun';
+  bodyLabel.moon.position.copy(moonMesh.position);
+  bodyLabel.moon.visible = moonWorld.visible && focusedBody !== 'moon';
+  bodyLabel.earth.visible = focusedBody !== 'earth';
+  updateFocusReadout();
   if (flyT0 >= 0) {
     const t = Math.min((performance.now() - flyT0) / FLY_MS, 1);
     const e = t * t * (3 - 2 * t);
