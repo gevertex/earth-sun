@@ -848,6 +848,44 @@ const ioVolcanoGlow = new THREE.Mesh(
 ioVolcanoGlow.raycast = () => {};
 ioVolcanoGlow.visible = false;
 galileanMeshes[0].add(ioVolcanoGlow);
+const europaLineaeR = GALILEAN[1].rR * jupiterGeoR * 1.012;
+const EUROPA_LINEAE_ARCS = 5;
+const EUROPA_LINEAE_STEP = 14;
+const europaLineaePos = new Float32Array(EUROPA_LINEAE_ARCS * (EUROPA_LINEAE_STEP - 1) * 6);
+{
+  const europaLineaeSpec = [
+    { lat: 18 * DEG, lon: 10 * DEG, tilt: 1.15, span: 2.4 },
+    { lat: -12 * DEG, lon: 55 * DEG, tilt: 0.55, span: 2.2 },
+    { lat: 42 * DEG, lon: -40 * DEG, tilt: 1.65, span: 1.9 },
+    { lat: -38 * DEG, lon: 95 * DEG, tilt: 0.25, span: 2.1 },
+    { lat: 8 * DEG, lon: -80 * DEG, tilt: 2.05, span: 2.3 },
+  ];
+  let w = 0;
+  for (let a = 0; a < EUROPA_LINEAE_ARCS; a++) {
+    const spec = europaLineaeSpec[a];
+    for (let i = 0; i < EUROPA_LINEAE_STEP - 1; i++) {
+      const s0 = (i / (EUROPA_LINEAE_STEP - 1) - 0.5) * spec.span;
+      const s1 = ((i + 1) / (EUROPA_LINEAE_STEP - 1) - 0.5) * spec.span;
+      for (const s of [s0, s1]) {
+        const lat = spec.lat + s * 0.22 * Math.cos(spec.tilt);
+        const lon = spec.lon + s * Math.sin(spec.tilt);
+        const cl = Math.cos(lat);
+        europaLineaePos[w++] = europaLineaeR * cl * Math.cos(lon);
+        europaLineaePos[w++] = europaLineaeR * Math.sin(lat);
+        europaLineaePos[w++] = -europaLineaeR * cl * Math.sin(lon);
+      }
+    }
+  }
+}
+const europaLineaeGeo = new THREE.BufferGeometry();
+europaLineaeGeo.setAttribute('position', new THREE.BufferAttribute(europaLineaePos, 3));
+const europaLineaeMat = new THREE.LineBasicMaterial({
+  color: 0x3a2820, transparent: true, opacity: 0.82, depthWrite: false,
+});
+const europaLineaeSegs = new THREE.LineSegments(europaLineaeGeo, europaLineaeMat);
+europaLineaeSegs.raycast = () => {};
+europaLineaeSegs.visible = false;
+galileanMeshes[1].add(europaLineaeSegs);
 const jupiterRingInner = 1.72 * jupiterGeoR, jupiterRingOuter = 1.90 * jupiterGeoR;
 const jupiterRing = new THREE.Mesh(
   new THREE.RingGeometry(jupiterRingInner, jupiterRingOuter, 64),
@@ -1117,6 +1155,29 @@ for (let i = 0; i < NEPTUNE_MOONS.length; i++) {
   neptuneMoonLabels.push(makeMoonLabel(g.name));
   addMoonOrbit(neptuneMoonGroup, g.aR * neptuneGeoR, g.c);
 }
+const TRITON_N2_SPRAY_N = 40;
+const tritonN2SprayR = NEPTUNE_MOONS[0].rR * neptuneGeoR;
+const tritonN2SprayPos = new Float32Array(TRITON_N2_SPRAY_N * 3);
+for (let i = 0; i < TRITON_N2_SPRAY_N; i++) {
+  const t = (i + 0.5) / TRITON_N2_SPRAY_N;
+  const a = i * 2.399963;
+  const h = tritonN2SprayR * (0.12 + t * 2.1);
+  const w = tritonN2SprayR * 0.16 * t;
+  tritonN2SprayPos[i * 3] = Math.cos(a) * w;
+  tritonN2SprayPos[i * 3 + 1] = -tritonN2SprayR - h;
+  tritonN2SprayPos[i * 3 + 2] = Math.sin(a) * w;
+}
+const tritonN2SprayGeo = new THREE.BufferGeometry();
+tritonN2SprayGeo.setAttribute('position', new THREE.BufferAttribute(tritonN2SprayPos, 3));
+const tritonN2SprayMat = new THREE.PointsMaterial({
+  color: 0xa8d4ff, size: 3, sizeAttenuation: false,
+  transparent: true, opacity: 0.52,
+  blending: THREE.AdditiveBlending, depthWrite: false,
+});
+const tritonN2SprayPts = new THREE.Points(tritonN2SprayGeo, tritonN2SprayMat);
+tritonN2SprayPts.raycast = () => {};
+tritonN2SprayPts.visible = false;
+neptuneMoonMeshes[0].add(tritonN2SprayPts);
 function updateNeptuneMoons(now) {
   if (!neptuneMoonGroup.visible) {
     for (let i = 0; i < neptuneMoonLabels.length; i++) neptuneMoonLabels[i].visible = false;
@@ -1576,7 +1637,51 @@ function makeMinorMesh(el, id) {
   return mesh;
 }
 const ceresMesh = makeMinorMesh(CERES_EL, 'ceres');
+const ceresOccatorR = Math.max(CERES_EL.r * KM_TO_SCENE, 0.5);
+const ceresOccatorPos = new Float32Array(9);
+{
+  const ceresOccatorSpots = [
+    [19.7 * DEG, 239.6 * DEG],
+    [21.5 * DEG, 242.1 * DEG],
+    [18.0 * DEG, 236.2 * DEG],
+  ];
+  const rr = ceresOccatorR * 1.02;
+  for (let i = 0; i < 3; i++) {
+    const lat = ceresOccatorSpots[i][0], lon = ceresOccatorSpots[i][1];
+    const cl = Math.cos(lat);
+    ceresOccatorPos[i * 3] = rr * cl * Math.cos(lon);
+    ceresOccatorPos[i * 3 + 1] = rr * Math.sin(lat);
+    ceresOccatorPos[i * 3 + 2] = -rr * cl * Math.sin(lon);
+  }
+}
+const ceresOccatorGeo = new THREE.BufferGeometry();
+ceresOccatorGeo.setAttribute('position', new THREE.BufferAttribute(ceresOccatorPos, 3));
+const ceresOccatorMat = new THREE.PointsMaterial({
+  color: 0xe8f0ff, size: 5, sizeAttenuation: false,
+  transparent: true, opacity: 0.95,
+  blending: THREE.AdditiveBlending, depthWrite: false,
+});
+const ceresOccatorDots = new THREE.Points(ceresOccatorGeo, ceresOccatorMat);
+ceresOccatorDots.raycast = () => {};
+ceresOccatorDots.visible = false;
+ceresMesh.add(ceresOccatorDots);
 const vestaMesh = makeMinorMesh(VESTA_EL, 'vesta');
+const vestaRheasilviaR = Math.max(VESTA_EL.r * KM_TO_SCENE, 0.5);
+const vestaRheasilviaDisk = new THREE.Mesh(
+  new THREE.CircleGeometry(vestaRheasilviaR * 0.82, 28),
+  new THREE.MeshLambertMaterial({
+    color: 0x3a2a1c, side: THREE.DoubleSide,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+  })
+);
+{
+  const rr = vestaRheasilviaR * 1.006;
+  vestaRheasilviaDisk.position.set(0, -rr, 0);
+  vestaRheasilviaDisk.lookAt(0, -rr * 2, 0);
+}
+vestaRheasilviaDisk.raycast = () => {};
+vestaRheasilviaDisk.visible = false;
+vestaMesh.add(vestaRheasilviaDisk);
 const minorSkyPos = new Float32Array(6);
 const minorSkyCol = new Float32Array([0.72, 0.70, 0.66, 0.77, 0.66, 0.47]);
 const minorSkyGeo = new THREE.BufferGeometry();
@@ -4113,6 +4218,7 @@ function updateFocusReadout() {
       : uranusRingSunEl < -0.02 ? ' · uranus season southern summer'
       : ' · uranus season equinox';
   }
+  if (id === 'mercury') extra += ' · solar day 176 Earth days · 3:2 resonance';
   if (extra) line += '\n' + extra;
   elBodyFocus.textContent = line;
 }
@@ -4153,6 +4259,7 @@ function flyToBody(id) {
     jupiterGrs.visible = false;
     jupiterAuroraGroup.visible = false;
     ioVolcanoGlow.visible = false;
+    europaLineaeSegs.visible = false;
     for (let i = 0; i < galileanLabels.length; i++) galileanLabels[i].visible = false;
   }
   if (prev === 'uranus') {
@@ -4169,6 +4276,7 @@ function flyToBody(id) {
     neptuneMoonGroup.rotation.y = 0;
     neptuneAtmo.visible = false;
     neptuneSpot.visible = false;
+    tritonN2SprayPts.visible = false;
     for (let i = 0; i < neptuneMoonLabels.length; i++) neptuneMoonLabels[i].visible = false;
   }
   if (prev === 'mars') {
@@ -4189,6 +4297,8 @@ function flyToBody(id) {
   }
   if (prev === 'venus') venusAtmo.visible = false;
   if (prev === 'halley') cometAtmo.visible = false;
+  if (prev === 'ceres') ceresOccatorDots.visible = false;
+  if (prev === 'vesta') vestaRheasilviaDisk.visible = false;
 
   focusedBody = id;
   const mesh = BODY_MESH[id];
@@ -4215,6 +4325,7 @@ function flyToBody(id) {
       jupiterGrs.visible = true;
       jupiterAuroraGroup.visible = true;
       ioVolcanoGlow.visible = true;
+      europaLineaeSegs.visible = true;
       updateGalilean(simNow());
       ensureFocusedMoonMaps(id);
     }
@@ -4235,6 +4346,7 @@ function flyToBody(id) {
       neptuneMoonGroup.visible = true;
       neptuneAtmo.visible = true;
       neptuneSpot.visible = true;
+      tritonN2SprayPts.visible = true;
       updateNeptuneMoons(simNow());
       ensureFocusedMoonMaps(id);
     }
@@ -4255,6 +4367,8 @@ function flyToBody(id) {
       updateCharon(simNow());
       ensureFocusedMoonMaps(id);
     }
+    if (id === 'ceres') ceresOccatorDots.visible = true;
+    if (id === 'vesta') vestaRheasilviaDisk.visible = true;
   }
   ensureBodyTexture(id);
 
