@@ -134,6 +134,24 @@
   #controls .ctrl-section:not(.collapsed) .ctrl-count { display: none; }
   #controls .ctrl-section.collapsed .ctrl-body { display: none; }
   #controls .ctrl-body { padding: 1px 0 4px 2px; }
+  #controls .body-list {
+    display: flex; flex-wrap: wrap; gap: 4px;
+    margin: 2px 0 2px;
+  }
+  #controls .body-list button {
+    font: 11px/1.3 system-ui, sans-serif;
+    color: #cfe8ff;
+    background: #0c1626;
+    border: 1px solid rgba(120, 170, 255, 0.25);
+    border-radius: 5px;
+    padding: 2px 7px;
+    cursor: pointer;
+  }
+  #controls .body-list button.active {
+    color: #fff;
+    background: rgba(50, 90, 150, 0.4);
+    border-color: rgba(120, 170, 255, 0.5);
+  }
   @media (max-width: 640px) {
     /* the readout panel takes the top of narrow screens; move the toggle down */
     #controls { top: auto; bottom: 40px; }
@@ -183,6 +201,24 @@
     <div class="ctrl-body">
       <label>time speed <select id="time-scale"><option value="1">1x</option><option value="60">60x</option><option value="3600">3600x</option><option value="86400">1 day/s</option></select></label>
       <label>jump UTC <input type="date" id="sim-date" min="1950-01-01" max="2100-12-31"> <input type="time" id="sim-time" step="1"></label>
+    </div>
+  </div>
+  <div class="ctrl-section">
+    <div class="ctrl-head" role="button" tabindex="0"><span class="caret">▾</span><span class="ctrl-title">Bodies</span></div>
+    <div class="ctrl-body">
+      <div class="body-list" id="body-list">
+        <button type="button" data-body="sun">Sun</button>
+        <button type="button" data-body="mercury">Mercury</button>
+        <button type="button" data-body="venus">Venus</button>
+        <button type="button" data-body="earth" class="active">Earth</button>
+        <button type="button" data-body="moon">Moon</button>
+        <button type="button" data-body="mars">Mars</button>
+        <button type="button" data-body="jupiter">Jupiter</button>
+        <button type="button" data-body="saturn">Saturn</button>
+        <button type="button" data-body="uranus">Uranus</button>
+        <button type="button" data-body="neptune">Neptune</button>
+        <button type="button" data-body="pluto">Pluto</button>
+      </div>
     </div>
   </div>
   <div class="ctrl-section">
@@ -506,6 +542,7 @@ const sunMesh = new THREE.Mesh(
   new THREE.MeshBasicMaterial({ color: 0xffe28a }),
 );
 scene.add(sunMesh);
+sunMesh.userData.body = 'sun';
 const sunLight = new THREE.DirectionalLight(0xfff2d8, 4.5);
 scene.add(sunLight);
 // Very low fill: enough to keep the night side faintly readable, dark enough
@@ -577,9 +614,19 @@ PLANET_EL.forEach((el, i) => {
   );
   planetWorld.add(mesh);
   planetMeshes.push(mesh);
+  mesh.userData.body = ['mercury','venus','mars','jupiter','saturn','uranus','neptune','pluto'][i];
   const c = new THREE.Color(el.c);
   pCol[i*3] = c.r; pCol[i*3+1] = c.g; pCol[i*3+2] = c.b;
 });
+const saturnGeoR = Math.max(PLANET_EL[4].r * KM_TO_SCENE, 0.5);
+const saturnRing = new THREE.Mesh(
+  new THREE.RingGeometry(1.11 * saturnGeoR, 2.27 * saturnGeoR, 32),
+  new THREE.MeshBasicMaterial({ color: 0xc4b48a, side: THREE.DoubleSide, transparent: true, opacity: 0.55, depthWrite: false })
+);
+saturnRing.rotation.x = Math.PI / 2;
+saturnRing.raycast = () => {};
+saturnRing.visible = false;
+planetMeshes[4].add(saturnRing);
 
 const pGeo = new THREE.BufferGeometry();
 pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
@@ -627,6 +674,7 @@ const moonMesh = new THREE.Mesh(
   new THREE.MeshPhongMaterial({ color: 0xffffff, shininess: 4 }),
 );
 moonWorld.add(moonMesh);
+moonMesh.userData.body = 'moon';
 
 new THREE.TextureLoader().load(
   'https://raw.githubusercontent.com/mrdoob/three.js/r160/examples/textures/planets/moon_1024.jpg',
@@ -1499,6 +1547,19 @@ function onTap(clientX, clientY) {
         tappedSat = { sat: starlink.sats[best.index], kind: 'starlink' };
         hideRegionTip();
         showSatTip();
+        return;
+      }
+    }
+  }
+  const bodyHits = raycaster.intersectObjects([sunMesh, moonMesh, ...planetMeshes], false);
+  if (bodyHits.length) {
+    const gh = raycaster.intersectObject(globe, false);
+    if (!gh.length || bodyHits[0].distance < gh[0].distance) {
+      const bodyId = bodyHits[0].object.userData.body;
+      if (bodyId) {
+        hideRegionTip();
+        hideSatTip();
+        flyToBody(bodyId);
         return;
       }
     }
@@ -2763,6 +2824,82 @@ document.getElementById('sim-time').addEventListener('change', _readSimInputs);
   document.getElementById('sim-time').value = `${hh}:${mm}:${ss}`;
 }
 
+const BODY_MESH = {
+  sun: sunMesh, moon: moonMesh, earth: null,
+  mercury: planetMeshes[0], venus: planetMeshes[1], mars: planetMeshes[2],
+  jupiter: planetMeshes[3], saturn: planetMeshes[4], uranus: planetMeshes[5],
+  neptune: planetMeshes[6], pluto: planetMeshes[7],
+};
+const BODY_INSPECT = { sun: 25, mercury: 10, venus: 12, earth: 0, moon: 10, mars: 10, jupiter: 20, saturn: 20, uranus: 16, neptune: 16, pluto: 10 };
+const _bodyPos = new THREE.Vector3();
+const _bodyOff = new THREE.Vector3();
+const _flyFromCam = new THREE.Vector3();
+const _flyFromTgt = new THREE.Vector3();
+const _flyToCam = new THREE.Vector3();
+let focusedBody = 'earth';
+let flyT0 = -1;
+const FLY_MS = 1000;
+
+function flyToBody(id) {
+  if (!(id in BODY_MESH)) return;
+  if (id === focusedBody && flyT0 < 0) return;
+  const prev = focusedBody;
+  const prevMesh = BODY_MESH[prev];
+  if (prevMesh) prevMesh.scale.set(1, 1, 1);
+  if (prev === 'saturn') saturnRing.visible = false;
+
+  focusedBody = id;
+  const mesh = BODY_MESH[id];
+  if (mesh) {
+    const geoR = id === 'sun' ? SUN_RADIUS : id === 'moon' ? 1737.4 * KM_TO_SCENE : Math.max(PLANET_EL[['mercury','venus','mars','jupiter','saturn','uranus','neptune','pluto'].indexOf(id)].r * KM_TO_SCENE, 0.5);
+    mesh.scale.setScalar(BODY_INSPECT[id] / geoR);
+    if (id === 'saturn') saturnRing.visible = true;
+  }
+
+  if (id === 'mercury' || id === 'venus' || id === 'mars' || id === 'jupiter' || id === 'saturn' || id === 'uranus' || id === 'neptune' || id === 'pluto') {
+    if (!planetsToggle.checked) { planetsToggle.checked = true; planetsToggle.dispatchEvent(new Event('change')); }
+  }
+  if (id === 'moon' && !moonToggle.checked) {
+    moonToggle.checked = true;
+    moonToggle.dispatchEvent(new Event('change'));
+  }
+
+  if (id !== 'earth') {
+    if (tappedSat) hideSatTip();
+    else {
+      const fs = document.getElementById('follow-sat-toggle');
+      if (fs.checked) { fs.checked = false; followSat = false; }
+    }
+  }
+
+  _flyFromTgt.copy(controls.target);
+  _flyFromCam.copy(camera.position);
+  _bodyOff.copy(camera.position).sub(controls.target);
+  if (_bodyOff.lengthSq() < 1e-6) _bodyOff.set(0, 8, 30);
+  if (id === 'earth') {
+    const d = _bodyOff.length();
+    if (d < 20) _bodyOff.setLength(20);
+    else if (d > 40) _bodyOff.setLength(40);
+  } else {
+    _bodyOff.setLength(BODY_INSPECT[id] * 2.4);
+  }
+  flyT0 = performance.now();
+  controls.minDistance = 1;
+  controls.maxDistance = 1e7;
+  syncBodyList();
+}
+
+function syncBodyList() {
+  document.querySelectorAll('#body-list button').forEach((b) => {
+    b.classList.toggle('active', b.dataset.body === focusedBody);
+  });
+}
+
+document.getElementById('body-list').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-body]');
+  if (btn) flyToBody(btn.dataset.body);
+});
+
 function tick() {
   const now = simNow();
   const { latDeg, lonDeg, eotMin } = subSolarPoint(now);
@@ -2785,6 +2922,34 @@ function tick() {
   }
   updatePlanets(now, lonDeg);
   updateMoon(now);
+  if (flyT0 >= 0) {
+    const t = Math.min((performance.now() - flyT0) / FLY_MS, 1);
+    const e = t * t * (3 - 2 * t);
+    const mesh = BODY_MESH[focusedBody];
+    if (mesh) mesh.getWorldPosition(_bodyPos);
+    else _bodyPos.set(0, 0, 0);
+    controls.target.lerpVectors(_flyFromTgt, _bodyPos, e);
+    _flyToCam.copy(_bodyPos).add(_bodyOff);
+    camera.position.lerpVectors(_flyFromCam, _flyToCam, e);
+    if (t >= 1) {
+      flyT0 = -1;
+      if (focusedBody === 'earth') {
+        controls.minDistance = 12;
+        controls.maxDistance = 120;
+        controls.target.set(0, 0, 0);
+      } else {
+        const inspectR = BODY_INSPECT[focusedBody];
+        controls.minDistance = inspectR * 1.2;
+        controls.maxDistance = inspectR * 30;
+      }
+    }
+  } else if (focusedBody !== 'earth') {
+    const mesh = BODY_MESH[focusedBody];
+    if (mesh) {
+      mesh.getWorldPosition(_bodyPos);
+      controls.target.copy(_bodyPos);
+    }
+  }
   updateMoonReadout(now);
   updateUmbra(dir);
   updateAsteroids(now, lonDeg);
@@ -2850,7 +3015,7 @@ function tick() {
   }
 
   tickMeteors();
-  if (followSat && tappedSat && tappedSat.kind === 'sat') {
+  if (followSat && tappedSat && tappedSat.kind === 'sat' && focusedBody === 'earth' && flyT0 < 0) {
     satWorld.localToWorld(_followWorld.copy(tappedSat.sat.dot.position));
     controls.target.copy(_followWorld);
   }
@@ -2878,8 +3043,10 @@ function showSatTip() {
   satTip.style.display = 'block';
   if (tappedSat.kind === 'sat' && sat) {
     buildGroundTrack(tappedSat.sat, simNow());
-    document.getElementById('follow-sat-toggle').checked = true;
-    followSat = true;
+    if (focusedBody === 'earth') {
+      document.getElementById('follow-sat-toggle').checked = true;
+      followSat = true;
+    }
   } else {
     gtLine.visible = false;
     document.getElementById('follow-sat-toggle').checked = false;
@@ -2923,6 +3090,11 @@ satToggle.addEventListener('change', () => {
   if (!satToggle.checked && tappedSat && tappedSat.kind === 'sat') hideSatTip();
 });
 document.getElementById('follow-sat-toggle').addEventListener('change', (e) => {
+  if (e.target.checked && focusedBody !== 'earth') {
+    e.target.checked = false;
+    followSat = false;
+    return;
+  }
   if (e.target.checked && (!tappedSat || tappedSat.kind !== 'sat')) {
     e.target.checked = false;
     followSat = false;
