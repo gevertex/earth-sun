@@ -234,6 +234,11 @@
         <button type="button" data-body="halley">Halley</button>
         <button type="button" data-body="ceres">Ceres</button>
         <button type="button" data-body="vesta">Vesta</button>
+        <button type="button" data-body="eris">Eris</button>
+        <button type="button" data-body="haumea">Haumea</button>
+        <button type="button" data-body="makemake">Makemake</button>
+        <button type="button" data-body="pallas">Pallas</button>
+        <button type="button" data-body="hygiea">Hygiea</button>
       </div>
       <label><input type="checkbox" id="true-size-toggle"> true size</label>
       <div class="body-focus" id="body-focus">Earth</div>
@@ -273,7 +278,7 @@
       <label><input type="checkbox" id="asteroids-toggle"> asteroid belt</label>
       <label><input type="checkbox" id="meteor-toggle"> meteor shower</label>
       <label><input type="checkbox" id="comet-toggle"> comet</label>
-      <label><input type="checkbox" id="minors-toggle"> Ceres / Vesta</label>
+      <label><input type="checkbox" id="minors-toggle"> Ceres / Vesta / more</label>
       <label><input type="checkbox" id="ecliptic-toggle"> ecliptic plane</label>
       <label><input type="checkbox" id="galactic-toggle"> galactic equator</label>
     </div>
@@ -2131,6 +2136,21 @@ const ceresOrbitLine = ceresOrbit.line;
 const vestaOrbit = makeOrbitLine(ORBIT_SAMPLES, 0xc4a878);
 const vestaOrbitPos = vestaOrbit.pos;
 const vestaOrbitLine = vestaOrbit.line;
+const erisOrbit = makeOrbitLine(ORBIT_SAMPLES, 0xd4dce8);
+const erisOrbitPos = erisOrbit.pos;
+const erisOrbitLine = erisOrbit.line;
+const haumeaOrbit = makeOrbitLine(ORBIT_SAMPLES, 0xe8d0b8);
+const haumeaOrbitPos = haumeaOrbit.pos;
+const haumeaOrbitLine = haumeaOrbit.line;
+const makemakeOrbit = makeOrbitLine(ORBIT_SAMPLES, 0xd4a06a);
+const makemakeOrbitPos = makemakeOrbit.pos;
+const makemakeOrbitLine = makemakeOrbit.line;
+const pallasOrbit = makeOrbitLine(ORBIT_SAMPLES, 0xa8acb0);
+const pallasOrbitPos = pallasOrbit.pos;
+const pallasOrbitLine = pallasOrbit.line;
+const hygieaOrbit = makeOrbitLine(ORBIT_SAMPLES, 0x8a8078);
+const hygieaOrbitPos = hygieaOrbit.pos;
+const hygieaOrbitLine = hygieaOrbit.line;
 let lastOrbitWall = 0;
 function fillHelioOrbitLine(el, arr, n, T, eh, gmst) {
   const e = el.e0 + (el.edot || 0) * T;
@@ -2155,6 +2175,16 @@ function buildPlanetOrbits(now) {
   ceresOrbitLine.geometry.attributes.position.needsUpdate = true;
   fillHelioOrbitLine(VESTA_EL, vestaOrbitPos, ORBIT_SAMPLES, T, eh, gmst);
   vestaOrbitLine.geometry.attributes.position.needsUpdate = true;
+  fillHelioOrbitLine(ERIS_EL, erisOrbitPos, ORBIT_SAMPLES, T, eh, gmst);
+  erisOrbitLine.geometry.attributes.position.needsUpdate = true;
+  fillHelioOrbitLine(HAUMEA_EL, haumeaOrbitPos, ORBIT_SAMPLES, T, eh, gmst);
+  haumeaOrbitLine.geometry.attributes.position.needsUpdate = true;
+  fillHelioOrbitLine(MAKEMAKE_EL, makemakeOrbitPos, ORBIT_SAMPLES, T, eh, gmst);
+  makemakeOrbitLine.geometry.attributes.position.needsUpdate = true;
+  fillHelioOrbitLine(PALLAS_EL, pallasOrbitPos, ORBIT_SAMPLES, T, eh, gmst);
+  pallasOrbitLine.geometry.attributes.position.needsUpdate = true;
+  fillHelioOrbitLine(HYGIEA_EL, hygieaOrbitPos, ORBIT_SAMPLES, T, eh, gmst);
+  hygieaOrbitLine.geometry.attributes.position.needsUpdate = true;
   lastOrbitWall = Date.now();
 }
 function syncOrbitFocus() {
@@ -2164,6 +2194,11 @@ function syncOrbitFocus() {
   halleyOrbitLine.visible = focusedBody !== 'halley';
   ceresOrbitLine.visible = focusedBody !== 'ceres';
   vestaOrbitLine.visible = focusedBody !== 'vesta';
+  erisOrbitLine.visible = focusedBody !== 'eris';
+  haumeaOrbitLine.visible = focusedBody !== 'haumea';
+  makemakeOrbitLine.visible = focusedBody !== 'makemake';
+  pallasOrbitLine.visible = focusedBody !== 'pallas';
+  hygieaOrbitLine.visible = focusedBody !== 'hygiea';
 }
 const orbitsToggle = document.getElementById('orbits-toggle');
 orbitsToggle.addEventListener('change', () => {
@@ -2333,6 +2368,8 @@ const BODY_TITLE = {
   mars: 'Mars', jupiter: 'Jupiter', saturn: 'Saturn', uranus: 'Uranus',
   neptune: 'Neptune', pluto: 'Pluto', halley: 'Halley',
   ceres: 'Ceres', vesta: 'Vesta',
+  eris: 'Eris', haumea: 'Haumea', makemake: 'Makemake',
+  pallas: 'Pallas', hygiea: 'Hygiea',
 };
 const bodyLabel = {};
 for (const id of Object.keys(BODY_TITLE)) {
@@ -2364,6 +2401,11 @@ bodyLabel.earth.visible = false;
 bodyLabel.halley.visible = false;
 bodyLabel.ceres.visible = false;
 bodyLabel.vesta.visible = false;
+bodyLabel.eris.visible = false;
+bodyLabel.haumea.visible = false;
+bodyLabel.makemake.visible = false;
+bodyLabel.pallas.visible = false;
+bodyLabel.hygiea.visible = false;
 
 /* ---------- Halley: Keplerian comet, Earth origin, cheap anti-sun tail ---------- */
 const HALLEY_EL = {
@@ -2507,6 +2549,29 @@ const VESTA_EL = {
   a0: 2.361909, e0: 0.088573, I0: 7.1418,
   Omega0: 103.8093, w0: 150.8358, tPeri: 2458247.804, r: 263, c: 0xc4a878,
 };
+/* JPL SBDB osculating Kepler elements, epoch 2461200.5 (2026-May-05 TDB). */
+const ERIS_EL = {
+  a0: 67.933947, e0: 0.438239, I0: 43.92583,
+  Omega0: 36.00477, w0: 150.79492, tPeri: 2545407.717, r: 1163, c: 0xd4dce8,
+};
+const HAUMEA_EL = {
+  a0: 43.060290, e0: 0.194443, I0: 28.20847,
+  Omega0: 121.78606, w0: 240.69055, tPeri: 2500416.600, r: 780, c: 0xe8d0b8,
+};
+const HAUMEA_INSPECT_X = 1.28;
+const HAUMEA_INSPECT_Z = 0.78;
+const MAKEMAKE_EL = {
+  a0: 45.570933, e0: 0.158889, I0: 29.02786,
+  Omega0: 79.29483, w0: 297.09227, tPeri: 2408158.694, r: 715, c: 0xd4a06a,
+};
+const PALLAS_EL = {
+  a0: 2.769559, e0: 0.230700, I0: 34.93279,
+  Omega0: 172.88662, w0: 310.96992, tPeri: 2461695.031, r: 256.5, c: 0xa8acb0,
+};
+const HYGIEA_EL = {
+  a0: 3.150974, e0: 0.106709, I0: 3.82953,
+  Omega0: 283.11989, w0: 312.42424, tPeri: 2461813.201, r: 203.6, c: 0x8a8078,
+};
 const minorWorld = new THREE.Group();
 minorWorld.visible = false;
 scene.add(minorWorld);
@@ -2584,8 +2649,18 @@ const vestaRheasilviaDisk = new THREE.Mesh(
 vestaRheasilviaDisk.raycast = () => {};
 vestaRheasilviaDisk.visible = false;
 vestaMesh.add(vestaRheasilviaDisk);
-const minorSkyPos = new Float32Array(6);
-const minorSkyCol = new Float32Array([0.72, 0.70, 0.66, 0.77, 0.66, 0.47]);
+const erisMesh = makeMinorMesh(ERIS_EL, 'eris');
+const haumeaMesh = makeMinorMesh(HAUMEA_EL, 'haumea');
+const makemakeMesh = makeMinorMesh(MAKEMAKE_EL, 'makemake');
+const pallasMesh = makeMinorMesh(PALLAS_EL, 'pallas');
+const hygieaMesh = makeMinorMesh(HYGIEA_EL, 'hygiea');
+const minorSkyPos = new Float32Array(21);
+const minorSkyCol = new Float32Array([
+  0.72, 0.70, 0.66, 0.77, 0.66, 0.47,
+  0.83, 0.86, 0.91, 0.91, 0.82, 0.72,
+  0.83, 0.63, 0.42, 0.66, 0.67, 0.69,
+  0.54, 0.50, 0.47,
+]);
 const minorSkyGeo = new THREE.BufferGeometry();
 minorSkyGeo.setAttribute('position', new THREE.BufferAttribute(minorSkyPos, 3));
 minorSkyGeo.setAttribute('color', new THREE.BufferAttribute(minorSkyCol, 3));
@@ -2628,10 +2703,20 @@ function updateMinors(now, lonDeg) {
   if (!minorWorld.visible) {
     if (bodyLabel.ceres) bodyLabel.ceres.visible = false;
     if (bodyLabel.vesta) bodyLabel.vesta.visible = false;
+    if (bodyLabel.eris) bodyLabel.eris.visible = false;
+    if (bodyLabel.haumea) bodyLabel.haumea.visible = false;
+    if (bodyLabel.makemake) bodyLabel.makemake.visible = false;
+    if (bodyLabel.pallas) bodyLabel.pallas.visible = false;
+    if (bodyLabel.hygiea) bodyLabel.hygiea.visible = false;
     return;
   }
   _placeMinor(CERES_EL, ceresMesh, now, lonDeg, 0);
   _placeMinor(VESTA_EL, vestaMesh, now, lonDeg, 3);
+  _placeMinor(ERIS_EL, erisMesh, now, lonDeg, 6);
+  _placeMinor(HAUMEA_EL, haumeaMesh, now, lonDeg, 9);
+  _placeMinor(MAKEMAKE_EL, makemakeMesh, now, lonDeg, 12);
+  _placeMinor(PALLAS_EL, pallasMesh, now, lonDeg, 15);
+  _placeMinor(HYGIEA_EL, hygieaMesh, now, lonDeg, 18);
   minorSkyGeo.attributes.position.needsUpdate = true;
 }
 const minorsToggle = document.getElementById('minors-toggle');
@@ -3528,7 +3613,7 @@ function onTap(clientX, clientY) {
   }
   const pickBodies = [sunMesh, moonMesh, ...planetMeshes];
   if (cometWorld.visible) pickBodies.push(cometMesh);
-  if (minorWorld.visible) pickBodies.push(ceresMesh, vestaMesh);
+  if (minorWorld.visible) pickBodies.push(ceresMesh, vestaMesh, erisMesh, haumeaMesh, makemakeMesh, pallasMesh, hygieaMesh);
   const bodyHits = raycaster.intersectObjects(pickBodies, false);
   if (bodyHits.length) {
     const gh = raycaster.intersectObject(globe, false);
@@ -4812,16 +4897,20 @@ const BODY_MESH = {
   jupiter: planetMeshes[3], saturn: planetMeshes[4], uranus: planetMeshes[5],
   neptune: planetMeshes[6], pluto: planetMeshes[7],
   ceres: ceresMesh, vesta: vestaMesh,
+  eris: erisMesh, haumea: haumeaMesh, makemake: makemakeMesh,
+  pallas: pallasMesh, hygiea: hygieaMesh,
 };
-const BODY_INSPECT = { sun: 25, mercury: 10, venus: 12, earth: 0, moon: 10, mars: 10, jupiter: 20, saturn: 20, uranus: 16, neptune: 16, pluto: 10, halley: 8, ceres: 8, vesta: 8 };
+const BODY_INSPECT = { sun: 25, mercury: 10, venus: 12, earth: 0, moon: 10, mars: 10, jupiter: 20, saturn: 20, uranus: 16, neptune: 16, pluto: 10, halley: 8, ceres: 8, vesta: 8, eris: 8, haumea: 8, makemake: 8, pallas: 8, hygiea: 8 };
 const BODY_TILT = {
   mercury: 0.03, venus: 177.4, mars: 25, jupiter: 3, saturn: 27,
   uranus: 98, neptune: 28, pluto: 120, sun: 7.2, ceres: 4, vesta: 29,
+  pallas: 84,
 };
 const SIDEREAL_DAYS = {
   sun: 25.38, mercury: 58.646, venus: 243.02, mars: 1.026,
   jupiter: 0.4135, saturn: 0.444, uranus: 0.718, neptune: 0.671, pluto: 6.387,
   ceres: 0.378, vesta: 0.223,
+  eris: 1.079, haumea: 0.163, makemake: 0.951, pallas: 0.326, hygiea: 0.576,
 };
 function applyInspectSpin(id, now) {
   const days = SIDEREAL_DAYS[id];
@@ -4851,6 +4940,11 @@ function bodyRealR(id) {
   if (id === 'halley') return HALLEY_EL.r * KM_TO_SCENE;
   if (id === 'ceres') return CERES_EL.r * KM_TO_SCENE;
   if (id === 'vesta') return VESTA_EL.r * KM_TO_SCENE;
+  if (id === 'eris') return ERIS_EL.r * KM_TO_SCENE;
+  if (id === 'haumea') return HAUMEA_EL.r * KM_TO_SCENE;
+  if (id === 'makemake') return MAKEMAKE_EL.r * KM_TO_SCENE;
+  if (id === 'pallas') return PALLAS_EL.r * KM_TO_SCENE;
+  if (id === 'hygiea') return HYGIEA_EL.r * KM_TO_SCENE;
   const idx = PLANET_IDS.indexOf(id);
   if (idx >= 0) return PLANET_EL[idx].r * KM_TO_SCENE;
   return R;
@@ -4861,6 +4955,11 @@ function bodyGeoR(id) {
   if (id === 'halley') return cometGeoR;
   if (id === 'ceres') return Math.max(CERES_EL.r * KM_TO_SCENE, 0.5);
   if (id === 'vesta') return Math.max(VESTA_EL.r * KM_TO_SCENE, 0.5);
+  if (id === 'eris') return Math.max(ERIS_EL.r * KM_TO_SCENE, 0.5);
+  if (id === 'haumea') return Math.max(HAUMEA_EL.r * KM_TO_SCENE, 0.5);
+  if (id === 'makemake') return Math.max(MAKEMAKE_EL.r * KM_TO_SCENE, 0.5);
+  if (id === 'pallas') return Math.max(PALLAS_EL.r * KM_TO_SCENE, 0.5);
+  if (id === 'hygiea') return Math.max(HYGIEA_EL.r * KM_TO_SCENE, 0.5);
   const idx = PLANET_IDS.indexOf(id);
   if (idx >= 0) return Math.max(PLANET_EL[idx].r * KM_TO_SCENE, 0.5);
   return R;
@@ -4871,7 +4970,9 @@ function inspectViewR(id) {
 function applyInspectScale(id) {
   const mesh = BODY_MESH[id];
   if (!mesh) return;
-  mesh.scale.setScalar(inspectViewR(id) / bodyGeoR(id));
+  const inspectScaleS = inspectViewR(id) / bodyGeoR(id);
+  if (id === 'haumea') mesh.scale.set(inspectScaleS * HAUMEA_INSPECT_X, inspectScaleS, inspectScaleS * HAUMEA_INSPECT_Z);
+  else mesh.scale.setScalar(inspectScaleS);
 }
 function applyBodyTilt(id, mesh) {
   if (!mesh) return;
@@ -5091,6 +5192,11 @@ function updateFocusReadout() {
   if (id === 'pluto') line += ' · Charon';
   if (id === 'ceres') line += ' · radius 470 km';
   if (id === 'vesta') line += ' · radius 263 km';
+  if (id === 'eris') line += ' · radius 1163 km';
+  if (id === 'haumea') line += ' · radius 780 km';
+  if (id === 'makemake') line += ' · radius 715 km';
+  if (id === 'pallas') line += ' · radius 256 km';
+  if (id === 'hygiea') line += ' · radius 204 km';
   let extra = '';
   if (id === 'sun') extra = 'tilt 7.2°';
   else if (id === 'moon') extra = 'period 27.3 d · inclination 5.1°';
@@ -5109,6 +5215,11 @@ function updateFocusReadout() {
   }
   else if (id === 'ceres') extra = 'period 4.61 y · inclination 10.6° · tilt 4°';
   else if (id === 'vesta') extra = 'period 3.63 y · inclination 7.1° · tilt 29°';
+  else if (id === 'eris') extra = 'period 560 y · inclination 43.9°';
+  else if (id === 'haumea') extra = 'period 283 y · inclination 28.2°';
+  else if (id === 'makemake') extra = 'period 308 y · inclination 29.0°';
+  else if (id === 'pallas') extra = 'period 4.61 y · inclination 34.9° · tilt 84°';
+  else if (id === 'hygiea') extra = 'period 5.59 y · inclination 3.8°';
   else if (planetIdx >= 0) {
     const years = 36000 / PLANET_EL[planetIdx].Ldot;
     const pStr = planetIdx <= 2
@@ -5379,7 +5490,7 @@ function flyToBody(id) {
     cometToggle.checked = true;
     cometToggle.dispatchEvent(new Event('change'));
   }
-  if ((id === 'ceres' || id === 'vesta') && !minorsToggle.checked) {
+  if ((id === 'ceres' || id === 'vesta' || id === 'eris' || id === 'haumea' || id === 'makemake' || id === 'pallas' || id === 'hygiea') && !minorsToggle.checked) {
     minorsToggle.checked = true;
     minorsToggle.dispatchEvent(new Event('change'));
   }
