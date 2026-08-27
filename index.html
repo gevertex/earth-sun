@@ -678,6 +678,10 @@ PLANET_EL.forEach((el, i) => {
   const c = new THREE.Color(el.c);
   pCol[i*3] = c.r; pCol[i*3+1] = c.g; pCol[i*3+2] = c.b;
 });
+const venusGeoR = Math.max(PLANET_EL[1].r * KM_TO_SCENE, 0.5);
+const venusAtmo = makeInspectAtmo(planetMeshes[1], venusGeoR, 0xf2e0c4);
+venusAtmo.material.opacity = 0.55;
+venusAtmo.material.blending = THREE.NormalBlending;
 function mapRingUVs(geo, inner, outer) {
   const pos = geo.attributes.position;
   const uv = geo.attributes.uv;
@@ -708,6 +712,37 @@ const saturnRingShadow = new THREE.Mesh(
 saturnRingShadow.raycast = () => {};
 saturnRingShadow.visible = false;
 planetMeshes[4].add(saturnRingShadow);
+const _satSun = new THREE.Vector3();
+function updateSaturnRingShadow() {
+  if (!saturnRingShadow.visible) return;
+  _satSun.copy(sunMesh.position);
+  planetMeshes[4].worldToLocal(_satSun);
+  const el = Math.atan2(_satSun.y, Math.hypot(_satSun.x, _satSun.z));
+  const lat = -el;
+  const c = Math.cos(lat);
+  saturnRingShadow.position.set(0, Math.sin(lat) * saturnGeoR * 1.003, 0);
+  saturnRingShadow.scale.set(c, 1 + Math.abs(el) * 2.8, c);
+}
+const saturnHexPos = new Float32Array(18);
+{
+  const hexLat = 78 * DEG;
+  const hexY = saturnGeoR * 1.004 * Math.sin(hexLat);
+  const hexR = saturnGeoR * 1.004 * Math.cos(hexLat);
+  for (let i = 0; i < 6; i++) {
+    const a = i / 6 * Math.PI * 2;
+    saturnHexPos[i * 3] = Math.cos(a) * hexR;
+    saturnHexPos[i * 3 + 1] = hexY;
+    saturnHexPos[i * 3 + 2] = Math.sin(a) * hexR;
+  }
+}
+const saturnHexGeo = new THREE.BufferGeometry();
+saturnHexGeo.setAttribute('position', new THREE.BufferAttribute(saturnHexPos, 3));
+const saturnHex = new THREE.LineLoop(saturnHexGeo, new THREE.LineBasicMaterial({
+  color: 0xb8a070, transparent: true, opacity: 0.85, depthWrite: false,
+}));
+saturnHex.raycast = () => {};
+saturnHex.visible = false;
+planetMeshes[4].add(saturnHex);
 
 function addMoonOrbit(group, a, color) {
   const n = 48;
@@ -833,6 +868,32 @@ const _grsPos0 = jupiterGrs.position.clone();
 const _grsQuat0 = jupiterGrs.quaternion.clone();
 const _grsQ = new THREE.Quaternion();
 const _grsY = new THREE.Vector3(0, 1, 0);
+const jupiterAuroraGroup = new THREE.Group();
+jupiterAuroraGroup.rotation.z = 10 * DEG;
+jupiterAuroraGroup.visible = false;
+planetMeshes[3].add(jupiterAuroraGroup);
+const jupAuroraMat = new THREE.PointsMaterial({
+  color: 0x88ffcc, size: 3, sizeAttenuation: false,
+  transparent: true, opacity: 0.6,
+  blending: THREE.AdditiveBlending, depthWrite: false,
+});
+const JUP_AURORA_N = 64;
+for (const lat of [82, -82]) {
+  const pos = new Float32Array(JUP_AURORA_N * 3);
+  const rr = jupiterGeoR * 1.018;
+  const cl = Math.cos(lat * DEG), sl = Math.sin(lat * DEG);
+  for (let i = 0; i < JUP_AURORA_N; i++) {
+    const lon = i / JUP_AURORA_N * Math.PI * 2;
+    pos[i * 3]     = rr * cl * Math.cos(lon) * 1.22;
+    pos[i * 3 + 1] = rr * sl;
+    pos[i * 3 + 2] = rr * cl * Math.sin(lon) * 0.80;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const pts = new THREE.Points(geo, jupAuroraMat);
+  pts.raycast = () => {};
+  jupiterAuroraGroup.add(pts);
+}
 const JUPITER_SYS_II_DAYS = 9 / 24 + 55 / 1440 + 40 / 86400;
 function updateGalilean(now) {
   if (!galileanGroup.visible) {
@@ -904,6 +965,8 @@ uranusRing.rotation.x = Math.PI / 2;
 uranusRing.raycast = () => {};
 uranusRing.visible = false;
 planetMeshes[5].add(uranusRing);
+const uranusAtmo = makeInspectAtmo(planetMeshes[5], uranusGeoR, 0x8ee8e8);
+uranusAtmo.material.opacity = 0.12;
 
 const URANUS_MOONS = [
   { name: 'Miranda', p: 1.413, aR: 2.2, rR: 0.06, c: 0xc8c4bc, phase: 0.40 },
@@ -955,6 +1018,8 @@ neptuneRing.rotation.x = Math.PI / 2;
 neptuneRing.raycast = () => {};
 neptuneRing.visible = false;
 planetMeshes[6].add(neptuneRing);
+const neptuneAtmo = makeInspectAtmo(planetMeshes[6], neptuneGeoR, 0x3a70ee);
+neptuneAtmo.material.opacity = 0.14;
 
 const NEPTUNE_MOONS = [
   { name: 'Triton', p: 5.877, aR: 5.2, rR: 0.16, c: 0xc8b8a0, phase: 1.20, retro: true },
@@ -1108,7 +1173,7 @@ const vestaOrbit = makeOrbitLine(ORBIT_SAMPLES, 0xc4a878);
 const vestaOrbitPos = vestaOrbit.pos;
 const vestaOrbitLine = vestaOrbit.line;
 let lastOrbitWall = 0;
-function fillOrbitLine(el, arr, n, T, eh, gmst) {
+function fillHelioOrbitLine(el, arr, n, T, eh, gmst) {
   const e = el.e0 + (el.edot || 0) * T;
   for (let k = 0; k < n; k++) {
     _helioToScene(_helioNu(el, _nuSample(k, n, e), T), eh, T, gmst, arr, k * 3);
@@ -1122,14 +1187,14 @@ function buildPlanetOrbits(now) {
   const RA_sun = Math.atan2(se[1], se[0]) / DEG;
   const gmst = RA_sun - lonDeg;
   for (let i = 0; i < 8; i++) {
-    fillOrbitLine(PLANET_EL[i], planetOrbitPos[i], ORBIT_SAMPLES, T, eh, gmst);
+    fillHelioOrbitLine(PLANET_EL[i], planetOrbitPos[i], ORBIT_SAMPLES, T, eh, gmst);
     planetOrbitLines[i].geometry.attributes.position.needsUpdate = true;
   }
-  fillOrbitLine(HALLEY_EL, halleyOrbitPos, ORBIT_SAMPLES_E, T, eh, gmst);
+  fillHelioOrbitLine(HALLEY_EL, halleyOrbitPos, ORBIT_SAMPLES_E, T, eh, gmst);
   halleyOrbitLine.geometry.attributes.position.needsUpdate = true;
-  fillOrbitLine(CERES_EL, ceresOrbitPos, ORBIT_SAMPLES, T, eh, gmst);
+  fillHelioOrbitLine(CERES_EL, ceresOrbitPos, ORBIT_SAMPLES, T, eh, gmst);
   ceresOrbitLine.geometry.attributes.position.needsUpdate = true;
-  fillOrbitLine(VESTA_EL, vestaOrbitPos, ORBIT_SAMPLES, T, eh, gmst);
+  fillHelioOrbitLine(VESTA_EL, vestaOrbitPos, ORBIT_SAMPLES, T, eh, gmst);
   vestaOrbitLine.geometry.attributes.position.needsUpdate = true;
   lastOrbitWall = Date.now();
 }
@@ -1290,6 +1355,8 @@ const cometMesh = new THREE.Mesh(
 );
 cometMesh.userData.body = 'halley';
 cometWorld.add(cometMesh);
+const cometAtmo = makeInspectAtmo(cometMesh, cometGeoR * 2.2, 0xb8e8ff);
+cometAtmo.material.opacity = 0.28;
 const COMET_TAIL_N = 48;
 const cometTailPos = new Float32Array(COMET_TAIL_N * 3);
 const cometTailCol = new Float32Array(COMET_TAIL_N * 3);
@@ -2881,7 +2948,7 @@ function orbitBasis(p, v) {
 
 // Fill one orbit's SL_ORBIT_SAMPLES segments into the shared buffer at float
 // offset o, in group-local coords (the same mapping as eciToLocal).
-function fillOrbitLine(buf, o, b) {
+function fillStarlinkOrbitLine(buf, o, b) {
   const p0 = b.a * (1 - b.e * b.e);
   for (let k = 0; k < SL_ORBIT_SAMPLES; k++) {
     for (let m = 0; m < 2; m++) {
@@ -2921,7 +2988,7 @@ function tickStarlink(now) {
       pos[o + 2] = -pv.position.y * KM_TO_SCENE;
       // Build the orbit line on the first successful pass of each satellite.
       if (i === starlink.orbitsBuilt) {
-        fillOrbitLine(starlink.orbitPos, i * SL_ORBIT_FLOATS, orbitBasis(pv.position, pv.velocity));
+        fillStarlinkOrbitLine(starlink.orbitPos, i * SL_ORBIT_FLOATS, orbitBasis(pv.position, pv.velocity));
         starlink.orbitsBuilt++;
       }
     } else {
@@ -3945,6 +4012,7 @@ function flyToBody(id) {
     saturnMoonGroup.rotation.y = 0;
     saturnAtmo.visible = false;
     saturnRingShadow.visible = false;
+    saturnHex.visible = false;
     titanAtmo.visible = false;
     for (let i = 0; i < saturnMoonLabels.length; i++) saturnMoonLabels[i].visible = false;
   }
@@ -3954,18 +4022,21 @@ function flyToBody(id) {
     jupiterRing.visible = false;
     jupiterAtmo.visible = false;
     jupiterGrs.visible = false;
+    jupiterAuroraGroup.visible = false;
     for (let i = 0; i < galileanLabels.length; i++) galileanLabels[i].visible = false;
   }
   if (prev === 'uranus') {
     uranusRing.visible = false;
     uranusMoonGroup.visible = false;
     uranusMoonGroup.rotation.y = 0;
+    uranusAtmo.visible = false;
     for (let i = 0; i < uranusMoonLabels.length; i++) uranusMoonLabels[i].visible = false;
   }
   if (prev === 'neptune') {
     neptuneRing.visible = false;
     neptuneMoonGroup.visible = false;
     neptuneMoonGroup.rotation.y = 0;
+    neptuneAtmo.visible = false;
     for (let i = 0; i < neptuneMoonLabels.length; i++) neptuneMoonLabels[i].visible = false;
   }
   if (prev === 'mars') {
@@ -3980,6 +4051,8 @@ function flyToBody(id) {
     plutoInspectMesh.visible = false;
     planetMeshes[7].material.visible = true;
   }
+  if (prev === 'venus') venusAtmo.visible = false;
+  if (prev === 'halley') cometAtmo.visible = false;
 
   focusedBody = id;
   const mesh = BODY_MESH[id];
@@ -3991,8 +4064,10 @@ function flyToBody(id) {
       saturnMoonGroup.visible = true;
       saturnAtmo.visible = true;
       saturnRingShadow.visible = true;
+      saturnHex.visible = true;
       titanAtmo.visible = true;
       updateSaturnMoons(simNow());
+      updateSaturnRingShadow();
       ensureRingTexture('saturn', saturnRing);
       ensureFocusedMoonMaps(id);
     }
@@ -4001,12 +4076,16 @@ function flyToBody(id) {
       jupiterRing.visible = true;
       jupiterAtmo.visible = true;
       jupiterGrs.visible = true;
+      jupiterAuroraGroup.visible = true;
       updateGalilean(simNow());
       ensureFocusedMoonMaps(id);
     }
+    if (id === 'venus') venusAtmo.visible = true;
+    if (id === 'halley') cometAtmo.visible = true;
     if (id === 'uranus') {
       uranusRing.visible = true;
       uranusMoonGroup.visible = true;
+      uranusAtmo.visible = true;
       updateUranusMoons(simNow());
       ensureRingTexture('uranus', uranusRing);
       ensureFocusedMoonMaps(id);
@@ -4014,6 +4093,7 @@ function flyToBody(id) {
     if (id === 'neptune') {
       neptuneRing.visible = true;
       neptuneMoonGroup.visible = true;
+      neptuneAtmo.visible = true;
       updateNeptuneMoons(simNow());
       ensureFocusedMoonMaps(id);
     }
@@ -4134,6 +4214,7 @@ function tick() {
   updatePlanets(now, lonDeg);
   updateMoon(now);
   applyInspectSpin(focusedBody, now);
+  updateSaturnRingShadow();
   updateGalilean(now);
   updateSaturnMoons(now);
   updateUranusMoons(now);
