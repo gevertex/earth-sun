@@ -254,6 +254,8 @@
           <button type="button" data-body="mimas">Mimas</button>
           <button type="button" data-body="tethys">Tethys</button>
           <button type="button" data-body="hyperion">Hyperion</button>
+          <button type="button" data-body="phoebe">Phoebe</button>
+          <button type="button" data-body="janus">Janus</button>
         </span>
         <button type="button" data-body="uranus">Uranus</button>
         <span class="moon-fly-row">
@@ -267,6 +269,7 @@
         <span class="moon-fly-row">
           <button type="button" data-body="triton">Triton</button>
           <button type="button" data-body="proteus">Proteus</button>
+          <button type="button" data-body="larissa">Larissa</button>
         </span>
         <button type="button" data-body="pluto">Pluto</button>
         <span class="moon-fly-row">
@@ -288,6 +291,8 @@
         <button type="button" data-body="ixion">Ixion</button>
         <button type="button" data-body="salacia">Salacia</button>
         <button type="button" data-body="ms4">2002 MS4</button>
+        <button type="button" data-body="varda">Varda</button>
+        <button type="button" data-body="aw197">2002 AW197</button>
       </div>
       <label><input type="checkbox" id="true-size-toggle"> true size</label>
       <div class="body-focus" id="body-focus">Earth</div>
@@ -1314,8 +1319,10 @@ const SATURN_MOONS = [
   { name: 'Mimas', p: 0.942, aR: 3.1, rR: 0.05, c: 0xd0ccc8, phase: 3.15 },
   { name: 'Tethys', p: 1.888, aR: 4.25, rR: 0.075, c: 0xd8d4cc, phase: 1.85 },
   { name: 'Hyperion', p: 21.28, aR: 8.8, rR: 0.045, c: 0xc4a070, phase: 4.70 },
+  { name: 'Phoebe', p: 550.3, aR: 10.5, rR: 0.038, c: 0x6a5a48, phase: 2.85, retro: true },
+  { name: 'Janus', p: 0.695, aR: 2.82, rR: 0.028, c: 0xc8c4bc, phase: 5.15 },
 ];
-const SATURN_FLY_ID = ['titan', 'rhea', 'iapetus', 'dione', 'enceladus', 'mimas', 'tethys', 'hyperion'];
+const SATURN_FLY_ID = ['titan', 'rhea', 'iapetus', 'dione', 'enceladus', 'mimas', 'tethys', 'hyperion', 'phoebe', 'janus'];
 const saturnMoonGroup = new THREE.Group();
 saturnMoonGroup.visible = false;
 planetMeshes[4].add(saturnMoonGroup);
@@ -1541,6 +1548,11 @@ function tumbleHyperionChaoticSpin(mesh, day) {
   mesh.rotation.y = day * 0.47;
   mesh.rotation.z = day * 0.19;
 }
+function tumblePhoebeSlowSpin(mesh, day) {
+  mesh.rotation.x = day * 0.07;
+  mesh.rotation.y = day * 0.11;
+  mesh.rotation.z = day * 0.04;
+}
 function updateSaturnMoons(now) {
   if (!saturnMoonGroup.visible) {
     for (let i = 0; i < saturnMoonLabels.length; i++) saturnMoonLabels[i].visible = false;
@@ -1549,10 +1561,12 @@ function updateSaturnMoons(now) {
   const day = julianDate(now) - 2451545.0;
   for (let i = 0; i < SATURN_MOONS.length; i++) {
     const g = SATURN_MOONS[i];
-    const th = day / g.p * Math.PI * 2 + g.phase;
+    const sign = g.retro ? -1 : 1;
+    const th = sign * (day / g.p * Math.PI * 2) + g.phase;
     const a = g.aR * saturnGeoR;
     saturnMoonMeshes[i].position.set(Math.cos(th) * a, 0, Math.sin(th) * a);
     if (SATURN_FLY_ID[i] === 'hyperion') tumbleHyperionChaoticSpin(saturnMoonMeshes[i], day);
+    else if (SATURN_FLY_ID[i] === 'phoebe') tumblePhoebeSlowSpin(saturnMoonMeshes[i], day);
     else tidalLockMoon(saturnMoonMeshes[i]);
     placeMoonLabel(saturnMoonLabels[i], saturnMoonMeshes[i], focusedBody !== SATURN_FLY_ID[i]);
   }
@@ -1787,8 +1801,9 @@ const NEPTUNE_MOONS = [
   { name: 'Triton', p: 5.877, aR: 5.2, rR: 0.16, c: 0xc8b8a0, phase: 1.20, retro: true },
   { name: 'Proteus', p: 1.122, aR: 2.3, rR: 0.07, c: 0x8a8478, phase: 0.55 },
   { name: 'Nereid', p: 360.14, aR: 11, rR: 0.05, c: 0xb0a898, phase: 4.10 },
+  { name: 'Larissa', p: 0.555, aR: 1.72, rR: 0.05, c: 0x9a9488, phase: 3.70 },
 ];
-const NEPTUNE_FLY_ID = ['triton', 'proteus'];
+const NEPTUNE_FLY_ID = ['triton', 'proteus', null, 'larissa'];
 const neptuneMoonGroup = new THREE.Group();
 neptuneMoonGroup.visible = false;
 planetMeshes[6].add(neptuneMoonGroup);
@@ -2243,6 +2258,12 @@ const salaciaOrbitLine = salaciaOrbit.line;
 const ms4Orbit = makeOrbitLine(ORBIT_SAMPLES, 0x9a8c7c);
 const ms4OrbitPos = ms4Orbit.pos;
 const ms4OrbitLine = ms4Orbit.line;
+const vardaOrbit = makeOrbitLine(ORBIT_SAMPLES, 0xc8a090);
+const vardaOrbitPos = vardaOrbit.pos;
+const vardaOrbitLine = vardaOrbit.line;
+const aw197Orbit = makeOrbitLine(ORBIT_SAMPLES, 0xb89878);
+const aw197OrbitPos = aw197Orbit.pos;
+const aw197OrbitLine = aw197Orbit.line;
 let lastOrbitWall = 0;
 function fillHelioOrbitLine(el, arr, n, T, eh, gmst) {
   const e = el.e0 + (el.edot || 0) * T;
@@ -2293,6 +2314,10 @@ function buildPlanetOrbits(now) {
   salaciaOrbitLine.geometry.attributes.position.needsUpdate = true;
   fillHelioOrbitLine(MS4_EL, ms4OrbitPos, ORBIT_SAMPLES, T, eh, gmst);
   ms4OrbitLine.geometry.attributes.position.needsUpdate = true;
+  fillHelioOrbitLine(VARDA_EL, vardaOrbitPos, ORBIT_SAMPLES, T, eh, gmst);
+  vardaOrbitLine.geometry.attributes.position.needsUpdate = true;
+  fillHelioOrbitLine(AW197_EL, aw197OrbitPos, ORBIT_SAMPLES, T, eh, gmst);
+  aw197OrbitLine.geometry.attributes.position.needsUpdate = true;
   lastOrbitWall = Date.now();
 }
 function syncOrbitFocus() {
@@ -2315,6 +2340,8 @@ function syncOrbitFocus() {
   ixionOrbitLine.visible = focusedBody !== 'ixion';
   salaciaOrbitLine.visible = focusedBody !== 'salacia';
   ms4OrbitLine.visible = focusedBody !== 'ms4';
+  vardaOrbitLine.visible = focusedBody !== 'varda';
+  aw197OrbitLine.visible = focusedBody !== 'aw197';
 }
 const orbitsToggle = document.getElementById('orbits-toggle');
 orbitsToggle.addEventListener('change', () => {
@@ -2488,7 +2515,7 @@ const BODY_TITLE = {
   pallas: 'Pallas', hygiea: 'Hygiea',
   sedna: 'Sedna', quaoar: 'Quaoar', orcus: 'Orcus', gonggong: 'Gonggong',
   varuna: 'Varuna', ixion: 'Ixion',
-  salacia: 'Salacia', ms4: '2002 MS4',
+  salacia: 'Salacia', ms4: '2002 MS4', varda: 'Varda', aw197: '2002 AW197',
 };
 const bodyLabel = {};
 for (const id of Object.keys(BODY_TITLE)) {
@@ -2533,6 +2560,8 @@ bodyLabel.varuna.visible = false;
 bodyLabel.ixion.visible = false;
 bodyLabel.salacia.visible = false;
 bodyLabel.ms4.visible = false;
+bodyLabel.varda.visible = false;
+bodyLabel.aw197.visible = false;
 
 /* ---------- Halley: Keplerian comet, Earth origin, cheap anti-sun tail ---------- */
 const HALLEY_EL = {
@@ -2734,6 +2763,16 @@ const MS4_EL = {
   a0: 41.588637, e0: 0.148265, I0: 17.69991,
   Omega0: 216.14032, w0: 215.48427, tPeri: 2496493.847, r: 398, c: 0x9a8c7c,
 };
+/* JPL SBDB osculating Kepler elements, epoch 2461200.5 (2026-May-05 TDB). (174567) Varda. */
+const VARDA_EL = {
+  a0: 45.553793, e0: 0.142279, I0: 21.51272,
+  Omega0: 184.07619, w0: 184.84335, tPeri: 2487001.267, r: 370, c: 0xc8a090,
+};
+/* JPL SBDB osculating Kepler elements, epoch 2461200.5 (2026-May-05 TDB). (55565) 2002 AW197. */
+const AW197_EL = {
+  a0: 47.368760, e0: 0.128683, I0: 24.34034,
+  Omega0: 297.36978, w0: 294.14594, tPeri: 2479622.215, r: 384, c: 0xb89878,
+};
 const minorWorld = new THREE.Group();
 minorWorld.visible = false;
 scene.add(minorWorld);
@@ -2824,7 +2863,9 @@ const varunaMesh = makeMinorMesh(VARUNA_EL, 'varuna');
 const ixionMesh = makeMinorMesh(IXION_EL, 'ixion');
 const salaciaMesh = makeMinorMesh(SALACIA_EL, 'salacia');
 const ms4Mesh = makeMinorMesh(MS4_EL, 'ms4');
-const minorSkyPos = new Float32Array(45);
+const vardaMesh = makeMinorMesh(VARDA_EL, 'varda');
+const aw197Mesh = makeMinorMesh(AW197_EL, 'aw197');
+const minorSkyPos = new Float32Array(51);
 const minorSkyCol = new Float32Array([
   0.72, 0.70, 0.66, 0.77, 0.66, 0.47,
   0.83, 0.86, 0.91, 0.91, 0.82, 0.72,
@@ -2835,6 +2876,8 @@ const minorSkyCol = new Float32Array([
   0.79, 0.63, 0.47, 0.69, 0.44, 0.35,
   0.82, 0.77, 0.69,
   0.60, 0.55, 0.49,
+  0.78, 0.63, 0.56,
+  0.72, 0.60, 0.47,
 ]);
 const minorSkyGeo = new THREE.BufferGeometry();
 minorSkyGeo.setAttribute('position', new THREE.BufferAttribute(minorSkyPos, 3));
@@ -2891,6 +2934,8 @@ function updateMinors(now, lonDeg) {
     if (bodyLabel.ixion) bodyLabel.ixion.visible = false;
     if (bodyLabel.salacia) bodyLabel.salacia.visible = false;
     if (bodyLabel.ms4) bodyLabel.ms4.visible = false;
+    if (bodyLabel.varda) bodyLabel.varda.visible = false;
+    if (bodyLabel.aw197) bodyLabel.aw197.visible = false;
     return;
   }
   _placeMinor(CERES_EL, ceresMesh, now, lonDeg, 0);
@@ -2908,6 +2953,8 @@ function updateMinors(now, lonDeg) {
   _placeMinor(IXION_EL, ixionMesh, now, lonDeg, 36);
   _placeMinor(SALACIA_EL, salaciaMesh, now, lonDeg, 39);
   _placeMinor(MS4_EL, ms4Mesh, now, lonDeg, 42);
+  _placeMinor(VARDA_EL, vardaMesh, now, lonDeg, 45);
+  _placeMinor(AW197_EL, aw197Mesh, now, lonDeg, 48);
   minorSkyGeo.attributes.position.needsUpdate = true;
 }
 const minorsToggle = document.getElementById('minors-toggle');
@@ -3804,11 +3851,11 @@ function onTap(clientX, clientY) {
   }
   const pickBodies = [sunMesh, moonMesh, ...planetMeshes];
   if (cometWorld.visible) pickBodies.push(cometMesh);
-  if (minorWorld.visible) pickBodies.push(ceresMesh, vestaMesh, erisMesh, haumeaMesh, makemakeMesh, pallasMesh, hygieaMesh, sednaMesh, quaoarMesh, orcusMesh, gonggongMesh, varunaMesh, ixionMesh, salaciaMesh, ms4Mesh);
+  if (minorWorld.visible) pickBodies.push(ceresMesh, vestaMesh, erisMesh, haumeaMesh, makemakeMesh, pallasMesh, hygieaMesh, sednaMesh, quaoarMesh, orcusMesh, gonggongMesh, varunaMesh, ixionMesh, salaciaMesh, ms4Mesh, vardaMesh, aw197Mesh);
   if (galileanGroup.visible) pickBodies.push(galileanMeshes[0], galileanMeshes[1], galileanMeshes[2], galileanMeshes[3]);
-  if (saturnMoonGroup.visible) pickBodies.push(saturnMoonMeshes[0], saturnMoonMeshes[1], saturnMoonMeshes[2], saturnMoonMeshes[3], saturnMoonMeshes[4], saturnMoonMeshes[5], saturnMoonMeshes[6], saturnMoonMeshes[7]);
+  if (saturnMoonGroup.visible) pickBodies.push(saturnMoonMeshes[0], saturnMoonMeshes[1], saturnMoonMeshes[2], saturnMoonMeshes[3], saturnMoonMeshes[4], saturnMoonMeshes[5], saturnMoonMeshes[6], saturnMoonMeshes[7], saturnMoonMeshes[8], saturnMoonMeshes[9]);
   if (uranusMoonGroup.visible) pickBodies.push(uranusMoonMeshes[0], uranusMoonMeshes[1], uranusMoonMeshes[2], uranusMoonMeshes[3], uranusMoonMeshes[4]);
-  if (neptuneMoonGroup.visible) pickBodies.push(neptuneMoonMeshes[0], neptuneMoonMeshes[1]);
+  if (neptuneMoonGroup.visible) pickBodies.push(neptuneMoonMeshes[0], neptuneMoonMeshes[1], neptuneMoonMeshes[3]);
   if (charonGroup.visible) pickBodies.push(charonMesh);
   if (marsMoonGroup.visible) pickBodies.push(marsMoonMeshes[0], marsMoonMeshes[1]);
   const bodyHits = raycaster.intersectObjects(pickBodies, false);
@@ -5090,23 +5137,23 @@ document.getElementById('sim-time').addEventListener('change', _readSimInputs);
 
 const MOON_FLY_PARENT = {
   io: 'jupiter', europa: 'jupiter', ganymede: 'jupiter', callisto: 'jupiter',
-  titan: 'saturn', rhea: 'saturn', enceladus: 'saturn', iapetus: 'saturn', dione: 'saturn', mimas: 'saturn', tethys: 'saturn', hyperion: 'saturn',
+  titan: 'saturn', rhea: 'saturn', enceladus: 'saturn', iapetus: 'saturn', dione: 'saturn', mimas: 'saturn', tethys: 'saturn', hyperion: 'saturn', phoebe: 'saturn', janus: 'saturn',
   miranda: 'uranus', ariel: 'uranus', umbriel: 'uranus', titania: 'uranus', oberon: 'uranus',
-  triton: 'neptune', proteus: 'neptune', charon: 'pluto',
+  triton: 'neptune', proteus: 'neptune', larissa: 'neptune', charon: 'pluto',
   phobos: 'mars', deimos: 'mars',
 };
 const MOON_FLY_CAPTION = {
   io: 'Io', europa: 'Europa', ganymede: 'Ganymede', callisto: 'Callisto',
-  titan: 'Titan', rhea: 'Rhea', enceladus: 'Enceladus', iapetus: 'Iapetus', dione: 'Dione', mimas: 'Mimas', tethys: 'Tethys', hyperion: 'Hyperion',
+  titan: 'Titan', rhea: 'Rhea', enceladus: 'Enceladus', iapetus: 'Iapetus', dione: 'Dione', mimas: 'Mimas', tethys: 'Tethys', hyperion: 'Hyperion', phoebe: 'Phoebe', janus: 'Janus',
   miranda: 'Miranda', ariel: 'Ariel', umbriel: 'Umbriel', titania: 'Titania', oberon: 'Oberon',
-  triton: 'Triton', proteus: 'Proteus', charon: 'Charon',
+  triton: 'Triton', proteus: 'Proteus', larissa: 'Larissa', charon: 'Charon',
   phobos: 'Phobos', deimos: 'Deimos',
 };
 const MOON_FLY_KM = {
   io: 1821.6, europa: 1560.8, ganymede: 2634.1, callisto: 2410.3,
-  titan: 2574.7, rhea: 763.8, enceladus: 252.1, iapetus: 734.5, dione: 561.4, mimas: 198.2, tethys: 531.1, hyperion: 135,
+  titan: 2574.7, rhea: 763.8, enceladus: 252.1, iapetus: 734.5, dione: 561.4, mimas: 198.2, tethys: 531.1, hyperion: 135, phoebe: 106.5, janus: 89.5,
   miranda: 235.8, ariel: 578.9, umbriel: 584.7, titania: 788.9, oberon: 761.4,
-  triton: 1353.4, proteus: 210, charon: 606.0,
+  triton: 1353.4, proteus: 210, larissa: 97, charon: 606.0,
   phobos: 11.27, deimos: 6.2,
 };
 function moonFlyFamily(id) {
@@ -5123,16 +5170,16 @@ const BODY_MESH = {
   eris: erisMesh, haumea: haumeaMesh, makemake: makemakeMesh,
   pallas: pallasMesh, hygiea: hygieaMesh,
   sedna: sednaMesh, quaoar: quaoarMesh, orcus: orcusMesh, gonggong: gonggongMesh,
-  varuna: varunaMesh, ixion: ixionMesh, salacia: salaciaMesh, ms4: ms4Mesh,
+  varuna: varunaMesh, ixion: ixionMesh, salacia: salaciaMesh, ms4: ms4Mesh, varda: vardaMesh, aw197: aw197Mesh,
   io: galileanMeshes[0], europa: galileanMeshes[1],
   ganymede: galileanMeshes[2], callisto: galileanMeshes[3],
   titan: saturnMoonMeshes[0], rhea: saturnMoonMeshes[1], enceladus: saturnMoonMeshes[4],
-  iapetus: saturnMoonMeshes[2], dione: saturnMoonMeshes[3], mimas: saturnMoonMeshes[5], tethys: saturnMoonMeshes[6], hyperion: saturnMoonMeshes[7],
+  iapetus: saturnMoonMeshes[2], dione: saturnMoonMeshes[3], mimas: saturnMoonMeshes[5], tethys: saturnMoonMeshes[6], hyperion: saturnMoonMeshes[7], phoebe: saturnMoonMeshes[8], janus: saturnMoonMeshes[9],
   miranda: uranusMoonMeshes[0], ariel: uranusMoonMeshes[1], umbriel: uranusMoonMeshes[2], titania: uranusMoonMeshes[3], oberon: uranusMoonMeshes[4],
-  triton: neptuneMoonMeshes[0], proteus: neptuneMoonMeshes[1], charon: charonMesh,
+  triton: neptuneMoonMeshes[0], proteus: neptuneMoonMeshes[1], larissa: neptuneMoonMeshes[3], charon: charonMesh,
   phobos: marsMoonMeshes[0], deimos: marsMoonMeshes[1],
 };
-const BODY_INSPECT = { sun: 25, mercury: 10, venus: 12, earth: 0, moon: 10, mars: 10, jupiter: 20, saturn: 20, uranus: 16, neptune: 16, pluto: 10, halley: 8, ceres: 8, vesta: 8, eris: 8, haumea: 8, makemake: 8, pallas: 8, hygiea: 8, sedna: 8, quaoar: 8, orcus: 8, gonggong: 8, varuna: 8, ixion: 8, salacia: 8, ms4: 8, io: 10, europa: 10, ganymede: 10, callisto: 10, titan: 10, rhea: 10, enceladus: 10, iapetus: 10, dione: 10, mimas: 10, tethys: 10, hyperion: 10, miranda: 10, ariel: 10, umbriel: 10, titania: 10, oberon: 10, phobos: 10, deimos: 10, triton: 10, proteus: 10, charon: 10 };
+const BODY_INSPECT = { sun: 25, mercury: 10, venus: 12, earth: 0, moon: 10, mars: 10, jupiter: 20, saturn: 20, uranus: 16, neptune: 16, pluto: 10, halley: 8, ceres: 8, vesta: 8, eris: 8, haumea: 8, makemake: 8, pallas: 8, hygiea: 8, sedna: 8, quaoar: 8, orcus: 8, gonggong: 8, varuna: 8, ixion: 8, salacia: 8, ms4: 8, varda: 8, aw197: 8, io: 10, europa: 10, ganymede: 10, callisto: 10, titan: 10, rhea: 10, enceladus: 10, iapetus: 10, dione: 10, mimas: 10, tethys: 10, hyperion: 10, phoebe: 10, janus: 10, miranda: 10, ariel: 10, umbriel: 10, titania: 10, oberon: 10, phobos: 10, deimos: 10, triton: 10, proteus: 10, larissa: 10, charon: 10 };
 const BODY_TILT = {
   mercury: 0.03, venus: 177.4, mars: 25, jupiter: 3, saturn: 27,
   uranus: 98, neptune: 28, pluto: 120, sun: 7.2, ceres: 4, vesta: 29,
@@ -5145,7 +5192,7 @@ const SIDEREAL_DAYS = {
   eris: 1.079, haumea: 0.163, makemake: 0.951, pallas: 0.326, hygiea: 0.576,
   sedna: 0.428, quaoar: 0.368, orcus: 0.550, gonggong: 0.933,
   varuna: 0.264, ixion: 0.662,
-  salacia: 0.254, ms4: 0.306,
+  salacia: 0.254, ms4: 0.306, varda: 0.246, aw197: 0.369,
 };
 function applyInspectSpin(id, now) {
   const days = SIDEREAL_DAYS[id];
@@ -5188,6 +5235,8 @@ function bodyRealR(id) {
   if (id === 'ixion') return IXION_EL.r * KM_TO_SCENE;
   if (id === 'salacia') return SALACIA_EL.r * KM_TO_SCENE;
   if (id === 'ms4') return MS4_EL.r * KM_TO_SCENE;
+  if (id === 'varda') return VARDA_EL.r * KM_TO_SCENE;
+  if (id === 'aw197') return AW197_EL.r * KM_TO_SCENE;
   if (MOON_FLY_KM[id]) return MOON_FLY_KM[id] * KM_TO_SCENE;
   const idx = PLANET_IDS.indexOf(id);
   if (idx >= 0) return PLANET_EL[idx].r * KM_TO_SCENE;
@@ -5212,6 +5261,8 @@ function bodyGeoR(id) {
   if (id === 'ixion') return Math.max(IXION_EL.r * KM_TO_SCENE, 0.5);
   if (id === 'salacia') return Math.max(SALACIA_EL.r * KM_TO_SCENE, 0.5);
   if (id === 'ms4') return Math.max(MS4_EL.r * KM_TO_SCENE, 0.5);
+  if (id === 'varda') return Math.max(VARDA_EL.r * KM_TO_SCENE, 0.5);
+  if (id === 'aw197') return Math.max(AW197_EL.r * KM_TO_SCENE, 0.5);
   if (id === 'io') return GALILEAN[0].rR * jupiterGeoR;
   if (id === 'europa') return GALILEAN[1].rR * jupiterGeoR;
   if (id === 'ganymede') return GALILEAN[2].rR * jupiterGeoR;
@@ -5224,6 +5275,8 @@ function bodyGeoR(id) {
   if (id === 'mimas') return SATURN_MOONS[5].rR * saturnGeoR;
   if (id === 'tethys') return SATURN_MOONS[6].rR * saturnGeoR;
   if (id === 'hyperion') return SATURN_MOONS[7].rR * saturnGeoR;
+  if (id === 'phoebe') return SATURN_MOONS[8].rR * saturnGeoR;
+  if (id === 'janus') return SATURN_MOONS[9].rR * saturnGeoR;
   if (id === 'miranda') return URANUS_MOONS[0].rR * uranusGeoR;
   if (id === 'ariel') return URANUS_MOONS[1].rR * uranusGeoR;
   if (id === 'umbriel') return URANUS_MOONS[2].rR * uranusGeoR;
@@ -5233,6 +5286,7 @@ function bodyGeoR(id) {
   if (id === 'deimos') return MARS_MOONS[1].rR * marsGeoR;
   if (id === 'triton') return NEPTUNE_MOONS[0].rR * neptuneGeoR;
   if (id === 'proteus') return NEPTUNE_MOONS[1].rR * neptuneGeoR;
+  if (id === 'larissa') return NEPTUNE_MOONS[3].rR * neptuneGeoR;
   if (id === 'charon') return 0.5 * plutoGeoR;
   const idx = PLANET_IDS.indexOf(id);
   if (idx >= 0) return Math.max(PLANET_EL[idx].r * KM_TO_SCENE, 0.5);
@@ -5297,6 +5351,7 @@ const MOON_TEX = {
   Enceladus: 'https://cdn.jsdelivr.net/gh/ofrohn/threex.planets@master/images/maps/enceladusmap.jpg',
   Tethys: 'https://cdn.jsdelivr.net/gh/ofrohn/threex.planets@master/images/maps/tethysmap.jpg',
   Hyperion: 'https://cdn.jsdelivr.net/gh/ofrohn/threex.planets@master/images/maps/hyperionmap.jpg',
+  Phoebe: 'https://cdn.jsdelivr.net/gh/ofrohn/threex.planets@master/images/maps/phoebemap.jpg',
   Charon: 'https://cdn.jsdelivr.net/gh/ofrohn/threex.planets@master/images/maps/charonmap.jpg',
   Phobos: 'https://cdn.jsdelivr.net/gh/ofrohn/threex.planets@master/images/maps/phobosmap.jpg',
   Deimos: 'https://cdn.jsdelivr.net/gh/ofrohn/threex.planets@master/images/maps/deimosmap.jpg',
@@ -5467,9 +5522,9 @@ function updateFocusReadout() {
   if (planetIdx >= 0) line += ' · radius ' + Math.round(PLANET_EL[planetIdx].r) + ' km';
   if (id === 'mars') line += ' · Phobos Deimos';
   if (id === 'jupiter') line += ' · Io Europa Ganymede Callisto';
-  if (id === 'saturn') line += ' · Titan Rhea Iapetus Dione Enceladus Mimas Tethys Hyperion';
+  if (id === 'saturn') line += ' · Titan Rhea Iapetus Dione Enceladus Mimas Tethys Hyperion Phoebe Janus';
   if (id === 'uranus') line += ' · Miranda Ariel Umbriel Titania Oberon';
-  if (id === 'neptune') line += ' · Triton Proteus Nereid';
+  if (id === 'neptune') line += ' · Triton Proteus Nereid Larissa';
   if (id === 'pluto') line += ' · Charon';
   if (id === 'ceres') line += ' · radius 470 km';
   if (id === 'vesta') line += ' · radius 263 km';
@@ -5486,6 +5541,8 @@ function updateFocusReadout() {
   if (id === 'ixion') line += ' · radius 349 km';
   if (id === 'salacia') line += ' · radius 423 km';
   if (id === 'ms4') line += ' · radius 398 km';
+  if (id === 'varda') line += ' · radius 370 km';
+  if (id === 'aw197') line += ' · radius 384 km';
   let extra = '';
   if (id === 'sun') extra = 'tilt 7.2°';
   else if (id === 'moon') extra = 'period 27.3 d · inclination 5.1°';
@@ -5502,6 +5559,8 @@ function updateFocusReadout() {
   else if (id === 'mimas') extra = 'period 0.94 d · parent Saturn';
   else if (id === 'tethys') extra = 'period 1.89 d · parent Saturn';
   else if (id === 'hyperion') extra = 'period 21.3 d · parent Saturn · chaotic tumble';
+  else if (id === 'phoebe') extra = 'period 550 d · parent Saturn · retrograde · slow tumble';
+  else if (id === 'janus') extra = 'period 0.69 d · parent Saturn';
   else if (id === 'miranda') extra = 'period 1.41 d · parent Uranus';
   else if (id === 'ariel') extra = 'period 2.52 d · parent Uranus';
   else if (id === 'umbriel') extra = 'period 4.14 d · parent Uranus';
@@ -5511,6 +5570,7 @@ function updateFocusReadout() {
   else if (id === 'deimos') extra = 'period 1.26 d · parent Mars';
   else if (id === 'triton') extra = 'period 5.88 d · parent Neptune · retrograde';
   else if (id === 'proteus') extra = 'period 1.12 d · parent Neptune';
+  else if (id === 'larissa') extra = 'period 0.55 d · parent Neptune';
   else if (id === 'charon') extra = 'period 6.39 d · parent Pluto';
   else if (id === 'halley') {
     const Pdays = Math.pow(HALLEY_EL.a0, 1.5) * 365.25;
@@ -5539,6 +5599,8 @@ function updateFocusReadout() {
   else if (id === 'ixion') extra = 'period 247 y · inclination 19.7°';
   else if (id === 'salacia') extra = 'period 273 y · inclination 23.9°';
   else if (id === 'ms4') extra = 'period 268 y · inclination 17.7°';
+  else if (id === 'varda') extra = 'period 307 y · inclination 21.5°';
+  else if (id === 'aw197') extra = 'period 326 y · inclination 24.3°';
   else if (planetIdx >= 0) {
     const years = 36000 / PLANET_EL[planetIdx].Ldot;
     const pStr = planetIdx <= 2
@@ -5730,7 +5792,7 @@ function flyToBody(id) {
       ensureRingTexture('saturn', saturnRing);
       ensureFocusedMoonMaps(id);
     }
-    if (id === 'titan' || id === 'rhea' || id === 'enceladus' || id === 'iapetus' || id === 'dione' || id === 'mimas' || id === 'tethys' || id === 'hyperion') {
+    if (id === 'titan' || id === 'rhea' || id === 'enceladus' || id === 'iapetus' || id === 'dione' || id === 'mimas' || id === 'tethys' || id === 'hyperion' || id === 'phoebe' || id === 'janus') {
       saturnMoonGroup.visible = true;
       titanAtmo.visible = true;
       enceladusPlumeSpray.visible = true;
@@ -5820,7 +5882,7 @@ function flyToBody(id) {
       updateNeptuneMoons(simNow());
       ensureFocusedMoonMaps(id);
     }
-    if (id === 'triton' || id === 'proteus') {
+    if (id === 'triton' || id === 'proteus' || id === 'larissa') {
       neptuneMoonGroup.visible = true;
       tritonN2SprayPts.visible = id === 'triton';
       tritonSouthPolarCapDisk.visible = id === 'triton';
@@ -5894,7 +5956,7 @@ function flyToBody(id) {
     cometToggle.checked = true;
     cometToggle.dispatchEvent(new Event('change'));
   }
-  if ((id === 'ceres' || id === 'vesta' || id === 'eris' || id === 'haumea' || id === 'makemake' || id === 'pallas' || id === 'hygiea' || id === 'sedna' || id === 'quaoar' || id === 'orcus' || id === 'gonggong' || id === 'varuna' || id === 'ixion' || id === 'salacia' || id === 'ms4') && !minorsToggle.checked) {
+  if ((id === 'ceres' || id === 'vesta' || id === 'eris' || id === 'haumea' || id === 'makemake' || id === 'pallas' || id === 'hygiea' || id === 'sedna' || id === 'quaoar' || id === 'orcus' || id === 'gonggong' || id === 'varuna' || id === 'ixion' || id === 'salacia' || id === 'ms4' || id === 'varda' || id === 'aw197') && !minorsToggle.checked) {
     minorsToggle.checked = true;
     minorsToggle.dispatchEvent(new Event('change'));
   }
