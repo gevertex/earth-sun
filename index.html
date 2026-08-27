@@ -719,6 +719,41 @@ const mercuryCalorisDisk = new THREE.Mesh(
 mercuryCalorisDisk.raycast = () => {};
 mercuryCalorisDisk.visible = false;
 planetMeshes[0].add(mercuryCalorisDisk);
+const mercuryDiscoveryRupesR = Math.max(PLANET_EL[0].r * KM_TO_SCENE, 0.5) * 1.012;
+const MERCURY_DISCOVERY_RUPES_ARCS = 2;
+const MERCURY_DISCOVERY_RUPES_STEP = 10;
+const mercuryDiscoveryRupesPos = new Float32Array(MERCURY_DISCOVERY_RUPES_ARCS * (MERCURY_DISCOVERY_RUPES_STEP - 1) * 6);
+{
+  const mercuryDiscoveryRupesSpec = [
+    { lat: -53.5 * DEG, lon: -37.5 * DEG, tilt: 0.18, span: 0.55 },
+    { lat: -61.0 * DEG, lon: -39.0 * DEG, tilt: 0.22, span: 0.42 },
+  ];
+  let mercuryDiscoveryRupesW = 0;
+  for (let mercuryDiscoveryRupesA = 0; mercuryDiscoveryRupesA < MERCURY_DISCOVERY_RUPES_ARCS; mercuryDiscoveryRupesA++) {
+    const mercuryDiscoveryRupesArc = mercuryDiscoveryRupesSpec[mercuryDiscoveryRupesA];
+    for (let mercuryDiscoveryRupesI = 0; mercuryDiscoveryRupesI < MERCURY_DISCOVERY_RUPES_STEP - 1; mercuryDiscoveryRupesI++) {
+      const mercuryDiscoveryRupesS0 = (mercuryDiscoveryRupesI / (MERCURY_DISCOVERY_RUPES_STEP - 1) - 0.5) * mercuryDiscoveryRupesArc.span;
+      const mercuryDiscoveryRupesS1 = ((mercuryDiscoveryRupesI + 1) / (MERCURY_DISCOVERY_RUPES_STEP - 1) - 0.5) * mercuryDiscoveryRupesArc.span;
+      for (const mercuryDiscoveryRupesS of [mercuryDiscoveryRupesS0, mercuryDiscoveryRupesS1]) {
+        const mercuryDiscoveryRupesLa = mercuryDiscoveryRupesArc.lat + mercuryDiscoveryRupesS * 0.18 * Math.cos(mercuryDiscoveryRupesArc.tilt);
+        const mercuryDiscoveryRupesLo = mercuryDiscoveryRupesArc.lon + mercuryDiscoveryRupesS * Math.sin(mercuryDiscoveryRupesArc.tilt);
+        const mercuryDiscoveryRupesCl = Math.cos(mercuryDiscoveryRupesLa);
+        mercuryDiscoveryRupesPos[mercuryDiscoveryRupesW++] = mercuryDiscoveryRupesR * mercuryDiscoveryRupesCl * Math.cos(mercuryDiscoveryRupesLo);
+        mercuryDiscoveryRupesPos[mercuryDiscoveryRupesW++] = mercuryDiscoveryRupesR * Math.sin(mercuryDiscoveryRupesLa);
+        mercuryDiscoveryRupesPos[mercuryDiscoveryRupesW++] = -mercuryDiscoveryRupesR * mercuryDiscoveryRupesCl * Math.sin(mercuryDiscoveryRupesLo);
+      }
+    }
+  }
+}
+const mercuryDiscoveryRupesGeo = new THREE.BufferGeometry();
+mercuryDiscoveryRupesGeo.setAttribute('position', new THREE.BufferAttribute(mercuryDiscoveryRupesPos, 3));
+const mercuryDiscoveryRupesMat = new THREE.LineBasicMaterial({
+  color: 0x2a2824, transparent: true, opacity: 0.9, depthWrite: false,
+});
+const mercuryDiscoveryRupesSegs = new THREE.LineSegments(mercuryDiscoveryRupesGeo, mercuryDiscoveryRupesMat);
+mercuryDiscoveryRupesSegs.raycast = () => {};
+mercuryDiscoveryRupesSegs.visible = false;
+planetMeshes[0].add(mercuryDiscoveryRupesSegs);
 function mapRingUVs(geo, inner, outer) {
   const pos = geo.attributes.position;
   const uv = geo.attributes.uv;
@@ -977,6 +1012,42 @@ const ganymedeGalileoRegioDisk = new THREE.Mesh(
 ganymedeGalileoRegioDisk.raycast = () => {};
 ganymedeGalileoRegioDisk.visible = false;
 galileanMeshes[2].add(ganymedeGalileoRegioDisk);
+const ganymedeUrukSulcusR = GALILEAN[2].rR * jupiterGeoR * 1.012;
+const GANYMEDE_URUK_SULCUS_ARCS = 3;
+const GANYMEDE_URUK_SULCUS_STEP = 10;
+const ganymedeUrukSulcusPos = new Float32Array(GANYMEDE_URUK_SULCUS_ARCS * (GANYMEDE_URUK_SULCUS_STEP - 1) * 6);
+{
+  const ganymedeUrukSulcusSpec = [
+    { lat: 8 * DEG, lon: -162 * DEG, tilt: 1.25, span: 0.85 },
+    { lat: 14 * DEG, lon: -170 * DEG, tilt: 1.15, span: 0.72 },
+    { lat: 4 * DEG, lon: -175 * DEG, tilt: 1.35, span: 0.68 },
+  ];
+  let ganymedeUrukSulcusW = 0;
+  for (let ganymedeUrukSulcusA = 0; ganymedeUrukSulcusA < GANYMEDE_URUK_SULCUS_ARCS; ganymedeUrukSulcusA++) {
+    const ganymedeUrukSulcusArc = ganymedeUrukSulcusSpec[ganymedeUrukSulcusA];
+    for (let ganymedeUrukSulcusI = 0; ganymedeUrukSulcusI < GANYMEDE_URUK_SULCUS_STEP - 1; ganymedeUrukSulcusI++) {
+      const ganymedeUrukSulcusS0 = (ganymedeUrukSulcusI / (GANYMEDE_URUK_SULCUS_STEP - 1) - 0.5) * ganymedeUrukSulcusArc.span;
+      const ganymedeUrukSulcusS1 = ((ganymedeUrukSulcusI + 1) / (GANYMEDE_URUK_SULCUS_STEP - 1) - 0.5) * ganymedeUrukSulcusArc.span;
+      for (const ganymedeUrukSulcusS of [ganymedeUrukSulcusS0, ganymedeUrukSulcusS1]) {
+        const ganymedeUrukSulcusLa = ganymedeUrukSulcusArc.lat + ganymedeUrukSulcusS * 0.18 * Math.cos(ganymedeUrukSulcusArc.tilt);
+        const ganymedeUrukSulcusLo = ganymedeUrukSulcusArc.lon + ganymedeUrukSulcusS * Math.sin(ganymedeUrukSulcusArc.tilt);
+        const ganymedeUrukSulcusCl = Math.cos(ganymedeUrukSulcusLa);
+        ganymedeUrukSulcusPos[ganymedeUrukSulcusW++] = ganymedeUrukSulcusR * ganymedeUrukSulcusCl * Math.cos(ganymedeUrukSulcusLo);
+        ganymedeUrukSulcusPos[ganymedeUrukSulcusW++] = ganymedeUrukSulcusR * Math.sin(ganymedeUrukSulcusLa);
+        ganymedeUrukSulcusPos[ganymedeUrukSulcusW++] = -ganymedeUrukSulcusR * ganymedeUrukSulcusCl * Math.sin(ganymedeUrukSulcusLo);
+      }
+    }
+  }
+}
+const ganymedeUrukSulcusGeo = new THREE.BufferGeometry();
+ganymedeUrukSulcusGeo.setAttribute('position', new THREE.BufferAttribute(ganymedeUrukSulcusPos, 3));
+const ganymedeUrukSulcusMat = new THREE.LineBasicMaterial({
+  color: 0xd0c8b8, transparent: true, opacity: 0.88, depthWrite: false,
+});
+const ganymedeUrukSulcusSegs = new THREE.LineSegments(ganymedeUrukSulcusGeo, ganymedeUrukSulcusMat);
+ganymedeUrukSulcusSegs.raycast = () => {};
+ganymedeUrukSulcusSegs.visible = false;
+galileanMeshes[2].add(ganymedeUrukSulcusSegs);
 const callistoValhallaR = GALILEAN[3].rR * jupiterGeoR;
 const callistoValhallaRings = new THREE.Group();
 {
@@ -1011,6 +1082,40 @@ const callistoValhallaRings = new THREE.Group();
 }
 callistoValhallaRings.visible = false;
 galileanMeshes[3].add(callistoValhallaRings);
+const callistoAsgardR = GALILEAN[3].rR * jupiterGeoR;
+const callistoAsgardRings = new THREE.Group();
+{
+  const callistoAsgardLat = 30 * DEG, callistoAsgardLon = -142 * DEG;
+  const callistoAsgardRr = callistoAsgardR * 1.012;
+  const callistoAsgardCl = Math.cos(callistoAsgardLat);
+  const callistoAsgardPx = callistoAsgardRr * callistoAsgardCl * Math.cos(callistoAsgardLon);
+  const callistoAsgardPy = callistoAsgardRr * Math.sin(callistoAsgardLat);
+  const callistoAsgardPz = -callistoAsgardRr * callistoAsgardCl * Math.sin(callistoAsgardLon);
+  const callistoAsgardFracs = [0.12, 0.22];
+  for (let callistoAsgardI = 0; callistoAsgardI < 2; callistoAsgardI++) {
+    const callistoAsgardSrc = new THREE.CircleGeometry(callistoAsgardR * callistoAsgardFracs[callistoAsgardI], 28);
+    const callistoAsgardSrcPos = callistoAsgardSrc.attributes.position;
+    const callistoAsgardRimN = callistoAsgardSrcPos.count - 2;
+    const callistoAsgardRim = new Float32Array(callistoAsgardRimN * 3);
+    for (let callistoAsgardK = 1; callistoAsgardK < callistoAsgardSrcPos.count - 1; callistoAsgardK++) {
+      const callistoAsgardO = (callistoAsgardK - 1) * 3;
+      callistoAsgardRim[callistoAsgardO] = callistoAsgardSrcPos.getX(callistoAsgardK);
+      callistoAsgardRim[callistoAsgardO + 1] = callistoAsgardSrcPos.getY(callistoAsgardK);
+      callistoAsgardRim[callistoAsgardO + 2] = callistoAsgardSrcPos.getZ(callistoAsgardK);
+    }
+    const callistoAsgardLoopGeo = new THREE.BufferGeometry();
+    callistoAsgardLoopGeo.setAttribute('position', new THREE.BufferAttribute(callistoAsgardRim, 3));
+    const callistoAsgardLoop = new THREE.LineLoop(callistoAsgardLoopGeo, new THREE.LineBasicMaterial({
+      color: 0x2a2218, transparent: true, opacity: 0.86, depthWrite: false,
+    }));
+    callistoAsgardLoop.position.set(callistoAsgardPx, callistoAsgardPy, callistoAsgardPz);
+    callistoAsgardLoop.lookAt(callistoAsgardPx * 2, callistoAsgardPy * 2, callistoAsgardPz * 2);
+    callistoAsgardLoop.raycast = () => {};
+    callistoAsgardRings.add(callistoAsgardLoop);
+  }
+}
+callistoAsgardRings.visible = false;
+galileanMeshes[3].add(callistoAsgardRings);
 const jupiterRingInner = 1.72 * jupiterGeoR, jupiterRingOuter = 1.90 * jupiterGeoR;
 const jupiterRing = new THREE.Mesh(
   new THREE.RingGeometry(jupiterRingInner, jupiterRingOuter, 64),
@@ -1131,6 +1236,25 @@ const titanXanaduDisk = new THREE.Mesh(
 titanXanaduDisk.raycast = () => {};
 titanXanaduDisk.visible = false;
 saturnMoonMeshes[0].add(titanXanaduDisk);
+const titanKrakenMareR = SATURN_MOONS[0].rR * saturnGeoR;
+const titanKrakenMareDisk = new THREE.Mesh(
+  new THREE.CircleGeometry(titanKrakenMareR * 0.16, 24),
+  new THREE.MeshLambertMaterial({
+    color: 0x1a2838, side: THREE.DoubleSide,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+  })
+);
+{
+  const titanKrakenMareLat = 68 * DEG, titanKrakenMareLon = 50 * DEG;
+  const titanKrakenMareRr = titanKrakenMareR * 1.018;
+  const titanKrakenMareCl = Math.cos(titanKrakenMareLat);
+  titanKrakenMareDisk.position.set(titanKrakenMareRr * titanKrakenMareCl * Math.cos(titanKrakenMareLon), titanKrakenMareRr * Math.sin(titanKrakenMareLat), -titanKrakenMareRr * titanKrakenMareCl * Math.sin(titanKrakenMareLon));
+  titanKrakenMareDisk.lookAt(titanKrakenMareDisk.position.x * 2, titanKrakenMareDisk.position.y * 2, titanKrakenMareDisk.position.z * 2);
+}
+titanKrakenMareDisk.raycast = () => {};
+titanKrakenMareDisk.visible = false;
+titanKrakenMareDisk.renderOrder = 2;
+saturnMoonMeshes[0].add(titanKrakenMareDisk);
 const ENCELADUS_PLUME_N = 48;
 const enceladusPlumeR = SATURN_MOONS[4].rR * saturnGeoR;
 const enceladusPlumePos = new Float32Array(ENCELADUS_PLUME_N * 3);
@@ -2089,6 +2213,24 @@ const moonAristarchusCraterDisk = new THREE.Mesh(
 moonAristarchusCraterDisk.raycast = () => {};
 moonAristarchusCraterDisk.visible = false;
 moonMesh.add(moonAristarchusCraterDisk);
+const moonKeplerImpactCraterR = 1737.4 * KM_TO_SCENE;
+const moonKeplerImpactCraterDisk = new THREE.Mesh(
+  new THREE.CircleGeometry(moonKeplerImpactCraterR * 0.04, 24),
+  new THREE.MeshLambertMaterial({
+    color: 0x8a8884, side: THREE.DoubleSide,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+  })
+);
+{
+  const moonKeplerLat = 8.1 * DEG, moonKeplerLon = -38.0 * DEG;
+  const moonKeplerRr = moonKeplerImpactCraterR * 1.012;
+  const moonKeplerCl = Math.cos(moonKeplerLat);
+  moonKeplerImpactCraterDisk.position.set(moonKeplerRr * moonKeplerCl * Math.cos(moonKeplerLon), moonKeplerRr * Math.sin(moonKeplerLat), -moonKeplerRr * moonKeplerCl * Math.sin(moonKeplerLon));
+  moonKeplerImpactCraterDisk.lookAt(moonKeplerImpactCraterDisk.position.x * 2, moonKeplerImpactCraterDisk.position.y * 2, moonKeplerImpactCraterDisk.position.z * 2);
+}
+moonKeplerImpactCraterDisk.raycast = () => {};
+moonKeplerImpactCraterDisk.visible = false;
+moonMesh.add(moonKeplerImpactCraterDisk);
 
 const BODY_TITLE = {
   sun: 'Sun', mercury: 'Mercury', venus: 'Venus', earth: 'Earth', moon: 'Moon',
@@ -2431,6 +2573,8 @@ moonToggle.addEventListener('change', () => {
   else if (focusedBody === 'moon') moonCopernicusCraterDisk.visible = true;
   if (!moonToggle.checked) moonAristarchusCraterDisk.visible = false;
   else if (focusedBody === 'moon') moonAristarchusCraterDisk.visible = true;
+  if (!moonToggle.checked) moonKeplerImpactCraterDisk.visible = false;
+  else if (focusedBody === 'moon') moonKeplerImpactCraterDisk.visible = true;
 });
 
 /* ---------- Van Allen belts: Earth-fixed torii (not inertial) ---------- */
@@ -4925,6 +5069,7 @@ function flyToBody(id) {
     mimasHerschelDisk.visible = false;
     iapetusTwoToneOverlay.visible = false;
     titanXanaduDisk.visible = false;
+    titanKrakenMareDisk.visible = false;
     dioneWispySegs.visible = false;
     rheaInktomiCraterDisk.visible = false;
     for (let i = 0; i < saturnMoonLabels.length; i++) saturnMoonLabels[i].visible = false;
@@ -4941,7 +5086,9 @@ function flyToBody(id) {
     europaLineaeSegs.visible = false;
     europaPwyllImpactCraterDisk.visible = false;
     ganymedeGalileoRegioDisk.visible = false;
+    ganymedeUrukSulcusSegs.visible = false;
     callistoValhallaRings.visible = false;
+    callistoAsgardRings.visible = false;
     for (let i = 0; i < galileanLabels.length; i++) galileanLabels[i].visible = false;
   }
   if (prev === 'uranus') {
@@ -4993,9 +5140,11 @@ function flyToBody(id) {
     planetMeshes[7].material.visible = true;
   }
   if (prev === 'mercury') mercuryCalorisDisk.visible = false;
+  if (prev === 'mercury') mercuryDiscoveryRupesSegs.visible = false;
   if (prev === 'moon') moonTychoCraterDisk.visible = false;
   if (prev === 'moon') moonCopernicusCraterDisk.visible = false;
   if (prev === 'moon') moonAristarchusCraterDisk.visible = false;
+  if (prev === 'moon') moonKeplerImpactCraterDisk.visible = false;
   if (prev === 'venus') venusAtmo.visible = false;
   if (prev === 'venus') venusMaxwellMontesDisk.visible = false;
   if (prev === 'halley') cometAtmo.visible = false;
@@ -5020,6 +5169,7 @@ function flyToBody(id) {
       mimasHerschelDisk.visible = true;
       iapetusTwoToneOverlay.visible = true;
       titanXanaduDisk.visible = true;
+      titanKrakenMareDisk.visible = true;
       dioneWispySegs.visible = true;
       rheaInktomiCraterDisk.visible = true;
       updateSaturnMoons(simNow());
@@ -5038,11 +5188,14 @@ function flyToBody(id) {
       europaLineaeSegs.visible = true;
       europaPwyllImpactCraterDisk.visible = true;
       ganymedeGalileoRegioDisk.visible = true;
+      ganymedeUrukSulcusSegs.visible = true;
       callistoValhallaRings.visible = true;
+      callistoAsgardRings.visible = true;
       updateGalilean(simNow());
       ensureFocusedMoonMaps(id);
     }
     if (id === 'mercury') mercuryCalorisDisk.visible = true;
+    if (id === 'mercury') mercuryDiscoveryRupesSegs.visible = true;
     if (id === 'venus') venusAtmo.visible = true;
     if (id === 'venus') venusMaxwellMontesDisk.visible = true;
     if (id === 'halley') cometAtmo.visible = true;
@@ -5113,6 +5266,7 @@ function flyToBody(id) {
   if (id === 'moon') moonTychoCraterDisk.visible = true;
   if (id === 'moon') moonCopernicusCraterDisk.visible = true;
   if (id === 'moon') moonAristarchusCraterDisk.visible = true;
+  if (id === 'moon') moonKeplerImpactCraterDisk.visible = true;
   if (id === 'halley' && !cometToggle.checked) {
     cometToggle.checked = true;
     cometToggle.dispatchEvent(new Event('change'));
