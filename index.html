@@ -243,6 +243,8 @@
         <button type="button" data-body="saturn">Saturn</button>
         <span class="moon-fly-row">
           <button type="button" data-body="titan">Titan</button>
+          <button type="button" data-body="rhea">Rhea</button>
+          <button type="button" data-body="enceladus">Enceladus</button>
         </span>
         <button type="button" data-body="uranus">Uranus</button>
         <button type="button" data-body="neptune">Neptune</button>
@@ -250,6 +252,9 @@
           <button type="button" data-body="triton">Triton</button>
         </span>
         <button type="button" data-body="pluto">Pluto</button>
+        <span class="moon-fly-row">
+          <button type="button" data-body="charon">Charon</button>
+        </span>
         <button type="button" data-body="halley">Halley</button>
         <button type="button" data-body="ceres">Ceres</button>
         <button type="button" data-body="vesta">Vesta</button>
@@ -262,6 +267,8 @@
         <button type="button" data-body="quaoar">Quaoar</button>
         <button type="button" data-body="orcus">Orcus</button>
         <button type="button" data-body="gonggong">Gonggong</button>
+        <button type="button" data-body="varuna">Varuna</button>
+        <button type="button" data-body="ixion">Ixion</button>
       </div>
       <label><input type="checkbox" id="true-size-toggle"> true size</label>
       <div class="body-focus" id="body-focus">Earth</div>
@@ -953,8 +960,8 @@ for (let i = 0; i < 4; i++) {
     new THREE.SphereGeometry(g.rR * jupiterGeoR, 16, 12),
     new THREE.MeshPhongMaterial({ color: g.c, shininess: 4 }),
   );
-  mesh.raycast = () => {};
   mesh.userData.moon = g.name;
+  mesh.userData.body = GALILEAN_FLY_ID[i];
   galileanGroup.add(mesh);
   galileanMeshes.push(mesh);
   galileanLabels.push(makeMoonLabel(g.name));
@@ -1287,6 +1294,7 @@ const SATURN_MOONS = [
   { name: 'Enceladus', p: 1.370, aR: 2.55, rR: 0.06, c: 0xe8e4dc, phase: 0.80 },
   { name: 'Mimas', p: 0.942, aR: 3.1, rR: 0.05, c: 0xd0ccc8, phase: 3.15 },
 ];
+const SATURN_FLY_ID = ['titan', 'rhea', null, null, 'enceladus', null];
 const saturnMoonGroup = new THREE.Group();
 saturnMoonGroup.visible = false;
 planetMeshes[4].add(saturnMoonGroup);
@@ -1298,8 +1306,9 @@ for (let i = 0; i < SATURN_MOONS.length; i++) {
     new THREE.SphereGeometry(g.rR * saturnGeoR, 16, 12),
     new THREE.MeshPhongMaterial({ color: g.c, shininess: 4 }),
   );
-  mesh.raycast = () => {};
   mesh.userData.moon = g.name;
+  if (SATURN_FLY_ID[i]) mesh.userData.body = SATURN_FLY_ID[i];
+  else mesh.raycast = () => {};
   saturnMoonGroup.add(mesh);
   saturnMoonMeshes.push(mesh);
   saturnMoonLabels.push(makeMoonLabel(g.name));
@@ -1518,7 +1527,7 @@ function updateSaturnMoons(now) {
     const a = g.aR * saturnGeoR;
     saturnMoonMeshes[i].position.set(Math.cos(th) * a, 0, Math.sin(th) * a);
     tidalLockMoon(saturnMoonMeshes[i]);
-    placeMoonLabel(saturnMoonLabels[i], saturnMoonMeshes[i], !(i === 0 && focusedBody === 'titan'));
+    placeMoonLabel(saturnMoonLabels[i], saturnMoonMeshes[i], focusedBody !== SATURN_FLY_ID[i]);
   }
 }
 
@@ -1761,8 +1770,9 @@ for (let i = 0; i < NEPTUNE_MOONS.length; i++) {
     new THREE.SphereGeometry(g.rR * neptuneGeoR, 16, 12),
     new THREE.MeshPhongMaterial({ color: g.c, shininess: 4 }),
   );
-  mesh.raycast = () => {};
   mesh.userData.moon = g.name;
+  if (i === 0) mesh.userData.body = 'triton';
+  else mesh.raycast = () => {};
   neptuneMoonGroup.add(mesh);
   neptuneMoonMeshes.push(mesh);
   neptuneMoonLabels.push(makeMoonLabel(g.name));
@@ -2057,8 +2067,8 @@ const charonMesh = new THREE.Mesh(
   new THREE.MeshPhongMaterial({ color: 0xa8a090, shininess: 4 }),
 );
 charonMesh.position.set(CHARON_BARY_A, 0, 0);
-charonMesh.raycast = () => {};
 charonMesh.userData.moon = 'Charon';
+charonMesh.userData.body = 'charon';
 charonGroup.add(charonMesh);
 const charonMordorMaculaR = 0.5 * plutoGeoR;
 const charonMordorMaculaDisk = new THREE.Mesh(
@@ -2125,7 +2135,7 @@ function updateCharon(now) {
   plutoInspectMesh.position.set(-c * PLUTO_BARY_A, 0, -s * PLUTO_BARY_A);
   tidalLockMoon(charonMesh);
   tidalLockMoon(plutoInspectMesh);
-  placeMoonLabel(charonLabel, charonMesh, true);
+  placeMoonLabel(charonLabel, charonMesh, focusedBody !== 'charon');
 }
 
 const PLANET_IDS = ['mercury','venus','mars','jupiter','saturn','uranus','neptune','pluto'];
@@ -2189,6 +2199,12 @@ const orcusOrbitLine = orcusOrbit.line;
 const gonggongOrbit = makeOrbitLine(ORBIT_SAMPLES, 0xa06058);
 const gonggongOrbitPos = gonggongOrbit.pos;
 const gonggongOrbitLine = gonggongOrbit.line;
+const varunaOrbit = makeOrbitLine(ORBIT_SAMPLES, 0xc9a078);
+const varunaOrbitPos = varunaOrbit.pos;
+const varunaOrbitLine = varunaOrbit.line;
+const ixionOrbit = makeOrbitLine(ORBIT_SAMPLES, 0xb07058);
+const ixionOrbitPos = ixionOrbit.pos;
+const ixionOrbitLine = ixionOrbit.line;
 let lastOrbitWall = 0;
 function fillHelioOrbitLine(el, arr, n, T, eh, gmst) {
   const e = el.e0 + (el.edot || 0) * T;
@@ -2231,6 +2247,10 @@ function buildPlanetOrbits(now) {
   orcusOrbitLine.geometry.attributes.position.needsUpdate = true;
   fillHelioOrbitLine(GONGGONG_EL, gonggongOrbitPos, ORBIT_SAMPLES, T, eh, gmst);
   gonggongOrbitLine.geometry.attributes.position.needsUpdate = true;
+  fillHelioOrbitLine(VARUNA_EL, varunaOrbitPos, ORBIT_SAMPLES, T, eh, gmst);
+  varunaOrbitLine.geometry.attributes.position.needsUpdate = true;
+  fillHelioOrbitLine(IXION_EL, ixionOrbitPos, ORBIT_SAMPLES, T, eh, gmst);
+  ixionOrbitLine.geometry.attributes.position.needsUpdate = true;
   lastOrbitWall = Date.now();
 }
 function syncOrbitFocus() {
@@ -2249,6 +2269,8 @@ function syncOrbitFocus() {
   quaoarOrbitLine.visible = focusedBody !== 'quaoar';
   orcusOrbitLine.visible = focusedBody !== 'orcus';
   gonggongOrbitLine.visible = focusedBody !== 'gonggong';
+  varunaOrbitLine.visible = focusedBody !== 'varuna';
+  ixionOrbitLine.visible = focusedBody !== 'ixion';
 }
 const orbitsToggle = document.getElementById('orbits-toggle');
 orbitsToggle.addEventListener('change', () => {
@@ -2421,6 +2443,7 @@ const BODY_TITLE = {
   eris: 'Eris', haumea: 'Haumea', makemake: 'Makemake',
   pallas: 'Pallas', hygiea: 'Hygiea',
   sedna: 'Sedna', quaoar: 'Quaoar', orcus: 'Orcus', gonggong: 'Gonggong',
+  varuna: 'Varuna', ixion: 'Ixion',
 };
 const bodyLabel = {};
 for (const id of Object.keys(BODY_TITLE)) {
@@ -2461,6 +2484,8 @@ bodyLabel.sedna.visible = false;
 bodyLabel.quaoar.visible = false;
 bodyLabel.orcus.visible = false;
 bodyLabel.gonggong.visible = false;
+bodyLabel.varuna.visible = false;
+bodyLabel.ixion.visible = false;
 
 /* ---------- Halley: Keplerian comet, Earth origin, cheap anti-sun tail ---------- */
 const HALLEY_EL = {
@@ -2643,6 +2668,15 @@ const GONGGONG_EL = {
   a0: 66.866666, e0: 0.504251, I0: 30.89907,
   Omega0: 336.83832, w0: 206.62328, tPeri: 2399252.725, r: 615, c: 0xa06058,
 };
+/* JPL SBDB osculating Kepler elements, epoch 2461200.5 (2026-May-05 TDB). */
+const VARUNA_EL = {
+  a0: 43.200023, e0: 0.051615, I0: 17.14054,
+  Omega0: 97.21583, w0: 273.35897, tPeri: 2427878.216, r: 334, c: 0xc9a078,
+};
+const IXION_EL = {
+  a0: 39.346465, e0: 0.243561, I0: 19.66252,
+  Omega0: 71.08083, w0: 300.62234, tPeri: 2477485.361, r: 349, c: 0xb07058,
+};
 const minorWorld = new THREE.Group();
 minorWorld.visible = false;
 scene.add(minorWorld);
@@ -2729,7 +2763,9 @@ const sednaMesh = makeMinorMesh(SEDNA_EL, 'sedna');
 const quaoarMesh = makeMinorMesh(QUAOAR_EL, 'quaoar');
 const orcusMesh = makeMinorMesh(ORCUS_EL, 'orcus');
 const gonggongMesh = makeMinorMesh(GONGGONG_EL, 'gonggong');
-const minorSkyPos = new Float32Array(33);
+const varunaMesh = makeMinorMesh(VARUNA_EL, 'varuna');
+const ixionMesh = makeMinorMesh(IXION_EL, 'ixion');
+const minorSkyPos = new Float32Array(39);
 const minorSkyCol = new Float32Array([
   0.72, 0.70, 0.66, 0.77, 0.66, 0.47,
   0.83, 0.86, 0.91, 0.91, 0.82, 0.72,
@@ -2737,6 +2773,7 @@ const minorSkyCol = new Float32Array([
   0.54, 0.50, 0.47,
   0.77, 0.36, 0.24, 0.78, 0.66, 0.53,
   0.69, 0.72, 0.78, 0.63, 0.38, 0.35,
+  0.79, 0.63, 0.47, 0.69, 0.44, 0.35,
 ]);
 const minorSkyGeo = new THREE.BufferGeometry();
 minorSkyGeo.setAttribute('position', new THREE.BufferAttribute(minorSkyPos, 3));
@@ -2789,6 +2826,8 @@ function updateMinors(now, lonDeg) {
     if (bodyLabel.quaoar) bodyLabel.quaoar.visible = false;
     if (bodyLabel.orcus) bodyLabel.orcus.visible = false;
     if (bodyLabel.gonggong) bodyLabel.gonggong.visible = false;
+    if (bodyLabel.varuna) bodyLabel.varuna.visible = false;
+    if (bodyLabel.ixion) bodyLabel.ixion.visible = false;
     return;
   }
   _placeMinor(CERES_EL, ceresMesh, now, lonDeg, 0);
@@ -2802,6 +2841,8 @@ function updateMinors(now, lonDeg) {
   _placeMinor(QUAOAR_EL, quaoarMesh, now, lonDeg, 24);
   _placeMinor(ORCUS_EL, orcusMesh, now, lonDeg, 27);
   _placeMinor(GONGGONG_EL, gonggongMesh, now, lonDeg, 30);
+  _placeMinor(VARUNA_EL, varunaMesh, now, lonDeg, 33);
+  _placeMinor(IXION_EL, ixionMesh, now, lonDeg, 36);
   minorSkyGeo.attributes.position.needsUpdate = true;
 }
 const minorsToggle = document.getElementById('minors-toggle');
@@ -3698,7 +3739,11 @@ function onTap(clientX, clientY) {
   }
   const pickBodies = [sunMesh, moonMesh, ...planetMeshes];
   if (cometWorld.visible) pickBodies.push(cometMesh);
-  if (minorWorld.visible) pickBodies.push(ceresMesh, vestaMesh, erisMesh, haumeaMesh, makemakeMesh, pallasMesh, hygieaMesh, sednaMesh, quaoarMesh, orcusMesh, gonggongMesh);
+  if (minorWorld.visible) pickBodies.push(ceresMesh, vestaMesh, erisMesh, haumeaMesh, makemakeMesh, pallasMesh, hygieaMesh, sednaMesh, quaoarMesh, orcusMesh, gonggongMesh, varunaMesh, ixionMesh);
+  if (galileanGroup.visible) pickBodies.push(galileanMeshes[0], galileanMeshes[1], galileanMeshes[2], galileanMeshes[3]);
+  if (saturnMoonGroup.visible) pickBodies.push(saturnMoonMeshes[0], saturnMoonMeshes[1], saturnMoonMeshes[4]);
+  if (neptuneMoonGroup.visible) pickBodies.push(neptuneMoonMeshes[0]);
+  if (charonGroup.visible) pickBodies.push(charonMesh);
   const bodyHits = raycaster.intersectObjects(pickBodies, false);
   if (bodyHits.length) {
     const gh = raycaster.intersectObject(globe, false);
@@ -4978,19 +5023,22 @@ document.getElementById('sim-time').addEventListener('change', _readSimInputs);
 
 const MOON_FLY_PARENT = {
   io: 'jupiter', europa: 'jupiter', ganymede: 'jupiter', callisto: 'jupiter',
-  titan: 'saturn', triton: 'neptune',
+  titan: 'saturn', rhea: 'saturn', enceladus: 'saturn',
+  triton: 'neptune', charon: 'pluto',
 };
 const MOON_FLY_CAPTION = {
   io: 'Io', europa: 'Europa', ganymede: 'Ganymede', callisto: 'Callisto',
-  titan: 'Titan', triton: 'Triton',
+  titan: 'Titan', rhea: 'Rhea', enceladus: 'Enceladus',
+  triton: 'Triton', charon: 'Charon',
 };
 const MOON_FLY_KM = {
   io: 1821.6, europa: 1560.8, ganymede: 2634.1, callisto: 2410.3,
-  titan: 2574.7, triton: 1353.4,
+  titan: 2574.7, rhea: 763.8, enceladus: 252.1,
+  triton: 1353.4, charon: 606.0,
 };
 function moonFlyFamily(id) {
   if (MOON_FLY_PARENT[id]) return MOON_FLY_PARENT[id];
-  if (id === 'jupiter' || id === 'saturn' || id === 'neptune') return id;
+  if (id === 'jupiter' || id === 'saturn' || id === 'neptune' || id === 'pluto') return id;
   return null;
 }
 const BODY_MESH = {
@@ -5002,11 +5050,13 @@ const BODY_MESH = {
   eris: erisMesh, haumea: haumeaMesh, makemake: makemakeMesh,
   pallas: pallasMesh, hygiea: hygieaMesh,
   sedna: sednaMesh, quaoar: quaoarMesh, orcus: orcusMesh, gonggong: gonggongMesh,
+  varuna: varunaMesh, ixion: ixionMesh,
   io: galileanMeshes[0], europa: galileanMeshes[1],
   ganymede: galileanMeshes[2], callisto: galileanMeshes[3],
-  titan: saturnMoonMeshes[0], triton: neptuneMoonMeshes[0],
+  titan: saturnMoonMeshes[0], rhea: saturnMoonMeshes[1], enceladus: saturnMoonMeshes[4],
+  triton: neptuneMoonMeshes[0], charon: charonMesh,
 };
-const BODY_INSPECT = { sun: 25, mercury: 10, venus: 12, earth: 0, moon: 10, mars: 10, jupiter: 20, saturn: 20, uranus: 16, neptune: 16, pluto: 10, halley: 8, ceres: 8, vesta: 8, eris: 8, haumea: 8, makemake: 8, pallas: 8, hygiea: 8, sedna: 8, quaoar: 8, orcus: 8, gonggong: 8, io: 10, europa: 10, ganymede: 10, callisto: 10, titan: 10, triton: 10 };
+const BODY_INSPECT = { sun: 25, mercury: 10, venus: 12, earth: 0, moon: 10, mars: 10, jupiter: 20, saturn: 20, uranus: 16, neptune: 16, pluto: 10, halley: 8, ceres: 8, vesta: 8, eris: 8, haumea: 8, makemake: 8, pallas: 8, hygiea: 8, sedna: 8, quaoar: 8, orcus: 8, gonggong: 8, varuna: 8, ixion: 8, io: 10, europa: 10, ganymede: 10, callisto: 10, titan: 10, rhea: 10, enceladus: 10, triton: 10, charon: 10 };
 const BODY_TILT = {
   mercury: 0.03, venus: 177.4, mars: 25, jupiter: 3, saturn: 27,
   uranus: 98, neptune: 28, pluto: 120, sun: 7.2, ceres: 4, vesta: 29,
@@ -5018,6 +5068,7 @@ const SIDEREAL_DAYS = {
   ceres: 0.378, vesta: 0.223,
   eris: 1.079, haumea: 0.163, makemake: 0.951, pallas: 0.326, hygiea: 0.576,
   sedna: 0.428, quaoar: 0.368, orcus: 0.550, gonggong: 0.933,
+  varuna: 0.264, ixion: 0.662,
 };
 function applyInspectSpin(id, now) {
   const days = SIDEREAL_DAYS[id];
@@ -5056,6 +5107,8 @@ function bodyRealR(id) {
   if (id === 'quaoar') return QUAOAR_EL.r * KM_TO_SCENE;
   if (id === 'orcus') return ORCUS_EL.r * KM_TO_SCENE;
   if (id === 'gonggong') return GONGGONG_EL.r * KM_TO_SCENE;
+  if (id === 'varuna') return VARUNA_EL.r * KM_TO_SCENE;
+  if (id === 'ixion') return IXION_EL.r * KM_TO_SCENE;
   if (MOON_FLY_KM[id]) return MOON_FLY_KM[id] * KM_TO_SCENE;
   const idx = PLANET_IDS.indexOf(id);
   if (idx >= 0) return PLANET_EL[idx].r * KM_TO_SCENE;
@@ -5076,12 +5129,17 @@ function bodyGeoR(id) {
   if (id === 'quaoar') return Math.max(QUAOAR_EL.r * KM_TO_SCENE, 0.5);
   if (id === 'orcus') return Math.max(ORCUS_EL.r * KM_TO_SCENE, 0.5);
   if (id === 'gonggong') return Math.max(GONGGONG_EL.r * KM_TO_SCENE, 0.5);
+  if (id === 'varuna') return Math.max(VARUNA_EL.r * KM_TO_SCENE, 0.5);
+  if (id === 'ixion') return Math.max(IXION_EL.r * KM_TO_SCENE, 0.5);
   if (id === 'io') return GALILEAN[0].rR * jupiterGeoR;
   if (id === 'europa') return GALILEAN[1].rR * jupiterGeoR;
   if (id === 'ganymede') return GALILEAN[2].rR * jupiterGeoR;
   if (id === 'callisto') return GALILEAN[3].rR * jupiterGeoR;
   if (id === 'titan') return SATURN_MOONS[0].rR * saturnGeoR;
+  if (id === 'rhea') return SATURN_MOONS[1].rR * saturnGeoR;
+  if (id === 'enceladus') return SATURN_MOONS[4].rR * saturnGeoR;
   if (id === 'triton') return NEPTUNE_MOONS[0].rR * neptuneGeoR;
+  if (id === 'charon') return 0.5 * plutoGeoR;
   const idx = PLANET_IDS.indexOf(id);
   if (idx >= 0) return Math.max(PLANET_EL[idx].r * KM_TO_SCENE, 0.5);
   return R;
@@ -5182,7 +5240,7 @@ function ensureFocusedMoonMaps(id) {
     for (let i = 0; i < URANUS_MOONS.length; i++) ensureMoonTexture(URANUS_MOONS[i].name, uranusMoonMeshes[i]);
   } else if (moonFlyFamily(id) === 'neptune') {
     for (let i = 0; i < NEPTUNE_MOONS.length; i++) ensureMoonTexture(NEPTUNE_MOONS[i].name, neptuneMoonMeshes[i]);
-  } else if (id === 'pluto') {
+  } else if (moonFlyFamily(id) === 'pluto') {
     ensureMoonTexture('Charon', charonMesh);
   } else if (id === 'mars') {
     for (let i = 0; i < MARS_MOONS.length; i++) ensureMoonTexture(MARS_MOONS[i].name, marsMoonMeshes[i]);
@@ -5328,6 +5386,8 @@ function updateFocusReadout() {
   if (id === 'quaoar') line += ' · radius 545 km';
   if (id === 'orcus') line += ' · radius 458 km';
   if (id === 'gonggong') line += ' · radius 615 km';
+  if (id === 'varuna') line += ' · radius 334 km';
+  if (id === 'ixion') line += ' · radius 349 km';
   let extra = '';
   if (id === 'sun') extra = 'tilt 7.2°';
   else if (id === 'moon') extra = 'period 27.3 d · inclination 5.1°';
@@ -5337,7 +5397,10 @@ function updateFocusReadout() {
   else if (id === 'ganymede') extra = 'period 7.16 d · parent Jupiter';
   else if (id === 'callisto') extra = 'period 16.7 d · parent Jupiter';
   else if (id === 'titan') extra = 'period 15.9 d · parent Saturn';
+  else if (id === 'rhea') extra = 'period 4.52 d · parent Saturn';
+  else if (id === 'enceladus') extra = 'period 1.37 d · parent Saturn';
   else if (id === 'triton') extra = 'period 5.88 d · parent Neptune · retrograde';
+  else if (id === 'charon') extra = 'period 6.39 d · parent Pluto';
   else if (id === 'halley') {
     const Pdays = Math.pow(HALLEY_EL.a0, 1.5) * 365.25;
     const jd = julianDate(simNow());
@@ -5361,6 +5424,8 @@ function updateFocusReadout() {
   else if (id === 'quaoar') extra = 'period 283 y · inclination 8.0°';
   else if (id === 'orcus') extra = 'period 247 y · inclination 20.6°';
   else if (id === 'gonggong') extra = 'period 547 y · inclination 30.9°';
+  else if (id === 'varuna') extra = 'period 284 y · inclination 17.1°';
+  else if (id === 'ixion') extra = 'period 247 y · inclination 19.7°';
   else if (planetIdx >= 0) {
     const years = 36000 / PLANET_EL[planetIdx].Ldot;
     const pStr = planetIdx <= 2
@@ -5489,18 +5554,21 @@ function flyToBody(id) {
     phobosStickneyDisk.visible = false;
     for (let i = 0; i < marsMoonLabels.length; i++) marsMoonLabels[i].visible = false;
   }
-  if (prev === 'pluto') {
-    charonGroup.visible = false;
-    charonGroup.rotation.y = 0;
-    charonLabel.visible = false;
-    plutoInspectMesh.visible = false;
-    plutoInspectHaze.visible = false;
-    plutoTombaughLobeA.visible = false;
-    plutoTombaughLobeB.visible = false;
-    plutoCthulhuMaculaDisk.visible = false;
-    charonMordorMaculaDisk.visible = false;
-    charonSerenityChasmaSegs.visible = false;
-    planetMeshes[7].material.visible = true;
+  if (moonFlyFamily(prev) === 'pluto') {
+    if (prev === 'pluto') charonGroup.rotation.y = 0;
+    if (moonFlyFamily(id) !== 'pluto') {
+      charonGroup.visible = false;
+      charonGroup.rotation.y = 0;
+      charonLabel.visible = false;
+      plutoInspectMesh.visible = false;
+      plutoInspectHaze.visible = false;
+      plutoTombaughLobeA.visible = false;
+      plutoTombaughLobeB.visible = false;
+      plutoCthulhuMaculaDisk.visible = false;
+      charonMordorMaculaDisk.visible = false;
+      charonSerenityChasmaSegs.visible = false;
+      planetMeshes[7].material.visible = true;
+    }
   }
   if (prev === 'mercury') mercuryCalorisDisk.visible = false;
   if (prev === 'mercury') mercuryDiscoveryRupesSegs.visible = false;
@@ -5543,7 +5611,7 @@ function flyToBody(id) {
       ensureRingTexture('saturn', saturnRing);
       ensureFocusedMoonMaps(id);
     }
-    if (id === 'titan') {
+    if (id === 'titan' || id === 'rhea' || id === 'enceladus') {
       saturnMoonGroup.visible = true;
       titanAtmo.visible = true;
       enceladusPlumeSpray.visible = true;
@@ -5656,6 +5724,19 @@ function flyToBody(id) {
       updateCharon(simNow());
       ensureFocusedMoonMaps(id);
     }
+    if (id === 'charon') {
+      charonGroup.visible = true;
+      planetMeshes[7].material.visible = true;
+      plutoInspectMesh.visible = false;
+      plutoInspectHaze.visible = false;
+      plutoTombaughLobeA.visible = false;
+      plutoTombaughLobeB.visible = false;
+      plutoCthulhuMaculaDisk.visible = false;
+      charonMordorMaculaDisk.visible = true;
+      charonSerenityChasmaSegs.visible = true;
+      updateCharon(simNow());
+      ensureFocusedMoonMaps(id);
+    }
     if (id === 'ceres') ceresOccatorDots.visible = true;
     if (id === 'ceres') ceresAhunaMonsDomeDisk.visible = true;
     if (id === 'vesta') vestaRheasilviaDisk.visible = true;
@@ -5678,7 +5759,7 @@ function flyToBody(id) {
     cometToggle.checked = true;
     cometToggle.dispatchEvent(new Event('change'));
   }
-  if ((id === 'ceres' || id === 'vesta' || id === 'eris' || id === 'haumea' || id === 'makemake' || id === 'pallas' || id === 'hygiea' || id === 'sedna' || id === 'quaoar' || id === 'orcus' || id === 'gonggong') && !minorsToggle.checked) {
+  if ((id === 'ceres' || id === 'vesta' || id === 'eris' || id === 'haumea' || id === 'makemake' || id === 'pallas' || id === 'hygiea' || id === 'sedna' || id === 'quaoar' || id === 'orcus' || id === 'gonggong' || id === 'varuna' || id === 'ixion') && !minorsToggle.checked) {
     minorsToggle.checked = true;
     minorsToggle.dispatchEvent(new Event('change'));
   }
