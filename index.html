@@ -556,7 +556,7 @@ const fmtLon = (v) => `${Math.abs(v).toFixed(2)}° ${v >= 0 ? 'E' : 'W'}`;
 // directional light that creates the day/night terminator.
 const sunMesh = new THREE.Mesh(
   new THREE.SphereGeometry(SUN_RADIUS, 48, 24),
-  new THREE.MeshBasicMaterial({ color: 0xffe28a }),
+  new THREE.MeshPhongMaterial({ color: 0xffe28a, emissive: 0xffe28a, emissiveIntensity: 1, shininess: 0 }),
 );
 scene.add(sunMesh);
 sunMesh.userData.body = 'sun';
@@ -627,7 +627,7 @@ const pCol = new Float32Array(24);
 PLANET_EL.forEach((el, i) => {
   const mesh = new THREE.Mesh(
     new THREE.SphereGeometry(Math.max(el.r * KM_TO_SCENE, 0.5), 12, 8),
-    new THREE.MeshBasicMaterial({ color: el.c }),
+    new THREE.MeshPhongMaterial({ color: el.c, shininess: 4 }),
   );
   planetWorld.add(mesh);
   planetMeshes.push(mesh);
@@ -645,6 +645,25 @@ saturnRing.raycast = () => {};
 saturnRing.visible = false;
 planetMeshes[4].add(saturnRing);
 
+function addMoonOrbit(group, a, color) {
+  const n = 48;
+  const pos = new Float32Array(n * 3);
+  for (let k = 0; k < n; k++) {
+    const th = k / n * Math.PI * 2;
+    pos[k * 3] = Math.cos(th) * a;
+    pos[k * 3 + 1] = 0;
+    pos[k * 3 + 2] = Math.sin(th) * a;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const line = new THREE.LineLoop(geo, new THREE.LineBasicMaterial({
+    color, transparent: true, opacity: 0.22, depthWrite: false,
+  }));
+  line.frustumCulled = false;
+  line.raycast = () => {};
+  group.add(line);
+}
+
 const jupiterGeoR = Math.max(PLANET_EL[3].r * KM_TO_SCENE, 0.5);
 const GALILEAN = [
   { name: 'Io', p: 1.769, aR: 2.0, rR: 0.12, c: 0xe8d090, phase: 0.35 },
@@ -661,11 +680,12 @@ for (let i = 0; i < 4; i++) {
   const g = GALILEAN[i];
   const mesh = new THREE.Mesh(
     new THREE.SphereGeometry(g.rR * jupiterGeoR, 8, 6),
-    new THREE.MeshBasicMaterial({ color: g.c }),
+    new THREE.MeshPhongMaterial({ color: g.c, shininess: 4 }),
   );
   mesh.raycast = () => {};
   galileanGroup.add(mesh);
   galileanMeshes.push(mesh);
+  addMoonOrbit(galileanGroup, g.aR * jupiterGeoR, g.c);
 }
 function updateGalilean(now) {
   if (!galileanGroup.visible) return;
@@ -693,11 +713,12 @@ for (let i = 0; i < SATURN_MOONS.length; i++) {
   const g = SATURN_MOONS[i];
   const mesh = new THREE.Mesh(
     new THREE.SphereGeometry(g.rR * saturnGeoR, 8, 6),
-    new THREE.MeshBasicMaterial({ color: g.c }),
+    new THREE.MeshPhongMaterial({ color: g.c, shininess: 4 }),
   );
   mesh.raycast = () => {};
   saturnMoonGroup.add(mesh);
   saturnMoonMeshes.push(mesh);
+  addMoonOrbit(saturnMoonGroup, g.aR * saturnGeoR, g.c);
 }
 function updateSaturnMoons(now) {
   if (!saturnMoonGroup.visible) return;
@@ -735,11 +756,12 @@ for (let i = 0; i < URANUS_MOONS.length; i++) {
   const g = URANUS_MOONS[i];
   const mesh = new THREE.Mesh(
     new THREE.SphereGeometry(g.rR * uranusGeoR, 8, 6),
-    new THREE.MeshBasicMaterial({ color: g.c }),
+    new THREE.MeshPhongMaterial({ color: g.c, shininess: 4 }),
   );
   mesh.raycast = () => {};
   uranusMoonGroup.add(mesh);
   uranusMoonMeshes.push(mesh);
+  addMoonOrbit(uranusMoonGroup, g.aR * uranusGeoR, g.c);
 }
 function updateUranusMoons(now) {
   if (!uranusMoonGroup.visible) return;
@@ -752,15 +774,91 @@ function updateUranusMoons(now) {
   }
 }
 
+const neptuneGeoR = Math.max(PLANET_EL[6].r * KM_TO_SCENE, 0.5);
+const neptuneRing = new THREE.Mesh(
+  new THREE.RingGeometry(1.55 * neptuneGeoR, 1.72 * neptuneGeoR, 32),
+  new THREE.MeshBasicMaterial({ color: 0x1a1a28, side: THREE.DoubleSide, transparent: true, opacity: 0.34, depthWrite: false })
+);
+neptuneRing.rotation.x = Math.PI / 2;
+neptuneRing.raycast = () => {};
+neptuneRing.visible = false;
+planetMeshes[6].add(neptuneRing);
+
+const NEPTUNE_MOONS = [
+  { name: 'Triton', p: 5.877, aR: 5.2, rR: 0.16, c: 0xc8b8a0, phase: 1.20, retro: true },
+  { name: 'Proteus', p: 1.122, aR: 2.3, rR: 0.07, c: 0x8a8478, phase: 0.55 },
+  { name: 'Nereid', p: 360.14, aR: 11.2, rR: 0.05, c: 0xb0a898, phase: 4.10 },
+];
+const neptuneMoonGroup = new THREE.Group();
+neptuneMoonGroup.visible = false;
+planetMeshes[6].add(neptuneMoonGroup);
+const neptuneMoonMeshes = [];
+for (let i = 0; i < NEPTUNE_MOONS.length; i++) {
+  const g = NEPTUNE_MOONS[i];
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(g.rR * neptuneGeoR, 8, 6),
+    new THREE.MeshPhongMaterial({ color: g.c, shininess: 4 }),
+  );
+  mesh.raycast = () => {};
+  neptuneMoonGroup.add(mesh);
+  neptuneMoonMeshes.push(mesh);
+  addMoonOrbit(neptuneMoonGroup, g.aR * neptuneGeoR, g.c);
+}
+function updateNeptuneMoons(now) {
+  if (!neptuneMoonGroup.visible) return;
+  const day = julianDate(now) - 2451545.0;
+  for (let i = 0; i < NEPTUNE_MOONS.length; i++) {
+    const g = NEPTUNE_MOONS[i];
+    const sign = g.retro ? -1 : 1;
+    const th = sign * (day / g.p * Math.PI * 2) + g.phase;
+    const a = g.aR * neptuneGeoR;
+    neptuneMoonMeshes[i].position.set(Math.cos(th) * a, 0, Math.sin(th) * a);
+  }
+}
+
+const marsGeoR = Math.max(PLANET_EL[2].r * KM_TO_SCENE, 0.5);
+const MARS_MOONS = [
+  { name: 'Phobos', p: 0.319, aR: 2.2, rR: 0.10, c: 0xb89878, phase: 0.70 },
+  { name: 'Deimos', p: 1.263, aR: 3.8, rR: 0.07, c: 0xa88870, phase: 3.40 },
+];
+const marsMoonGroup = new THREE.Group();
+marsMoonGroup.visible = false;
+planetMeshes[2].add(marsMoonGroup);
+const marsMoonMeshes = [];
+for (let i = 0; i < MARS_MOONS.length; i++) {
+  const g = MARS_MOONS[i];
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(g.rR * marsGeoR, 8, 6),
+    new THREE.MeshPhongMaterial({ color: g.c, shininess: 4 }),
+  );
+  mesh.raycast = () => {};
+  marsMoonGroup.add(mesh);
+  marsMoonMeshes.push(mesh);
+  addMoonOrbit(marsMoonGroup, g.aR * marsGeoR, g.c);
+}
+function updateMarsMoons(now) {
+  if (!marsMoonGroup.visible) return;
+  const day = julianDate(now) - 2451545.0;
+  for (let i = 0; i < MARS_MOONS.length; i++) {
+    const g = MARS_MOONS[i];
+    const th = day / g.p * Math.PI * 2 + g.phase;
+    const a = g.aR * marsGeoR;
+    marsMoonMeshes[i].position.set(Math.cos(th) * a, 0, Math.sin(th) * a);
+  }
+}
+
 const plutoGeoR = Math.max(PLANET_EL[7].r * KM_TO_SCENE, 0.5);
+const charonGroup = new THREE.Group();
+charonGroup.visible = false;
+planetMeshes[7].add(charonGroup);
 const charonMesh = new THREE.Mesh(
   new THREE.SphereGeometry(0.5 * plutoGeoR, 8, 6),
-  new THREE.MeshBasicMaterial({ color: 0xa8a090 }),
+  new THREE.MeshPhongMaterial({ color: 0xa8a090, shininess: 4 }),
 );
 charonMesh.position.set(3.5 * plutoGeoR, 0, 0);
 charonMesh.raycast = () => {};
-charonMesh.visible = false;
-planetMeshes[7].add(charonMesh);
+charonGroup.add(charonMesh);
+addMoonOrbit(charonGroup, 3.5 * plutoGeoR, 0xa8a090);
 
 const PLANET_IDS = ['mercury','venus','mars','jupiter','saturn','uranus','neptune','pluto'];
 const ORBIT_SAMPLES = 80;
@@ -3105,6 +3203,9 @@ function applyInspectSpin(id, now) {
   if (id === 'jupiter') galileanGroup.rotation.y = -spin;
   else if (id === 'saturn') saturnMoonGroup.rotation.y = -spin;
   else if (id === 'uranus') uranusMoonGroup.rotation.y = -spin;
+  else if (id === 'neptune') neptuneMoonGroup.rotation.y = -spin;
+  else if (id === 'mars') marsMoonGroup.rotation.y = -spin;
+  else if (id === 'pluto') charonGroup.rotation.y = -spin;
 }
 const trueSizeToggle = document.getElementById('true-size-toggle');
 function bodyRealR(id) {
@@ -3151,24 +3252,50 @@ const BODY_TEX = {
   saturn: 'https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/saturnmap.jpg',
   uranus: 'https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/uranusmap.jpg',
   neptune: 'https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/neptunemap.jpg',
+  pluto: 'https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/plutomap1k.jpg',
+};
+const BODY_TEX_HI = {
+  sun: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/sun.jpg',
+  mars: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/mars.jpg',
+  jupiter: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/jupiter.jpg',
+  saturn: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/saturn.jpg',
+  uranus: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/uranus.jpg',
+  neptune: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/neptune.jpg',
+  moon: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/moon.jpg',
 };
 const bodyTexState = Object.create(null);
 function ensureBodyTexture(id) {
-  if (!BODY_TEX[id] || bodyTexState[id]) return;
+  if (bodyTexState[id] === 'ok' || bodyTexState[id] === 'load' || bodyTexState[id] === 'fail') return;
   const mesh = BODY_MESH[id];
   if (!mesh) return;
+  const hi = BODY_TEX_HI[id];
+  const lo = BODY_TEX[id];
+  const url = (hi && bodyTexState[id] !== 'hi-fail') ? hi : lo;
+  if (!url) return;
   bodyTexState[id] = 'load';
   new THREE.TextureLoader().load(
-    BODY_TEX[id],
+    url,
     (tex) => {
       tex.colorSpace = THREE.SRGBColorSpace;
       mesh.material.map = tex;
       mesh.material.color.set(0xffffff);
+      if (id === 'sun') {
+        mesh.material.emissiveMap = tex;
+        mesh.material.emissive.set(0xffffff);
+        mesh.material.emissiveIntensity = 0.85;
+      }
       mesh.material.needsUpdate = true;
       bodyTexState[id] = 'ok';
     },
     undefined,
-    () => { bodyTexState[id] = 'fail'; },
+    () => {
+      if (hi && url === hi) {
+        bodyTexState[id] = 'hi-fail';
+        ensureBodyTexture(id);
+      } else {
+        bodyTexState[id] = 'fail';
+      }
+    },
   );
 }
 function updateFocusReadout() {
@@ -3185,9 +3312,11 @@ function updateFocusReadout() {
   }
   const planetIdx = PLANET_IDS.indexOf(id);
   if (planetIdx >= 0) line += ' · radius ' + Math.round(PLANET_EL[planetIdx].r) + ' km';
+  if (id === 'mars') line += ' · Phobos Deimos';
   if (id === 'jupiter') line += ' · Io Europa Ganymede Callisto';
   if (id === 'saturn') line += ' · Titan Rhea Iapetus Dione Enceladus';
   if (id === 'uranus') line += ' · Miranda Ariel Umbriel Titania Oberon';
+  if (id === 'neptune') line += ' · Triton Proteus Nereid';
   if (id === 'pluto') line += ' · Charon';
   let extra = '';
   if (id === 'sun') extra = 'tilt 7.2°';
@@ -3237,7 +3366,19 @@ function flyToBody(id) {
     uranusMoonGroup.visible = false;
     uranusMoonGroup.rotation.y = 0;
   }
-  if (prev === 'pluto') charonMesh.visible = false;
+  if (prev === 'neptune') {
+    neptuneRing.visible = false;
+    neptuneMoonGroup.visible = false;
+    neptuneMoonGroup.rotation.y = 0;
+  }
+  if (prev === 'mars') {
+    marsMoonGroup.visible = false;
+    marsMoonGroup.rotation.y = 0;
+  }
+  if (prev === 'pluto') {
+    charonGroup.visible = false;
+    charonGroup.rotation.y = 0;
+  }
 
   focusedBody = id;
   const mesh = BODY_MESH[id];
@@ -3255,7 +3396,13 @@ function flyToBody(id) {
       uranusMoonGroup.visible = true;
       updateUranusMoons(simNow());
     }
-    if (id === 'pluto') charonMesh.visible = true;
+    if (id === 'neptune') {
+      neptuneRing.visible = true;
+      neptuneMoonGroup.visible = true;
+      updateNeptuneMoons(simNow());
+    }
+    if (id === 'mars') { marsMoonGroup.visible = true; updateMarsMoons(simNow()); }
+    if (id === 'pluto') charonGroup.visible = true;
   }
   ensureBodyTexture(id);
 
@@ -3357,6 +3504,8 @@ function tick() {
   updateGalilean(now);
   updateSaturnMoons(now);
   updateUranusMoons(now);
+  updateNeptuneMoons(now);
+  updateMarsMoons(now);
   applyInspectSpin(focusedBody, now);
   if (orbitWorld.visible && Date.now() - lastOrbitWall >= 2000) buildPlanetOrbits(now);
   bodyLabel.sun.position.copy(sunMesh.position);
