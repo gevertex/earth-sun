@@ -701,6 +701,13 @@ saturnRing.raycast = () => {};
 saturnRing.visible = false;
 planetMeshes[4].add(saturnRing);
 const saturnAtmo = makeInspectAtmo(planetMeshes[4], saturnGeoR, 0xe8d8a8);
+const saturnRingShadow = new THREE.Mesh(
+  new THREE.SphereGeometry(saturnGeoR * 1.003, 48, 16, 0, Math.PI * 2, Math.PI / 2 - 0.10, 0.20),
+  new THREE.MeshBasicMaterial({ color: 0x120c08, transparent: true, opacity: 0.38, depthWrite: false, side: THREE.FrontSide })
+);
+saturnRingShadow.raycast = () => {};
+saturnRingShadow.visible = false;
+planetMeshes[4].add(saturnRingShadow);
 
 function addMoonOrbit(group, a, color) {
   const n = 48;
@@ -822,6 +829,11 @@ jupiterGrs.scale.set(1.65, 1, 1);
 jupiterGrs.raycast = () => {};
 jupiterGrs.visible = false;
 planetMeshes[3].add(jupiterGrs);
+const _grsPos0 = jupiterGrs.position.clone();
+const _grsQuat0 = jupiterGrs.quaternion.clone();
+const _grsQ = new THREE.Quaternion();
+const _grsY = new THREE.Vector3(0, 1, 0);
+const JUPITER_SYS_II_DAYS = 9 / 24 + 55 / 1440 + 40 / 86400;
 function updateGalilean(now) {
   if (!galileanGroup.visible) {
     for (let i = 0; i < galileanLabels.length; i++) galileanLabels[i].visible = false;
@@ -864,6 +876,7 @@ for (let i = 0; i < SATURN_MOONS.length; i++) {
   saturnMoonLabels.push(makeMoonLabel(g.name));
   addMoonOrbit(saturnMoonGroup, g.aR * saturnGeoR, g.c);
 }
+const titanAtmo = makeInspectAtmo(saturnMoonMeshes[0], SATURN_MOONS[0].rR * saturnGeoR, 0xcc8833);
 function updateSaturnMoons(now) {
   if (!saturnMoonGroup.visible) {
     for (let i = 0; i < saturnMoonLabels.length; i++) saturnMoonLabels[i].visible = false;
@@ -1171,7 +1184,7 @@ function updatePlanets(now, lonDeg) {
     const p = latLonToVec3(Dec, lon, dist);
     planetMeshes[i].position.copy(p);
     if (planetMeshes[i].userData.body === focusedBody) {
-      pPos[i*3] = pPos[i*3+1] = pPos[i*3+2] = NaN;
+      pPos[i*3] = pPos[i*3+1] = pPos[i*3+2] = 4e7;
     } else {
       pPos[i*3] = p.x; pPos[i*3+1] = p.y; pPos[i*3+2] = p.z;
     }
@@ -1336,9 +1349,12 @@ function updateComet(now, lonDeg) {
   const lon = ((RA - gmst + 180) % 360 + 360) % 360 - 180;
   const p = latLonToVec3(Dec, lon, dist);
   cometMesh.position.copy(p);
-  cometSkyPos[0] = p.x; cometSkyPos[1] = p.y; cometSkyPos[2] = p.z;
+  if (focusedBody === 'halley') {
+    cometSkyPos[0] = cometSkyPos[1] = cometSkyPos[2] = 4e7;
+  } else {
+    cometSkyPos[0] = p.x; cometSkyPos[1] = p.y; cometSkyPos[2] = p.z;
+  }
   cometSkyGeo.attributes.position.needsUpdate = true;
-  cometSky.visible = focusedBody !== 'halley';
   _tailDir.copy(p).sub(sunMesh.position);
   const tailLenSq = _tailDir.lengthSq();
   const rHelio = Math.sqrt(tailLenSq) / SUN_DISTANCE;
@@ -1410,7 +1426,7 @@ function _placeMinor(el, mesh, now, lonDeg, skyOff) {
   const z = -dist * cl * Math.sin(lonr);
   mesh.position.set(x, y, z);
   if (focusedBody === mesh.userData.body) {
-    minorSkyPos[skyOff] = minorSkyPos[skyOff + 1] = minorSkyPos[skyOff + 2] = NaN;
+    minorSkyPos[skyOff] = minorSkyPos[skyOff + 1] = minorSkyPos[skyOff + 2] = 4e7;
   } else {
     minorSkyPos[skyOff] = x; minorSkyPos[skyOff + 1] = y; minorSkyPos[skyOff + 2] = z;
   }
@@ -3478,6 +3494,7 @@ const elMoon = document.getElementById('moon-phase');
 const elBodyFocus = document.getElementById('body-focus');
 let lastMoonReadout = 0;
 let lastFocusReadout = 0;
+const _focusDate = new Date(0);
 
 function updateMoonReadout(now) {
   const t = performance.now();
@@ -3611,9 +3628,16 @@ function applyInspectSpin(id, now) {
   if (!days) return;
   const mesh = BODY_MESH[id];
   if (!mesh) return;
-  const spin = (julianDate(now) - 2451545.0) / days * Math.PI * 2;
+  const day = julianDate(now) - 2451545.0;
+  const spin = day / days * Math.PI * 2;
   mesh.rotation.y = spin;
-  if (id === 'jupiter') galileanGroup.rotation.y = -spin;
+  if (id === 'jupiter') {
+    galileanGroup.rotation.y = -spin;
+    const drift = day * (1 / JUPITER_SYS_II_DAYS - 1 / days) * Math.PI * 2;
+    _grsQ.setFromAxisAngle(_grsY, drift);
+    jupiterGrs.position.copy(_grsPos0).applyQuaternion(_grsQ);
+    jupiterGrs.quaternion.copy(_grsQ).multiply(_grsQuat0);
+  }
   else if (id === 'saturn') saturnMoonGroup.rotation.y = -spin;
   else if (id === 'uranus') uranusMoonGroup.rotation.y = -spin;
   else if (id === 'neptune') neptuneMoonGroup.rotation.y = -spin;
@@ -3875,9 +3899,13 @@ function updateFocusReadout() {
     const Pdays = Math.pow(HALLEY_EL.a0, 1.5) * 365.25;
     const jd = julianDate(simNow());
     const n = Math.floor((jd - HALLEY_EL.tPeri) / Pdays);
-    const lastY = new Date((HALLEY_EL.tPeri + n * Pdays - 2440587.5) * 86400000).getUTCFullYear();
-    const nextY = new Date((HALLEY_EL.tPeri + (n + 1) * Pdays - 2440587.5) * 86400000).getUTCFullYear();
-    extra = 'period 75.3 y · inclination 162.3° · perihelion 0.59 AU · last perihelion ' + lastY + ' · next perihelion ' + nextY;
+    const nextPeriJD = HALLEY_EL.tPeri + (n + 1) * Pdays;
+    const daysToPeri = nextPeriJD - jd;
+    _focusDate.setTime((HALLEY_EL.tPeri + n * Pdays - 2440587.5) * 86400000);
+    const lastY = _focusDate.getUTCFullYear();
+    _focusDate.setTime((nextPeriJD - 2440587.5) * 86400000);
+    const nextY = _focusDate.getUTCFullYear();
+    extra = 'period 75.3 y · inclination 162.3° · perihelion 0.59 AU · last perihelion ' + lastY + ' · next perihelion ' + nextY + ' · days to perihelion ' + Math.round(daysToPeri);
   }
   else if (id === 'ceres') extra = 'period 4.61 y · inclination 10.6° · tilt 4°';
   else if (id === 'vesta') extra = 'period 3.63 y · inclination 7.1° · tilt 29°';
@@ -3916,6 +3944,8 @@ function flyToBody(id) {
     saturnMoonGroup.visible = false;
     saturnMoonGroup.rotation.y = 0;
     saturnAtmo.visible = false;
+    saturnRingShadow.visible = false;
+    titanAtmo.visible = false;
     for (let i = 0; i < saturnMoonLabels.length; i++) saturnMoonLabels[i].visible = false;
   }
   if (prev === 'jupiter') {
@@ -3960,6 +3990,8 @@ function flyToBody(id) {
       saturnRing.visible = true;
       saturnMoonGroup.visible = true;
       saturnAtmo.visible = true;
+      saturnRingShadow.visible = true;
+      titanAtmo.visible = true;
       updateSaturnMoons(simNow());
       ensureRingTexture('saturn', saturnRing);
       ensureFocusedMoonMaps(id);
