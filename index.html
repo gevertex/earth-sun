@@ -70,6 +70,7 @@
     max-height: 70vh; overflow-y: auto;
   }
   #controls input { margin-right: 7px; vertical-align: -2px; }
+  #controls select { background:#0c1626; color:#cfe8ff; border:1px solid rgba(120,170,255,.25); padding:1px 4px; margin-left:4px; }
   @media (max-width: 640px) {
     /* the readout panel takes the top of narrow screens; move the toggle down */
     #controls { top: auto; bottom: 40px; }
@@ -121,7 +122,11 @@
   <label><input type="checkbox" id="debris-toggle"> show debris</label><br>
   <label><input type="checkbox" id="water-toggle" checked> show water names</label><br>
   <label><input type="checkbox" id="belts-toggle"> show Van Allen belts</label><br>
-  <label><input type="checkbox" id="asteroids-toggle"> show asteroid belt</label>
+  <label><input type="checkbox" id="asteroids-toggle"> show asteroid belt</label><br>
+  <label><input type="checkbox" id="geo-ring-toggle"> show GEO ring</label><br>
+  <label><input type="checkbox" id="aurora-toggle"> show aurora</label><br>
+  <label><input type="checkbox" id="grid-toggle"> show lat/lon grid</label><br>
+  <label>time speed <select id="time-scale"><option value="1">1x</option><option value="60">60x</option><option value="3600">3600x</option><option value="86400">1 day/s</option></select></label>
 </div>
 <div id="hint">drag to rotate · scroll to zoom · weather data by <a href="https://www.rainviewer.com/" target="_blank" rel="noopener">RainViewer</a></div>
 <script type="module">
@@ -486,6 +491,120 @@ beltsToggle.addEventListener('change', () => {
   beltWorld.visible = beltsToggle.checked;
 });
 
+/* ---------- GEO ring: Earth-fixed equatorial line at ~6.6 Re ---------- */
+const GEO_R = 6.6 * R;
+const GEO_SEGS = 128;
+const geoPos = new Float32Array(GEO_SEGS * 3);
+for (let i = 0; i < GEO_SEGS; i++) {
+  const a = (i / GEO_SEGS) * Math.PI * 2;
+  geoPos[i * 3]     = GEO_R * Math.cos(a);
+  geoPos[i * 3 + 1] = 0;
+  geoPos[i * 3 + 2] = GEO_R * Math.sin(a);
+}
+const geoGeo = new THREE.BufferGeometry();
+geoGeo.setAttribute('position', new THREE.BufferAttribute(geoPos, 3));
+const geoMat = new THREE.LineBasicMaterial({
+  color: 0x88c8ff, opacity: 0.35, transparent: true, depthWrite: false
+});
+const geoRing = new THREE.LineLoop(geoGeo, geoMat);
+geoRing.raycast = () => {};
+geoRing.visible = false;
+scene.add(geoRing);
+const geoToggle = document.getElementById('geo-ring-toggle');
+geoToggle.addEventListener('change', () => { geoRing.visible = geoToggle.checked; });
+
+/* ---------- aurora ovals: Earth-fixed, geomagnetic ~67.5 deg, <=400 pts ---------- */
+const auroraGroup = new THREE.Group();
+auroraGroup.rotation.z = 11 * DEG;
+auroraGroup.visible = false;
+scene.add(auroraGroup);
+
+const AURORA_R = R + 0.15;
+const AURORA_N = 180;
+const auroraMat = new THREE.PointsMaterial({
+  color: 0x66ffaa, size: 3, sizeAttenuation: false,
+  transparent: true, opacity: 0.55,
+  blending: THREE.AdditiveBlending, depthWrite: false
+});
+
+for (const lat of [67.5, -67.5]) {
+  const pos = new Float32Array(AURORA_N * 3);
+  for (let i = 0; i < AURORA_N; i++) {
+    const lon = (i / AURORA_N) * 360;
+    const v = latLonToVec3(lat, lon, AURORA_R);
+    pos[i * 3] = v.x; pos[i * 3 + 1] = v.y; pos[i * 3 + 2] = v.z;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const pts = new THREE.Points(geo, auroraMat);
+  pts.raycast = () => {};
+  auroraGroup.add(pts);
+}
+
+document.getElementById('aurora-toggle').addEventListener('change', e => {
+  auroraGroup.visible = e.target.checked;
+});
+
+/* ---------- lat/lon graticule: static meridians/parallels every 30 deg ---------- */
+function buildGraticule() {
+  const grR = R + 0.05;
+  const dimVerts = [];
+  const brightVerts = [];
+
+  function push(verts, lat, lon) {
+    const la = lat * DEG;
+    const lo = lon * DEG;
+    verts.push(
+      grR * Math.cos(la) * Math.cos(lo),
+      grR * Math.sin(la),
+      -grR * Math.cos(la) * Math.sin(lo)
+    );
+  }
+
+  for (let lon = 0; lon < 360; lon += 30) {
+    for (let i = 0; i < 48; i++) {
+      push(dimVerts, -90 + 180 / 48 * i, lon);
+      push(dimVerts, -90 + 180 / 48 * (i + 1), lon);
+    }
+  }
+
+  for (const lat of [-60, -30, 30, 60]) {
+    for (let i = 0; i < 64; i++) {
+      push(dimVerts, lat, 360 / 64 * i);
+      push(dimVerts, lat, 360 / 64 * (i + 1));
+    }
+  }
+
+  for (const lat of [0, 23.44, -23.44]) {
+    for (let i = 0; i < 64; i++) {
+      push(brightVerts, lat, 360 / 64 * i);
+      push(brightVerts, lat, 360 / 64 * (i + 1));
+    }
+  }
+
+  function makeLine(verts, color, opacity) {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    const mat = new THREE.LineBasicMaterial({
+      color, opacity, transparent: true, depthWrite: false
+    });
+    const line = new THREE.LineSegments(geo, mat);
+    line.raycast = () => {};
+    return line;
+  }
+
+  const group = new THREE.Group();
+  group.add(makeLine(dimVerts, 0x5a7a9a, 0.28));
+  group.add(makeLine(brightVerts, 0x9ec4e8, 0.5));
+  group.visible = false;
+  scene.add(group);
+
+  document.getElementById('grid-toggle').addEventListener('change', (e) => {
+    group.visible = e.target.checked;
+  });
+}
+buildGraticule();
+
 /* ---------- asteroid belt: heliocentric ring 2.2–3.2 AU around the Sun ---------- */
 const N_AST = 2200;
 const astGeo = new THREE.BufferGeometry();
@@ -654,6 +773,45 @@ function updateMoon(now) {
   lp.setXYZ(0, 0, 0, 0);
   lp.setXYZ(1, subPos.x, subPos.y, subPos.z);
   lp.needsUpdate = true;
+}
+
+/* ---------- eclipse umbra: dark disk on Earth when the Moon shadow hits ---------- */
+const umbraPos = new THREE.Vector3();
+const umbraMat = new THREE.MeshBasicMaterial({
+  color: 0x000810,
+  transparent: true,
+  opacity: 0.55,
+  depthWrite: false,
+  polygonOffset: true,
+  polygonOffsetFactor: -1,
+  polygonOffsetUnits: -1,
+  side: THREE.DoubleSide,
+});
+const umbraMesh = new THREE.Mesh(new THREE.CircleGeometry(1, 48), umbraMat);
+umbraMesh.raycast = () => {};
+umbraMesh.visible = false;
+scene.add(umbraMesh);
+
+function updateUmbra(sunDir) {
+  if (!moonWorld.visible) { umbraMesh.visible = false; return; }
+  const Rm = 1737.4 * KM_TO_SCENE;
+  const moonLen = moonMesh.position.length();
+  if (moonLen < 1e-6) { umbraMesh.visible = false; return; }
+  const a = moonMesh.position.dot(sunDir) / moonLen;
+  if (a <= 0) { umbraMesh.visible = false; return; }
+  const Lu = Rm * SUN_DISTANCE / (SUN_RADIUS - Rm);
+  const x = moonLen - R;
+  const uR = Rm * (1 - x / Lu);
+  if (uR <= 0) { umbraMesh.visible = false; return; }
+  const sunAR = SUN_RADIUS / SUN_DISTANCE;
+  const moonAR = Rm / moonLen;
+  const sep = Math.acos(Math.min(1, Math.max(-1, a)));
+  if (sep > Math.max(0, moonAR - sunAR) + 0.002) { umbraMesh.visible = false; return; }
+  umbraPos.copy(moonMesh.position).normalize().multiplyScalar(R + 0.06);
+  umbraMesh.position.copy(umbraPos);
+  umbraMesh.scale.setScalar(uR);
+  umbraMesh.lookAt(0, 0, 0);
+  umbraMesh.visible = true;
 }
 
 
@@ -2128,9 +2286,30 @@ readoutHead.addEventListener('keydown', (e) => {
 
 const tmpMat = new THREE.Matrix4();
 let lastPathSlot = -1;
+let lastPathWall = 0;
+
+let timeScale = 1;
+let wallEpoch = new Date();
+let simEpoch = new Date();
+
+function simNow() {
+  const d = Date.now() - wallEpoch.getTime();
+  return new Date(simEpoch.getTime() + d * timeScale);
+}
+
+function setTimeScale(s) {
+  const cur = simNow();
+  timeScale = s;
+  wallEpoch = new Date();
+  simEpoch = cur;
+}
+
+document.getElementById('time-scale').addEventListener('change', (e) => {
+  setTimeScale(Number(e.target.value));
+});
 
 function tick() {
-  const now = new Date();
+  const now = simNow();
   const { latDeg, lonDeg, eotMin } = subSolarPoint(now);
   const dir = latLonToVec3(latDeg, lonDeg, 1);
 
@@ -2146,16 +2325,19 @@ function tick() {
   sunLight.position.copy(dir).multiplyScalar(SUN_DISTANCE);
   updatePlanets(now, lonDeg);
   updateMoon(now);
+  updateUmbra(dir);
   updateAsteroids(now, lonDeg);
   const linePos = lineGeo.attributes.position;
   linePos.setXYZ(0, 0, 0, 0);
   linePos.setXYZ(1, dir.x * surfR, dir.y * surfR, dir.z * surfR);
   linePos.needsUpdate = true;
 
-  // Rebuild the sun path every 30 s; it shifts 0.004 deg/s with the time of day.
+  // Rebuild the sun path every 30 s of sim time, but not faster than 250 ms wall
+  // so 3600x / 1 day/s does not rebuild the path every frame.
   const pathSlot = Math.floor(now.getTime() / 30000);
-  if (pathSlot !== lastPathSlot) {
+  if (pathSlot !== lastPathSlot && (timeScale === 1 || Date.now() - lastPathWall >= 250)) {
     lastPathSlot = pathSlot;
+    lastPathWall = Date.now();
     buildSunPath(now);
   }
 
@@ -2179,9 +2361,12 @@ function tick() {
     tickStarlink(now);
   }
 
-  elUtc.textContent = now.toISOString().slice(11, 19);
-  elSummary.textContent =
-    `Subsolar ${fmtLat(latDeg)} · ${fmtLon(lonDeg)} · ${now.toISOString().slice(11, 16)} UTC`;
+  elUtc.textContent = timeScale === 1
+    ? now.toISOString().slice(11, 19)
+    : now.toISOString().slice(0, 19).replace('T', ' ');
+  elSummary.textContent = timeScale === 1
+    ? `Subsolar ${fmtLat(latDeg)} · ${fmtLon(lonDeg)} · ${now.toISOString().slice(11, 16)} UTC`
+    : `Subsolar ${fmtLat(latDeg)} · ${fmtLon(lonDeg)} · ${now.toISOString().slice(0, 19).replace('T', ' ')} UTC`;
   elLat.textContent = fmtLat(latDeg);
   elLon.textContent = fmtLon(lonDeg);
   elDec.textContent = `${latDeg >= 0 ? '+' : ''}${latDeg.toFixed(2)}°`;
