@@ -126,6 +126,10 @@
   <label><input type="checkbox" id="geo-ring-toggle"> show GEO ring</label><br>
   <label><input type="checkbox" id="aurora-toggle"> show aurora</label><br>
   <label><input type="checkbox" id="grid-toggle"> show lat/lon grid</label><br>
+  <label><input type="checkbox" id="atmosphere-toggle" checked> show atmosphere</label><br>
+  <label><input type="checkbox" id="ecliptic-toggle"> show ecliptic plane</label><br>
+  <label><input type="checkbox" id="magnetopause-toggle"> show magnetopause</label><br>
+  <label><input type="checkbox" id="quakes-toggle"> show quakes</label><br>
   <label>time speed <select id="time-scale"><option value="1">1x</option><option value="60">60x</option><option value="3600">3600x</option><option value="86400">1 day/s</option></select></label>
 </div>
 <div id="hint">drag to rotate · scroll to zoom · weather data by <a href="https://www.rainviewer.com/" target="_blank" rel="noopener">RainViewer</a></div>
@@ -242,6 +246,95 @@ globeMat.onBeforeCompile = (shader) => {
 };
 const globe = new THREE.Mesh(new THREE.SphereGeometry(R, 256, 256), globeMat);
 scene.add(globe);
+
+const atmosphereMesh = new THREE.Mesh(
+  new THREE.SphereGeometry(R * 1.08, 64, 32),
+  new THREE.MeshBasicMaterial({
+    color: 0x6eb6ff,
+    transparent: true,
+    opacity: 0.4,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: THREE.BackSide
+  })
+);
+atmosphereMesh.raycast = () => {};
+scene.add(atmosphereMesh);
+document.getElementById('atmosphere-toggle').addEventListener('change', (e) => {
+  atmosphereMesh.visible = e.target.checked;
+});
+
+const QUAKE_MAX = 250;
+const quakePos = new Float32Array(QUAKE_MAX * 3);
+const quakeCol = new Float32Array(QUAKE_MAX * 3);
+const quakeMag = new Float32Array(QUAKE_MAX);
+const quakeGeo = new THREE.BufferGeometry();
+quakeGeo.setAttribute('position', new THREE.BufferAttribute(quakePos, 3));
+quakeGeo.setAttribute('color', new THREE.BufferAttribute(quakeCol, 3));
+quakeGeo.setAttribute('aMag', new THREE.BufferAttribute(quakeMag, 1));
+quakeGeo.setDrawRange(0, 0);
+const quakeMat = new THREE.PointsMaterial({
+  size: 1, sizeAttenuation: false, vertexColors: true,
+  transparent: true, opacity: 0.9, depthWrite: false
+});
+quakeMat.onBeforeCompile = (shader) => {
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', '#include <common>\nattribute float aMag;')
+    .replace('gl_PointSize = size;', 'gl_PointSize = aMag;');
+};
+const quakePoints = new THREE.Points(quakeGeo, quakeMat);
+quakePoints.raycast = () => {};
+quakePoints.frustumCulled = false;
+quakePoints.visible = false;
+scene.add(quakePoints);
+
+let quakeFetching = false;
+let quakeFetched = false;
+
+function fetchQuakes() {
+  if (quakeFetching) return;
+  quakeFetching = true;
+  fetch('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson')
+    .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+    .then(json => {
+      const feats = json.features.slice(0, QUAKE_MAX);
+      const n = feats.length;
+      for (let i = 0; i < n; i++) {
+        const [lon, lat, depth] = feats[i].geometry.coordinates;
+        const v = latLonToVec3(lat, lon, R + 0.1);
+        quakePos[i * 3]     = v.x;
+        quakePos[i * 3 + 1] = v.y;
+        quakePos[i * 3 + 2] = v.z;
+        let qr, qg, qb;
+        if (depth < 70)        { qr = 1;     qg = 0.8;   qb = 0.267; }
+        else if (depth <= 300) { qr = 1;     qg = 0.467; qb = 0.133; }
+        else                   { qr = 0.4;   qg = 0.533; qb = 1;     }
+        quakeCol[i * 3]     = qr;
+        quakeCol[i * 3 + 1] = qg;
+        quakeCol[i * 3 + 2] = qb;
+        const mag = feats[i].properties && feats[i].properties.mag;
+        const m = mag == null ? 4 : mag;
+        quakeMag[i] = Math.min(Math.max(2 + m * 1.6, 2), 12);
+      }
+      quakeGeo.attributes.position.needsUpdate = true;
+      quakeGeo.attributes.color.needsUpdate = true;
+      quakeGeo.attributes.aMag.needsUpdate = true;
+      quakeGeo.setDrawRange(0, n);
+      quakeFetched = true;
+    })
+    .catch(() => {})
+    .finally(() => { quakeFetching = false; });
+}
+
+setInterval(() => {
+  if (document.getElementById('quakes-toggle').checked) fetchQuakes();
+}, 15 * 60 * 1000);
+
+document.getElementById('quakes-toggle').addEventListener('change', (e) => {
+  quakePoints.visible = e.target.checked;
+  if (e.target.checked && !quakeFetched) fetchQuakes();
+});
+
 new THREE.TextureLoader().load(
   'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg',
   (tex) => {
@@ -490,6 +583,16 @@ const beltsToggle = document.getElementById('belts-toggle');
 beltsToggle.addEventListener('change', () => {
   beltWorld.visible = beltsToggle.checked;
 });
+const _magAxis = new THREE.Vector3(1, 0, 0);
+const magMesh = new THREE.Mesh(
+  new THREE.SphereGeometry(10 * R, 32, 24),
+  new THREE.MeshBasicMaterial({ color: 0x66ddee, transparent: true, opacity: 0.12, depthWrite: false, side: THREE.DoubleSide })
+);
+magMesh.raycast = () => {};
+magMesh.visible = false;
+scene.add(magMesh);
+const magToggle = document.getElementById('magnetopause-toggle');
+magToggle.addEventListener('change', () => { magMesh.visible = magToggle.checked; });
 
 /* ---------- GEO ring: Earth-fixed equatorial line at ~6.6 Re ---------- */
 const GEO_R = 6.6 * R;
@@ -630,13 +733,34 @@ asteroidWorld.visible = false;
 asteroidWorld.matrixAutoUpdate = false;
 scene.add(asteroidWorld);
 
+const eclipticWorld = new THREE.Group();
+eclipticWorld.matrixAutoUpdate = false;
+eclipticWorld.visible = false;
+const eclMesh = new THREE.Mesh(
+  new THREE.CircleGeometry(5 * SUN_DISTANCE, 64),
+  new THREE.MeshBasicMaterial({
+    color: 0x88aacc,
+    opacity: 0.08,
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  })
+);
+eclMesh.raycast = () => {};
+eclMesh.frustumCulled = false;
+eclipticWorld.add(eclMesh);
+scene.add(eclipticWorld);
+document.getElementById('ecliptic-toggle').addEventListener('change', (e) => {
+  eclipticWorld.visible = e.target.checked;
+});
+
 const asteroidsToggle = document.getElementById('asteroids-toggle');
 asteroidsToggle.addEventListener('change', () => {
   asteroidWorld.visible = asteroidsToggle.checked;
 });
 
 function updateAsteroids(now, lonDeg) {
-  if (!asteroidWorld.visible) return;
+  if (!asteroidWorld.visible && !eclipticWorld.visible) return;
   const T = (julianDate(now) - 2451545.0) / 36525.0;
   const eh = _helio(EARTH_EL, T);
   const se = _eclToEq(-eh[0], -eh[1], -eh[2], T);
@@ -652,6 +776,8 @@ function updateAsteroids(now, lonDeg) {
   asteroidWorld.matrix.makeBasis(eclDir(1, 0, 0), eclDir(0, 1, 0), eclDir(0, 0, 1));
   asteroidWorld.matrix.setPosition(sunMesh.position);
   asteroidWorld.matrixWorldNeedsUpdate = true;
+  eclipticWorld.matrix.copy(asteroidWorld.matrix);
+  eclipticWorld.matrixWorldNeedsUpdate = true;
 }
 
 
@@ -1329,6 +1455,55 @@ const orbitMats = [];       // orbit LineMaterials, for resolution updates on re
 const raycastTargets = [];  // hit meshes, for tap picking
 const satTip = document.getElementById('sat-tip');
 let tappedSat = null;       // { sat, kind: 'sat' | 'starlink' }
+
+const _gtBuf = new Float32Array(64 * 3);
+const _gtGeo = new THREE.BufferGeometry();
+_gtGeo.setAttribute('position', new THREE.BufferAttribute(_gtBuf, 3));
+_gtGeo.setDrawRange(0, 0);
+const gtLine = new THREE.Line(
+  _gtGeo,
+  new THREE.LineBasicMaterial({ color: 0xffee88, opacity: 0.9, transparent: true, depthWrite: false })
+);
+gtLine.frustumCulled = false;
+gtLine.raycast = () => {};
+gtLine.visible = false;
+scene.add(gtLine);
+
+let lastGtWall = 0;
+const _gtLocal = new THREE.Vector3();
+
+function buildGroundTrack(s, now) {
+  const rec = s.satrec;
+  if (!rec || !sat) { gtLine.visible = false; return; }
+  const periodMin = (2 * Math.PI) / rec.no;
+  const spanMin = Math.min(periodMin, 90);
+  const N = 64;
+  const dtMs = (spanMin / (N - 1)) * 60000;
+  let count = 0;
+  for (let i = 0; i < N; i++) {
+    const t = new Date(now.getTime() + i * dtMs);
+    const res = sat.propagate(rec, t);
+    if (!res || !res.position) break;
+    _gtLocal.set(res.position.x, res.position.z, -res.position.y).multiplyScalar(KM_TO_SCENE);
+    const theta = -sat.gstime(t);
+    const ct = Math.cos(theta), st = Math.sin(theta);
+    const lx = _gtLocal.x, ly = _gtLocal.y, lz = _gtLocal.z;
+    const rx = lx * ct + lz * st;
+    const rz = -lx * st + lz * ct;
+    const ry = ly;
+    const len = Math.sqrt(rx * rx + ry * ry + rz * rz);
+    if (len < 1e-9) break;
+    const sc = (R + 0.07) / len;
+    _gtBuf[count * 3]     = rx * sc;
+    _gtBuf[count * 3 + 1] = ry * sc;
+    _gtBuf[count * 3 + 2] = rz * sc;
+    count++;
+  }
+  if (count < 2) { gtLine.visible = false; return; }
+  _gtGeo.setDrawRange(0, count);
+  _gtGeo.attributes.position.needsUpdate = true;
+  gtLine.visible = true;
+}
 
 function clearSatellites() {
   for (const s of sats) {
@@ -2323,6 +2498,11 @@ function tick() {
   marker.position.copy(dir).multiplyScalar(surfR + 0.12);
   sunMesh.position.copy(dir).multiplyScalar(SUN_DISTANCE);
   sunLight.position.copy(dir).multiplyScalar(SUN_DISTANCE);
+  if (magMesh.visible) {
+    magMesh.position.copy(dir).multiplyScalar(4 * R);
+    magMesh.quaternion.setFromUnitVectors(_magAxis, dir);
+    magMesh.scale.set(1.25, 1, 1);
+  }
   updatePlanets(now, lonDeg);
   updateMoon(now);
   updateUmbra(dir);
@@ -2379,6 +2559,13 @@ function tick() {
   // Keep the labels on the tapped points as the globe rotates.
   if (tapped) updateRegionTip();
   if (tappedSat) updateSatTip();
+  if (gtLine.visible && tappedSat && tappedSat.kind === 'sat') {
+    const _w = performance.now();
+    if (_w - lastGtWall >= 1000) {
+      lastGtWall = _w;
+      buildGroundTrack(tappedSat.sat, simNow());
+    }
+  }
 
   tickMeteors();
   controls.update();
@@ -2403,11 +2590,17 @@ function showSatTip() {
   if (!tappedSat) return;
   satTip.innerHTML = `<span class="name">${tappedSat.sat.name}</span><br><span class="dim">${tappedSat.sat.type}</span>`;
   satTip.style.display = 'block';
+  if (tappedSat.kind === 'sat' && sat) {
+    buildGroundTrack(tappedSat.sat, simNow());
+  } else {
+    gtLine.visible = false;
+  }
 }
 
 function hideSatTip() {
   tappedSat = null;
   satTip.style.display = 'none';
+  gtLine.visible = false;
 }
 
 // Reposition the tag to track the tapped satellite as it moves on its orbit.
