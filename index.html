@@ -682,6 +682,24 @@ const venusGeoR = Math.max(PLANET_EL[1].r * KM_TO_SCENE, 0.5);
 const venusAtmo = makeInspectAtmo(planetMeshes[1], venusGeoR, 0xf2e0c4);
 venusAtmo.material.opacity = 0.55;
 venusAtmo.material.blending = THREE.NormalBlending;
+const mercuryCalorisR = Math.max(PLANET_EL[0].r * KM_TO_SCENE, 0.5);
+const mercuryCalorisDisk = new THREE.Mesh(
+  new THREE.CircleGeometry(mercuryCalorisR * 0.32, 28),
+  new THREE.MeshLambertMaterial({
+    color: 0x3a3834, side: THREE.DoubleSide,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+  })
+);
+{
+  const lat = 30 * DEG, lon = 170 * DEG;
+  const rr = mercuryCalorisR * 1.012;
+  const cl = Math.cos(lat);
+  mercuryCalorisDisk.position.set(rr * cl * Math.cos(lon), rr * Math.sin(lat), -rr * cl * Math.sin(lon));
+  mercuryCalorisDisk.lookAt(mercuryCalorisDisk.position.x * 2, mercuryCalorisDisk.position.y * 2, mercuryCalorisDisk.position.z * 2);
+}
+mercuryCalorisDisk.raycast = () => {};
+mercuryCalorisDisk.visible = false;
+planetMeshes[0].add(mercuryCalorisDisk);
 function mapRingUVs(geo, inner, outer) {
   const pos = geo.attributes.position;
   const uv = geo.attributes.uv;
@@ -1011,6 +1029,35 @@ const enceladusPlumeSpray = new THREE.Points(enceladusPlumeGeo, enceladusPlumeMa
 enceladusPlumeSpray.raycast = () => {};
 enceladusPlumeSpray.visible = false;
 saturnMoonMeshes[4].add(enceladusPlumeSpray);
+const mimasHerschelR = SATURN_MOONS[5].rR * saturnGeoR;
+const mimasHerschelDisk = new THREE.Mesh(
+  new THREE.CircleGeometry(mimasHerschelR * 0.42, 24),
+  new THREE.MeshLambertMaterial({
+    color: 0x2a2824, side: THREE.DoubleSide,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+  })
+);
+{
+  const lat = -8 * DEG, lon = 12 * DEG;
+  const rr = mimasHerschelR * 1.012;
+  const cl = Math.cos(lat);
+  mimasHerschelDisk.position.set(rr * cl * Math.cos(lon), rr * Math.sin(lat), -rr * cl * Math.sin(lon));
+  mimasHerschelDisk.lookAt(mimasHerschelDisk.position.x * 2, mimasHerschelDisk.position.y * 2, mimasHerschelDisk.position.z * 2);
+}
+mimasHerschelDisk.raycast = () => {};
+mimasHerschelDisk.visible = false;
+saturnMoonMeshes[5].add(mimasHerschelDisk);
+const iapetusTwoToneR = SATURN_MOONS[2].rR * saturnGeoR;
+const iapetusTwoToneOverlay = new THREE.Mesh(
+  new THREE.SphereGeometry(iapetusTwoToneR * 1.008, 16, 12, Math.PI / 2, Math.PI),
+  new THREE.MeshLambertMaterial({
+    color: 0x2a2218,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+  })
+);
+iapetusTwoToneOverlay.raycast = () => {};
+iapetusTwoToneOverlay.visible = false;
+saturnMoonMeshes[2].add(iapetusTwoToneOverlay);
 function updateSaturnMoons(now) {
   if (!saturnMoonGroup.visible) {
     for (let i = 0; i < saturnMoonLabels.length; i++) saturnMoonLabels[i].visible = false;
@@ -1249,6 +1296,24 @@ for (let i = 0; i < MARS_MOONS.length; i++) {
   marsMoonLabels.push(makeMoonLabel(g.name));
   addMoonOrbit(marsMoonGroup, g.aR * marsGeoR, g.c);
 }
+const phobosStickneyR = MARS_MOONS[0].rR * marsGeoR;
+const phobosStickneyDisk = new THREE.Mesh(
+  new THREE.CircleGeometry(phobosStickneyR * 0.44, 24),
+  new THREE.MeshLambertMaterial({
+    color: 0x2a241c, side: THREE.DoubleSide,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+  })
+);
+{
+  const lat = 1 * DEG, lon = -40 * DEG;
+  const rr = phobosStickneyR * 1.012;
+  const cl = Math.cos(lat);
+  phobosStickneyDisk.position.set(rr * cl * Math.cos(lon), rr * Math.sin(lat), -rr * cl * Math.sin(lon));
+  phobosStickneyDisk.lookAt(phobosStickneyDisk.position.x * 2, phobosStickneyDisk.position.y * 2, phobosStickneyDisk.position.z * 2);
+}
+phobosStickneyDisk.raycast = () => {};
+phobosStickneyDisk.visible = false;
+marsMoonMeshes[0].add(phobosStickneyDisk);
 function updateMarsMoons(now) {
   if (!marsMoonGroup.visible) {
     for (let i = 0; i < marsMoonLabels.length; i++) marsMoonLabels[i].visible = false;
@@ -1282,6 +1347,37 @@ plutoInspectMesh.visible = false;
 charonGroup.add(plutoInspectMesh);
 const plutoInspectHaze = makeInspectAtmo(plutoInspectMesh, plutoGeoR, 0xb8a888);
 plutoInspectHaze.material.opacity = 0.16;
+const plutoTombaughLobeA = new THREE.Mesh(
+  new THREE.CircleGeometry(plutoGeoR * 0.34, 24),
+  new THREE.MeshLambertMaterial({
+    color: 0xf2ead8, side: THREE.DoubleSide,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+  })
+);
+const plutoTombaughLobeB = new THREE.Mesh(
+  new THREE.CircleGeometry(plutoGeoR * 0.26, 24),
+  new THREE.MeshLambertMaterial({
+    color: 0xeee4d0, side: THREE.DoubleSide,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+  })
+);
+{
+  const rr = plutoGeoR * 1.012;
+  const latA = 18 * DEG, lonA = 78 * DEG;
+  const clA = Math.cos(latA);
+  plutoTombaughLobeA.position.set(rr * clA * Math.cos(lonA), rr * Math.sin(latA), -rr * clA * Math.sin(lonA));
+  plutoTombaughLobeA.lookAt(plutoTombaughLobeA.position.x * 2, plutoTombaughLobeA.position.y * 2, plutoTombaughLobeA.position.z * 2);
+  const latB = 6 * DEG, lonB = 108 * DEG;
+  const clB = Math.cos(latB);
+  plutoTombaughLobeB.position.set(rr * clB * Math.cos(lonB), rr * Math.sin(latB), -rr * clB * Math.sin(lonB));
+  plutoTombaughLobeB.lookAt(plutoTombaughLobeB.position.x * 2, plutoTombaughLobeB.position.y * 2, plutoTombaughLobeB.position.z * 2);
+}
+plutoTombaughLobeA.raycast = () => {};
+plutoTombaughLobeB.raycast = () => {};
+plutoTombaughLobeA.visible = false;
+plutoTombaughLobeB.visible = false;
+plutoInspectMesh.add(plutoTombaughLobeA);
+plutoInspectMesh.add(plutoTombaughLobeB);
 const charonMesh = new THREE.Mesh(
   new THREE.SphereGeometry(0.5 * plutoGeoR, 16, 12),
   new THREE.MeshPhongMaterial({ color: 0xa8a090, shininess: 4 }),
@@ -4249,6 +4345,8 @@ function flyToBody(id) {
     saturnHex.visible = false;
     titanAtmo.visible = false;
     enceladusPlumeSpray.visible = false;
+    mimasHerschelDisk.visible = false;
+    iapetusTwoToneOverlay.visible = false;
     for (let i = 0; i < saturnMoonLabels.length; i++) saturnMoonLabels[i].visible = false;
   }
   if (prev === 'jupiter') {
@@ -4285,6 +4383,7 @@ function flyToBody(id) {
     marsAtmo.visible = false;
     marsPolarCapN.visible = false;
     marsPolarCapS.visible = false;
+    phobosStickneyDisk.visible = false;
     for (let i = 0; i < marsMoonLabels.length; i++) marsMoonLabels[i].visible = false;
   }
   if (prev === 'pluto') {
@@ -4293,8 +4392,11 @@ function flyToBody(id) {
     charonLabel.visible = false;
     plutoInspectMesh.visible = false;
     plutoInspectHaze.visible = false;
+    plutoTombaughLobeA.visible = false;
+    plutoTombaughLobeB.visible = false;
     planetMeshes[7].material.visible = true;
   }
+  if (prev === 'mercury') mercuryCalorisDisk.visible = false;
   if (prev === 'venus') venusAtmo.visible = false;
   if (prev === 'halley') cometAtmo.visible = false;
   if (prev === 'ceres') ceresOccatorDots.visible = false;
@@ -4313,6 +4415,8 @@ function flyToBody(id) {
       saturnHex.visible = true;
       titanAtmo.visible = true;
       enceladusPlumeSpray.visible = true;
+      mimasHerschelDisk.visible = true;
+      iapetusTwoToneOverlay.visible = true;
       updateSaturnMoons(simNow());
       updateSaturnRingShadow();
       ensureRingTexture('saturn', saturnRing);
@@ -4329,6 +4433,7 @@ function flyToBody(id) {
       updateGalilean(simNow());
       ensureFocusedMoonMaps(id);
     }
+    if (id === 'mercury') mercuryCalorisDisk.visible = true;
     if (id === 'venus') venusAtmo.visible = true;
     if (id === 'halley') cometAtmo.visible = true;
     if (id === 'uranus') {
@@ -4355,6 +4460,7 @@ function flyToBody(id) {
       marsAtmo.visible = true;
       marsPolarCapN.visible = true;
       marsPolarCapS.visible = true;
+      phobosStickneyDisk.visible = true;
       updateMarsCapLs();
       updateMarsMoons(simNow());
       ensureFocusedMoonMaps(id);
@@ -4363,6 +4469,8 @@ function flyToBody(id) {
       charonGroup.visible = true;
       plutoInspectMesh.visible = true;
       plutoInspectHaze.visible = true;
+      plutoTombaughLobeA.visible = true;
+      plutoTombaughLobeB.visible = true;
       planetMeshes[7].material.visible = false;
       updateCharon(simNow());
       ensureFocusedMoonMaps(id);
