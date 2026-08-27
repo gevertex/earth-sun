@@ -66,11 +66,16 @@
     color: #cfe8ff; background: rgba(8, 14, 26, 0.72);
     border: 1px solid rgba(120, 170, 255, 0.25);
     border-radius: 8px; padding: 8px 12px;
-    cursor: pointer; user-select: none;
+    cursor: default; user-select: none;
     max-height: 70vh; overflow-y: auto;
+    min-width: 220px;
   }
-  #controls input { margin-right: 7px; vertical-align: -2px; }
-  #controls select { background:#0c1626; color:#cfe8ff; border:1px solid rgba(120,170,255,.25); padding:1px 4px; margin-left:4px; }
+  #controls input { margin-right: 7px; vertical-align: -2px; cursor: default; }
+  #controls select {
+    background: #0c1626; color: #cfe8ff;
+    border: 1px solid rgba(120,170,255,.25);
+    padding: 1px 4px; margin-left: 4px; cursor: default;
+  }
   #controls input[type="date"], #controls input[type="time"] {
     background: #0c1626;
     color: #cfe8ff;
@@ -78,7 +83,57 @@
     padding: 1px 4px;
     margin-left: 4px;
     font-size: 12px;
+    cursor: default;
   }
+  #controls label { display: block; cursor: default; padding: 1px 0; }
+  #controls .ctrl-presets { display: flex; gap: 6px; margin-bottom: 6px; }
+  #controls .ctrl-presets button {
+    flex: 1;
+    font: 11px/1.3 system-ui, sans-serif;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #cfe8ff;
+    background: #0c1626;
+    border: 1px solid rgba(120, 170, 255, 0.25);
+    border-radius: 5px;
+    padding: 5px 8px;
+    cursor: pointer;
+  }
+  #controls .ctrl-presets button.active {
+    color: #fff;
+    background: rgba(50, 90, 150, 0.4);
+    border-color: rgba(120, 170, 255, 0.5);
+  }
+  #controls .ctrl-section + .ctrl-section {
+    border-top: 1px solid rgba(120, 170, 255, 0.18);
+    margin-top: 4px;
+    padding-top: 4px;
+  }
+  #controls .ctrl-label,
+  #controls .ctrl-head {
+    display: flex; align-items: baseline; gap: 6px;
+    color: #e8f4ff;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 3px 0 2px;
+  }
+  #controls .ctrl-head {
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  #controls .ctrl-head .caret { color: #7f97b8; font-size: 11px; }
+  #controls .ctrl-count {
+    color: #7f97b8;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+  #controls .ctrl-section:not(.collapsed) .ctrl-count { display: none; }
+  #controls .ctrl-section.collapsed .ctrl-body { display: none; }
+  #controls .ctrl-body { padding: 1px 0 4px 2px; }
   @media (max-width: 640px) {
     /* the readout panel takes the top of narrow screens; move the toggle down */
     #controls { top: auto; bottom: 40px; }
@@ -119,31 +174,60 @@
 <div id="sat-tip"></div>
 <div id="region-tip"></div>
 <div id="controls">
-  <label><input type="checkbox" id="sat-toggle" checked> show satellites</label><br>
-  <label><input type="checkbox" id="follow-sat-toggle"> follow sat</label><br>
-  <label><input type="checkbox" id="starlink-toggle" checked> show Starlink</label><br>
-  <label><input type="checkbox" id="starlink-orbits-toggle" checked> show Starlink orbits</label><br>
-  <label><input type="checkbox" id="borders-toggle" checked> show borders</label><br>
-  <label><input type="checkbox" id="weather-toggle" checked> show weather</label><br>
-  <label><input type="checkbox" id="meteor-toggle"> show meteor shower</label><br>
-  <label><input type="checkbox" id="planets-toggle" checked> show planets</label><br>
-  <label><input type="checkbox" id="moon-toggle" checked> show moon</label><br>
-  <label><input type="checkbox" id="extra-sats-toggle"> show extra sats</label><br>
-  <label><input type="checkbox" id="debris-toggle"> show debris</label><br>
-  <label><input type="checkbox" id="water-toggle" checked> show water names</label><br>
-  <label><input type="checkbox" id="belts-toggle"> show Van Allen belts</label><br>
-  <label><input type="checkbox" id="asteroids-toggle"> show asteroid belt</label><br>
-  <label><input type="checkbox" id="geo-ring-toggle"> show GEO ring</label><br>
-  <label><input type="checkbox" id="aurora-toggle"> show aurora</label><br>
-  <label><input type="checkbox" id="grid-toggle"> show lat/lon grid</label><br>
-  <label><input type="checkbox" id="atmosphere-toggle" checked> show atmosphere</label><br>
-  <label><input type="checkbox" id="ecliptic-toggle"> show ecliptic plane</label><br>
-  <label><input type="checkbox" id="magnetopause-toggle"> show magnetopause</label><br>
-  <label><input type="checkbox" id="quakes-toggle"> show quakes</label><br>
-  <label><input type="checkbox" id="magpoles-toggle"> show magnetic poles</label><br>
-  <label><input type="checkbox" id="galactic-toggle"> show galactic equator</label><br>
-  <label>time speed <select id="time-scale"><option value="1">1x</option><option value="60">60x</option><option value="3600">3600x</option><option value="86400">1 day/s</option></select></label><br>
-  <label>jump UTC <input type="date" id="sim-date" min="1950-01-01" max="2100-12-31"> <input type="time" id="sim-time" step="1"></label>
+  <div class="ctrl-presets">
+    <button type="button" id="preset-quiet" class="active">Quiet</button>
+    <button type="button" id="preset-full">Full</button>
+  </div>
+  <div class="ctrl-section">
+    <div class="ctrl-label">Time</div>
+    <div class="ctrl-body">
+      <label>time speed <select id="time-scale"><option value="1">1x</option><option value="60">60x</option><option value="3600">3600x</option><option value="86400">1 day/s</option></select></label>
+      <label>jump UTC <input type="date" id="sim-date" min="1950-01-01" max="2100-12-31"> <input type="time" id="sim-time" step="1"></label>
+    </div>
+  </div>
+  <div class="ctrl-section">
+    <div class="ctrl-head" role="button" tabindex="0"><span class="caret">▾</span><span class="ctrl-title">Earth</span><span class="ctrl-count"></span></div>
+    <div class="ctrl-body">
+      <label><input type="checkbox" id="atmosphere-toggle" checked> atmosphere</label>
+      <label><input type="checkbox" id="borders-toggle" checked> borders</label>
+      <label><input type="checkbox" id="water-toggle" checked> water names</label>
+      <label><input type="checkbox" id="weather-toggle"> weather</label>
+      <label><input type="checkbox" id="grid-toggle"> lat/lon grid</label>
+      <label><input type="checkbox" id="quakes-toggle"> quakes</label>
+      <label><input type="checkbox" id="magpoles-toggle"> magnetic poles</label>
+    </div>
+  </div>
+  <div class="ctrl-section collapsed">
+    <div class="ctrl-head" role="button" tabindex="0"><span class="caret">▸</span><span class="ctrl-title">Sats</span><span class="ctrl-count"></span></div>
+    <div class="ctrl-body">
+      <label><input type="checkbox" id="sat-toggle" checked> satellites</label>
+      <label><input type="checkbox" id="follow-sat-toggle"> follow sat</label>
+      <label><input type="checkbox" id="starlink-toggle"> Starlink</label>
+      <label><input type="checkbox" id="starlink-orbits-toggle"> Starlink orbits</label>
+      <label><input type="checkbox" id="extra-sats-toggle"> extra sats</label>
+      <label><input type="checkbox" id="debris-toggle"> debris</label>
+      <label><input type="checkbox" id="geo-ring-toggle"> GEO ring</label>
+    </div>
+  </div>
+  <div class="ctrl-section collapsed">
+    <div class="ctrl-head" role="button" tabindex="0"><span class="caret">▸</span><span class="ctrl-title">Sky</span><span class="ctrl-count"></span></div>
+    <div class="ctrl-body">
+      <label><input type="checkbox" id="planets-toggle" checked> planets</label>
+      <label><input type="checkbox" id="moon-toggle" checked> moon</label>
+      <label><input type="checkbox" id="asteroids-toggle"> asteroid belt</label>
+      <label><input type="checkbox" id="meteor-toggle"> meteor shower</label>
+      <label><input type="checkbox" id="ecliptic-toggle"> ecliptic plane</label>
+      <label><input type="checkbox" id="galactic-toggle"> galactic equator</label>
+    </div>
+  </div>
+  <div class="ctrl-section collapsed">
+    <div class="ctrl-head" role="button" tabindex="0"><span class="caret">▸</span><span class="ctrl-title">Field</span><span class="ctrl-count"></span></div>
+    <div class="ctrl-body">
+      <label><input type="checkbox" id="belts-toggle"> Van Allen belts</label>
+      <label><input type="checkbox" id="aurora-toggle"> aurora</label>
+      <label><input type="checkbox" id="magnetopause-toggle"> magnetopause</label>
+    </div>
+  </div>
 </div>
 <div id="hint">drag to rotate · scroll to zoom · weather data by <a href="https://www.rainviewer.com/" target="_blank" rel="noopener">RainViewer</a></div>
 <script type="module">
@@ -1885,6 +1969,7 @@ function initStarlinkPoints(sats) {
     size: 0.07, vertexColors: true, transparent: true, opacity: 0.9, depthWrite: false,
   }));
   points.frustumCulled = false;
+  points.visible = document.getElementById('starlink-toggle').checked;
   slWorld.add(points);
 
   // One merged LineSegments holds every satellite's orbit (one draw call).
@@ -2037,6 +2122,7 @@ function scheduleStarlinkRetry() {
 
 async function refreshStarlink() {
   if (!sat || starlink.refreshing) return;
+  if (!document.getElementById('starlink-toggle').checked) return;
   starlink.refreshing = true;
   updateStarlinkReadout();
   try {
@@ -2290,6 +2376,7 @@ scene.add(weatherOverlay);
 const weatherToggle = document.getElementById('weather-toggle');
 function applyWeatherToggle() {
   weatherOverlay.visible = weatherToggle.checked && weather.live;
+  if (weatherToggle.checked && !weather.live) refreshWeather();
 }
 weatherToggle.addEventListener('change', applyWeatherToggle);
 
@@ -2347,6 +2434,7 @@ function applyWeatherFrame(host, path, frameTime) {
 
 async function refreshWeather() {
   if (weather.refreshing) return;
+  if (!weatherToggle.checked) return;
   weather.refreshing = true;
   updateWeatherReadout();
   try {
@@ -2606,6 +2694,18 @@ readoutHead.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleReadout(); }
 });
 
+document.querySelectorAll('#controls .ctrl-head').forEach((head) => {
+  const section = head.closest('.ctrl-section');
+  const caret = head.querySelector('.caret');
+  const toggle = () => {
+    caret.textContent = section.classList.toggle('collapsed') ? '▸' : '▾';
+  };
+  head.addEventListener('click', toggle);
+  head.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+  });
+});
+
 const tmpMat = new THREE.Matrix4();
 let lastPathSlot = -1;
 let lastPathWall = 0;
@@ -2837,10 +2937,67 @@ starlinkToggle.addEventListener('change', () => {
   // The orbits belong to the Starlink layer: they hide with it.
   if (starlink.orbits) starlink.orbits.visible = starlinkToggle.checked && starlinkOrbitsToggle.checked;
   if (!starlinkToggle.checked && tappedSat && tappedSat.kind === 'starlink') hideSatTip();
+  if (starlinkToggle.checked && !starlink.points) refreshStarlink();
 });
 starlinkOrbitsToggle.addEventListener('change', () => {
   if (starlink.orbits) starlink.orbits.visible = starlinkOrbitsToggle.checked && starlinkToggle.checked;
 });
+
+const QUIET_ON = new Set([
+  'atmosphere-toggle', 'moon-toggle', 'planets-toggle',
+  'sat-toggle', 'borders-toggle', 'water-toggle',
+]);
+const FULL_OFF = new Set(['follow-sat-toggle', 'extra-sats-toggle', 'debris-toggle']);
+
+function updateCtrlCounts() {
+  document.querySelectorAll('#controls .ctrl-section').forEach((sec) => {
+    const boxes = sec.querySelectorAll('input[type="checkbox"]');
+    const el = sec.querySelector('.ctrl-count');
+    if (!el || !boxes.length) return;
+    let on = 0;
+    boxes.forEach((b) => { if (b.checked) on++; });
+    el.textContent = on + '/' + boxes.length;
+  });
+}
+
+function syncPresetButtons() {
+  const boxes = document.querySelectorAll('#controls input[type="checkbox"]');
+  let quiet = document.getElementById('time-scale').value === '1';
+  let full = true;
+  boxes.forEach((b) => {
+    if (QUIET_ON.has(b.id) !== b.checked) quiet = false;
+    if (b.checked === FULL_OFF.has(b.id)) full = false;
+  });
+  document.getElementById('preset-quiet').classList.toggle('active', quiet);
+  document.getElementById('preset-full').classList.toggle('active', full);
+}
+
+function applyCtrlPreset(mode) {
+  document.querySelectorAll('#controls input[type="checkbox"]').forEach((box) => {
+    const want = mode === 'quiet' ? QUIET_ON.has(box.id) : !FULL_OFF.has(box.id);
+    if (box.checked === want) return;
+    box.checked = want;
+    box.dispatchEvent(new Event('change'));
+  });
+  if (mode === 'quiet') {
+    const sel = document.getElementById('time-scale');
+    if (sel.value !== '1') {
+      sel.value = '1';
+      sel.dispatchEvent(new Event('change'));
+    }
+  }
+  updateCtrlCounts();
+  syncPresetButtons();
+}
+
+document.getElementById('preset-quiet').addEventListener('click', () => applyCtrlPreset('quiet'));
+document.getElementById('preset-full').addEventListener('click', () => applyCtrlPreset('full'));
+document.getElementById('controls').addEventListener('change', () => {
+  updateCtrlCounts();
+  syncPresetButtons();
+});
+updateCtrlCounts();
+syncPresetButtons();
 // TEMP-DEBUG (remove after verification)
 window.__debug = { scene, camera, moonMesh, moonWorld, sublunarMarker, moonPos, gmstIAU, sunMesh, globe, controls, latLonToVec3, KM_TO_SCENE, DEG };
 </script>
