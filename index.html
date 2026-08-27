@@ -754,6 +754,25 @@ const mercuryDiscoveryRupesSegs = new THREE.LineSegments(mercuryDiscoveryRupesGe
 mercuryDiscoveryRupesSegs.raycast = () => {};
 mercuryDiscoveryRupesSegs.visible = false;
 planetMeshes[0].add(mercuryDiscoveryRupesSegs);
+const mercuryRachmaninoffBasinR = Math.max(PLANET_EL[0].r * KM_TO_SCENE, 0.5);
+const mercuryRachmaninoffBasinDisk = new THREE.Mesh(
+  new THREE.CircleGeometry(mercuryRachmaninoffBasinR * 0.10, 24),
+  new THREE.MeshLambertMaterial({
+    color: 0x4a4840, side: THREE.DoubleSide,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+  })
+);
+{
+  const mercuryRachmaninoffLat = 27.6 * DEG, mercuryRachmaninoffLon = 57.6 * DEG;
+  const mercuryRachmaninoffRr = mercuryRachmaninoffBasinR * 1.012;
+  const mercuryRachmaninoffCl = Math.cos(mercuryRachmaninoffLat);
+  mercuryRachmaninoffBasinDisk.position.set(mercuryRachmaninoffRr * mercuryRachmaninoffCl * Math.cos(mercuryRachmaninoffLon), mercuryRachmaninoffRr * Math.sin(mercuryRachmaninoffLat), -mercuryRachmaninoffRr * mercuryRachmaninoffCl * Math.sin(mercuryRachmaninoffLon));
+  mercuryRachmaninoffBasinDisk.lookAt(mercuryRachmaninoffBasinDisk.position.x * 2, mercuryRachmaninoffBasinDisk.position.y * 2, mercuryRachmaninoffBasinDisk.position.z * 2);
+}
+mercuryRachmaninoffBasinDisk.raycast = () => {};
+mercuryRachmaninoffBasinDisk.visible = false;
+planetMeshes[0].add(mercuryRachmaninoffBasinDisk);
+
 function mapRingUVs(geo, inner, outer) {
   const pos = geo.attributes.position;
   const uv = geo.attributes.uv;
@@ -938,6 +957,25 @@ const ioLokiPateraGlowDisk = new THREE.Mesh(
 ioLokiPateraGlowDisk.raycast = () => {};
 ioLokiPateraGlowDisk.visible = false;
 galileanMeshes[0].add(ioLokiPateraGlowDisk);
+const ioPelePateraGlowR = GALILEAN[0].rR * jupiterGeoR;
+const ioPelePateraGlowDisk = new THREE.Mesh(
+  new THREE.CircleGeometry(ioPelePateraGlowR * 0.08, 20),
+  new THREE.MeshBasicMaterial({
+    color: 0xff4422, transparent: true, opacity: 0.50,
+    blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+  })
+);
+{
+  const ioPelePateraLat = -18.7 * DEG, ioPelePateraLon = 104.7 * DEG;
+  const ioPelePateraRr = ioPelePateraGlowR * 1.014;
+  const ioPelePateraCl = Math.cos(ioPelePateraLat);
+  ioPelePateraGlowDisk.position.set(ioPelePateraRr * ioPelePateraCl * Math.cos(ioPelePateraLon), ioPelePateraRr * Math.sin(ioPelePateraLat), -ioPelePateraRr * ioPelePateraCl * Math.sin(ioPelePateraLon));
+  ioPelePateraGlowDisk.lookAt(ioPelePateraGlowDisk.position.x * 2, ioPelePateraGlowDisk.position.y * 2, ioPelePateraGlowDisk.position.z * 2);
+}
+ioPelePateraGlowDisk.raycast = () => {};
+ioPelePateraGlowDisk.visible = false;
+galileanMeshes[0].add(ioPelePateraGlowDisk);
+
 const europaLineaeR = GALILEAN[1].rR * jupiterGeoR * 1.012;
 const EUROPA_LINEAE_ARCS = 5;
 const EUROPA_LINEAE_STEP = 14;
@@ -994,6 +1032,25 @@ const europaPwyllImpactCraterDisk = new THREE.Mesh(
 europaPwyllImpactCraterDisk.raycast = () => {};
 europaPwyllImpactCraterDisk.visible = false;
 galileanMeshes[1].add(europaPwyllImpactCraterDisk);
+const europaCilixImpactCraterR = GALILEAN[1].rR * jupiterGeoR;
+const europaCilixImpactCraterDisk = new THREE.Mesh(
+  new THREE.CircleGeometry(europaCilixImpactCraterR * 0.07, 24),
+  new THREE.MeshLambertMaterial({
+    color: 0x4a443c, side: THREE.DoubleSide,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+  })
+);
+{
+  const europaCilixLat = 2.6 * DEG, europaCilixLon = -178 * DEG;
+  const europaCilixRr = europaCilixImpactCraterR * 1.012;
+  const europaCilixCl = Math.cos(europaCilixLat);
+  europaCilixImpactCraterDisk.position.set(europaCilixRr * europaCilixCl * Math.cos(europaCilixLon), europaCilixRr * Math.sin(europaCilixLat), -europaCilixRr * europaCilixCl * Math.sin(europaCilixLon));
+  europaCilixImpactCraterDisk.lookAt(europaCilixImpactCraterDisk.position.x * 2, europaCilixImpactCraterDisk.position.y * 2, europaCilixImpactCraterDisk.position.z * 2);
+}
+europaCilixImpactCraterDisk.raycast = () => {};
+europaCilixImpactCraterDisk.visible = false;
+galileanMeshes[1].add(europaCilixImpactCraterDisk);
+
 const ganymedeGalileoRegioR = GALILEAN[2].rR * jupiterGeoR;
 const ganymedeGalileoRegioDisk = new THREE.Mesh(
   new THREE.CircleGeometry(ganymedeGalileoRegioR * 0.40, 28),
@@ -1255,6 +1312,26 @@ titanKrakenMareDisk.raycast = () => {};
 titanKrakenMareDisk.visible = false;
 titanKrakenMareDisk.renderOrder = 2;
 saturnMoonMeshes[0].add(titanKrakenMareDisk);
+const titanLigeiaMareR = SATURN_MOONS[0].rR * saturnGeoR;
+const titanLigeiaMareDisk = new THREE.Mesh(
+  new THREE.CircleGeometry(titanLigeiaMareR * 0.10, 24),
+  new THREE.MeshLambertMaterial({
+    color: 0x152030, side: THREE.DoubleSide,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+  })
+);
+{
+  const titanLigeiaMareLat = 79 * DEG, titanLigeiaMareLon = 112 * DEG;
+  const titanLigeiaMareRr = titanLigeiaMareR * 1.018;
+  const titanLigeiaMareCl = Math.cos(titanLigeiaMareLat);
+  titanLigeiaMareDisk.position.set(titanLigeiaMareRr * titanLigeiaMareCl * Math.cos(titanLigeiaMareLon), titanLigeiaMareRr * Math.sin(titanLigeiaMareLat), -titanLigeiaMareRr * titanLigeiaMareCl * Math.sin(titanLigeiaMareLon));
+  titanLigeiaMareDisk.lookAt(titanLigeiaMareDisk.position.x * 2, titanLigeiaMareDisk.position.y * 2, titanLigeiaMareDisk.position.z * 2);
+}
+titanLigeiaMareDisk.raycast = () => {};
+titanLigeiaMareDisk.visible = false;
+titanLigeiaMareDisk.renderOrder = 2;
+saturnMoonMeshes[0].add(titanLigeiaMareDisk);
+
 const ENCELADUS_PLUME_N = 48;
 const enceladusPlumeR = SATURN_MOONS[4].rR * saturnGeoR;
 const enceladusPlumePos = new Float32Array(ENCELADUS_PLUME_N * 3);
@@ -2231,6 +2308,25 @@ const moonKeplerImpactCraterDisk = new THREE.Mesh(
 moonKeplerImpactCraterDisk.raycast = () => {};
 moonKeplerImpactCraterDisk.visible = false;
 moonMesh.add(moonKeplerImpactCraterDisk);
+const moonPlatoImpactCraterR = 1737.4 * KM_TO_SCENE;
+const moonPlatoImpactCraterDisk = new THREE.Mesh(
+  new THREE.CircleGeometry(moonPlatoImpactCraterR * 0.055, 24),
+  new THREE.MeshLambertMaterial({
+    color: 0x2a2824, side: THREE.DoubleSide,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+  })
+);
+{
+  const moonPlatoLat = 51.6 * DEG, moonPlatoLon = -9.3 * DEG;
+  const moonPlatoRr = moonPlatoImpactCraterR * 1.012;
+  const moonPlatoCl = Math.cos(moonPlatoLat);
+  moonPlatoImpactCraterDisk.position.set(moonPlatoRr * moonPlatoCl * Math.cos(moonPlatoLon), moonPlatoRr * Math.sin(moonPlatoLat), -moonPlatoRr * moonPlatoCl * Math.sin(moonPlatoLon));
+  moonPlatoImpactCraterDisk.lookAt(moonPlatoImpactCraterDisk.position.x * 2, moonPlatoImpactCraterDisk.position.y * 2, moonPlatoImpactCraterDisk.position.z * 2);
+}
+moonPlatoImpactCraterDisk.raycast = () => {};
+moonPlatoImpactCraterDisk.visible = false;
+moonMesh.add(moonPlatoImpactCraterDisk);
+
 
 const BODY_TITLE = {
   sun: 'Sun', mercury: 'Mercury', venus: 'Venus', earth: 'Earth', moon: 'Moon',
@@ -2575,6 +2671,8 @@ moonToggle.addEventListener('change', () => {
   else if (focusedBody === 'moon') moonAristarchusCraterDisk.visible = true;
   if (!moonToggle.checked) moonKeplerImpactCraterDisk.visible = false;
   else if (focusedBody === 'moon') moonKeplerImpactCraterDisk.visible = true;
+  if (!moonToggle.checked) moonPlatoImpactCraterDisk.visible = false;
+  else if (focusedBody === 'moon') moonPlatoImpactCraterDisk.visible = true;
 });
 
 /* ---------- Van Allen belts: Earth-fixed torii (not inertial) ---------- */
@@ -5070,6 +5168,7 @@ function flyToBody(id) {
     iapetusTwoToneOverlay.visible = false;
     titanXanaduDisk.visible = false;
     titanKrakenMareDisk.visible = false;
+    titanLigeiaMareDisk.visible = false;
     dioneWispySegs.visible = false;
     rheaInktomiCraterDisk.visible = false;
     for (let i = 0; i < saturnMoonLabels.length; i++) saturnMoonLabels[i].visible = false;
@@ -5083,8 +5182,10 @@ function flyToBody(id) {
     jupiterAuroraGroup.visible = false;
     ioVolcanoGlow.visible = false;
     ioLokiPateraGlowDisk.visible = false;
+    ioPelePateraGlowDisk.visible = false;
     europaLineaeSegs.visible = false;
     europaPwyllImpactCraterDisk.visible = false;
+    europaCilixImpactCraterDisk.visible = false;
     ganymedeGalileoRegioDisk.visible = false;
     ganymedeUrukSulcusSegs.visible = false;
     callistoValhallaRings.visible = false;
@@ -5141,10 +5242,12 @@ function flyToBody(id) {
   }
   if (prev === 'mercury') mercuryCalorisDisk.visible = false;
   if (prev === 'mercury') mercuryDiscoveryRupesSegs.visible = false;
+  if (prev === 'mercury') mercuryRachmaninoffBasinDisk.visible = false;
   if (prev === 'moon') moonTychoCraterDisk.visible = false;
   if (prev === 'moon') moonCopernicusCraterDisk.visible = false;
   if (prev === 'moon') moonAristarchusCraterDisk.visible = false;
   if (prev === 'moon') moonKeplerImpactCraterDisk.visible = false;
+  if (prev === 'moon') moonPlatoImpactCraterDisk.visible = false;
   if (prev === 'venus') venusAtmo.visible = false;
   if (prev === 'venus') venusMaxwellMontesDisk.visible = false;
   if (prev === 'halley') cometAtmo.visible = false;
@@ -5170,6 +5273,7 @@ function flyToBody(id) {
       iapetusTwoToneOverlay.visible = true;
       titanXanaduDisk.visible = true;
       titanKrakenMareDisk.visible = true;
+      titanLigeiaMareDisk.visible = true;
       dioneWispySegs.visible = true;
       rheaInktomiCraterDisk.visible = true;
       updateSaturnMoons(simNow());
@@ -5185,8 +5289,10 @@ function flyToBody(id) {
       jupiterAuroraGroup.visible = true;
       ioVolcanoGlow.visible = true;
       ioLokiPateraGlowDisk.visible = true;
+      ioPelePateraGlowDisk.visible = true;
       europaLineaeSegs.visible = true;
       europaPwyllImpactCraterDisk.visible = true;
+      europaCilixImpactCraterDisk.visible = true;
       ganymedeGalileoRegioDisk.visible = true;
       ganymedeUrukSulcusSegs.visible = true;
       callistoValhallaRings.visible = true;
@@ -5196,6 +5302,7 @@ function flyToBody(id) {
     }
     if (id === 'mercury') mercuryCalorisDisk.visible = true;
     if (id === 'mercury') mercuryDiscoveryRupesSegs.visible = true;
+    if (id === 'mercury') mercuryRachmaninoffBasinDisk.visible = true;
     if (id === 'venus') venusAtmo.visible = true;
     if (id === 'venus') venusMaxwellMontesDisk.visible = true;
     if (id === 'halley') cometAtmo.visible = true;
@@ -5267,6 +5374,7 @@ function flyToBody(id) {
   if (id === 'moon') moonCopernicusCraterDisk.visible = true;
   if (id === 'moon') moonAristarchusCraterDisk.visible = true;
   if (id === 'moon') moonKeplerImpactCraterDisk.visible = true;
+  if (id === 'moon') moonPlatoImpactCraterDisk.visible = true;
   if (id === 'halley' && !cometToggle.checked) {
     cometToggle.checked = true;
     cometToggle.dispatchEvent(new Event('change'));
