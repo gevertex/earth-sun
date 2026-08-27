@@ -245,8 +245,15 @@
           <button type="button" data-body="titan">Titan</button>
           <button type="button" data-body="rhea">Rhea</button>
           <button type="button" data-body="enceladus">Enceladus</button>
+          <button type="button" data-body="iapetus">Iapetus</button>
+          <button type="button" data-body="dione">Dione</button>
+          <button type="button" data-body="mimas">Mimas</button>
         </span>
         <button type="button" data-body="uranus">Uranus</button>
+        <span class="moon-fly-row">
+          <button type="button" data-body="miranda">Miranda</button>
+          <button type="button" data-body="ariel">Ariel</button>
+        </span>
         <button type="button" data-body="neptune">Neptune</button>
         <span class="moon-fly-row">
           <button type="button" data-body="triton">Triton</button>
@@ -1294,7 +1301,7 @@ const SATURN_MOONS = [
   { name: 'Enceladus', p: 1.370, aR: 2.55, rR: 0.06, c: 0xe8e4dc, phase: 0.80 },
   { name: 'Mimas', p: 0.942, aR: 3.1, rR: 0.05, c: 0xd0ccc8, phase: 3.15 },
 ];
-const SATURN_FLY_ID = ['titan', 'rhea', null, null, 'enceladus', null];
+const SATURN_FLY_ID = ['titan', 'rhea', 'iapetus', 'dione', 'enceladus', 'mimas'];
 const saturnMoonGroup = new THREE.Group();
 saturnMoonGroup.visible = false;
 planetMeshes[4].add(saturnMoonGroup);
@@ -1572,6 +1579,7 @@ const URANUS_MOONS = [
   { name: 'Titania', p: 8.706, aR: 6.5, rR: 0.11, c: 0xc4b8a8, phase: 4.80 },
   { name: 'Oberon', p: 13.463, aR: 8.4, rR: 0.10, c: 0xb0a498, phase: 5.90 },
 ];
+const URANUS_FLY_ID = ['miranda', 'ariel', null, null, null];
 const uranusMoonGroup = new THREE.Group();
 uranusMoonGroup.visible = false;
 planetMeshes[5].add(uranusMoonGroup);
@@ -1583,8 +1591,9 @@ for (let i = 0; i < URANUS_MOONS.length; i++) {
     new THREE.SphereGeometry(g.rR * uranusGeoR, 16, 12),
     new THREE.MeshPhongMaterial({ color: g.c, shininess: 4 }),
   );
-  mesh.raycast = () => {};
   mesh.userData.moon = g.name;
+  if (URANUS_FLY_ID[i]) mesh.userData.body = URANUS_FLY_ID[i];
+  else mesh.raycast = () => {};
   uranusMoonGroup.add(mesh);
   uranusMoonMeshes.push(mesh);
   uranusMoonLabels.push(makeMoonLabel(g.name));
@@ -1720,7 +1729,7 @@ function updateUranusMoons(now) {
     const a = g.aR * uranusGeoR;
     uranusMoonMeshes[i].position.set(Math.cos(th) * a, 0, Math.sin(th) * a);
     tidalLockMoon(uranusMoonMeshes[i]);
-    placeMoonLabel(uranusMoonLabels[i], uranusMoonMeshes[i], true);
+    placeMoonLabel(uranusMoonLabels[i], uranusMoonMeshes[i], focusedBody !== URANUS_FLY_ID[i]);
   }
 }
 
@@ -3741,7 +3750,8 @@ function onTap(clientX, clientY) {
   if (cometWorld.visible) pickBodies.push(cometMesh);
   if (minorWorld.visible) pickBodies.push(ceresMesh, vestaMesh, erisMesh, haumeaMesh, makemakeMesh, pallasMesh, hygieaMesh, sednaMesh, quaoarMesh, orcusMesh, gonggongMesh, varunaMesh, ixionMesh);
   if (galileanGroup.visible) pickBodies.push(galileanMeshes[0], galileanMeshes[1], galileanMeshes[2], galileanMeshes[3]);
-  if (saturnMoonGroup.visible) pickBodies.push(saturnMoonMeshes[0], saturnMoonMeshes[1], saturnMoonMeshes[4]);
+  if (saturnMoonGroup.visible) pickBodies.push(saturnMoonMeshes[0], saturnMoonMeshes[1], saturnMoonMeshes[2], saturnMoonMeshes[3], saturnMoonMeshes[4], saturnMoonMeshes[5]);
+  if (uranusMoonGroup.visible) pickBodies.push(uranusMoonMeshes[0], uranusMoonMeshes[1]);
   if (neptuneMoonGroup.visible) pickBodies.push(neptuneMoonMeshes[0]);
   if (charonGroup.visible) pickBodies.push(charonMesh);
   const bodyHits = raycaster.intersectObjects(pickBodies, false);
@@ -5023,22 +5033,25 @@ document.getElementById('sim-time').addEventListener('change', _readSimInputs);
 
 const MOON_FLY_PARENT = {
   io: 'jupiter', europa: 'jupiter', ganymede: 'jupiter', callisto: 'jupiter',
-  titan: 'saturn', rhea: 'saturn', enceladus: 'saturn',
+  titan: 'saturn', rhea: 'saturn', enceladus: 'saturn', iapetus: 'saturn', dione: 'saturn', mimas: 'saturn',
+  miranda: 'uranus', ariel: 'uranus',
   triton: 'neptune', charon: 'pluto',
 };
 const MOON_FLY_CAPTION = {
   io: 'Io', europa: 'Europa', ganymede: 'Ganymede', callisto: 'Callisto',
-  titan: 'Titan', rhea: 'Rhea', enceladus: 'Enceladus',
+  titan: 'Titan', rhea: 'Rhea', enceladus: 'Enceladus', iapetus: 'Iapetus', dione: 'Dione', mimas: 'Mimas',
+  miranda: 'Miranda', ariel: 'Ariel',
   triton: 'Triton', charon: 'Charon',
 };
 const MOON_FLY_KM = {
   io: 1821.6, europa: 1560.8, ganymede: 2634.1, callisto: 2410.3,
-  titan: 2574.7, rhea: 763.8, enceladus: 252.1,
+  titan: 2574.7, rhea: 763.8, enceladus: 252.1, iapetus: 734.5, dione: 561.4, mimas: 198.2,
+  miranda: 235.8, ariel: 578.9,
   triton: 1353.4, charon: 606.0,
 };
 function moonFlyFamily(id) {
   if (MOON_FLY_PARENT[id]) return MOON_FLY_PARENT[id];
-  if (id === 'jupiter' || id === 'saturn' || id === 'neptune' || id === 'pluto') return id;
+  if (id === 'jupiter' || id === 'saturn' || id === 'neptune' || id === 'pluto' || id === 'uranus') return id;
   return null;
 }
 const BODY_MESH = {
@@ -5054,9 +5067,11 @@ const BODY_MESH = {
   io: galileanMeshes[0], europa: galileanMeshes[1],
   ganymede: galileanMeshes[2], callisto: galileanMeshes[3],
   titan: saturnMoonMeshes[0], rhea: saturnMoonMeshes[1], enceladus: saturnMoonMeshes[4],
+  iapetus: saturnMoonMeshes[2], dione: saturnMoonMeshes[3], mimas: saturnMoonMeshes[5],
+  miranda: uranusMoonMeshes[0], ariel: uranusMoonMeshes[1],
   triton: neptuneMoonMeshes[0], charon: charonMesh,
 };
-const BODY_INSPECT = { sun: 25, mercury: 10, venus: 12, earth: 0, moon: 10, mars: 10, jupiter: 20, saturn: 20, uranus: 16, neptune: 16, pluto: 10, halley: 8, ceres: 8, vesta: 8, eris: 8, haumea: 8, makemake: 8, pallas: 8, hygiea: 8, sedna: 8, quaoar: 8, orcus: 8, gonggong: 8, varuna: 8, ixion: 8, io: 10, europa: 10, ganymede: 10, callisto: 10, titan: 10, rhea: 10, enceladus: 10, triton: 10, charon: 10 };
+const BODY_INSPECT = { sun: 25, mercury: 10, venus: 12, earth: 0, moon: 10, mars: 10, jupiter: 20, saturn: 20, uranus: 16, neptune: 16, pluto: 10, halley: 8, ceres: 8, vesta: 8, eris: 8, haumea: 8, makemake: 8, pallas: 8, hygiea: 8, sedna: 8, quaoar: 8, orcus: 8, gonggong: 8, varuna: 8, ixion: 8, io: 10, europa: 10, ganymede: 10, callisto: 10, titan: 10, rhea: 10, enceladus: 10, iapetus: 10, dione: 10, mimas: 10, miranda: 10, ariel: 10, triton: 10, charon: 10 };
 const BODY_TILT = {
   mercury: 0.03, venus: 177.4, mars: 25, jupiter: 3, saturn: 27,
   uranus: 98, neptune: 28, pluto: 120, sun: 7.2, ceres: 4, vesta: 29,
@@ -5138,6 +5153,11 @@ function bodyGeoR(id) {
   if (id === 'titan') return SATURN_MOONS[0].rR * saturnGeoR;
   if (id === 'rhea') return SATURN_MOONS[1].rR * saturnGeoR;
   if (id === 'enceladus') return SATURN_MOONS[4].rR * saturnGeoR;
+  if (id === 'iapetus') return SATURN_MOONS[2].rR * saturnGeoR;
+  if (id === 'dione') return SATURN_MOONS[3].rR * saturnGeoR;
+  if (id === 'mimas') return SATURN_MOONS[5].rR * saturnGeoR;
+  if (id === 'miranda') return URANUS_MOONS[0].rR * uranusGeoR;
+  if (id === 'ariel') return URANUS_MOONS[1].rR * uranusGeoR;
   if (id === 'triton') return NEPTUNE_MOONS[0].rR * neptuneGeoR;
   if (id === 'charon') return 0.5 * plutoGeoR;
   const idx = PLANET_IDS.indexOf(id);
@@ -5236,7 +5256,7 @@ function ensureFocusedMoonMaps(id) {
     for (let i = 0; i < GALILEAN.length; i++) ensureMoonTexture(GALILEAN[i].name, galileanMeshes[i]);
   } else if (moonFlyFamily(id) === 'saturn') {
     for (let i = 0; i < SATURN_MOONS.length; i++) ensureMoonTexture(SATURN_MOONS[i].name, saturnMoonMeshes[i]);
-  } else if (id === 'uranus') {
+  } else if (moonFlyFamily(id) === 'uranus') {
     for (let i = 0; i < URANUS_MOONS.length; i++) ensureMoonTexture(URANUS_MOONS[i].name, uranusMoonMeshes[i]);
   } else if (moonFlyFamily(id) === 'neptune') {
     for (let i = 0; i < NEPTUNE_MOONS.length; i++) ensureMoonTexture(NEPTUNE_MOONS[i].name, neptuneMoonMeshes[i]);
@@ -5399,6 +5419,11 @@ function updateFocusReadout() {
   else if (id === 'titan') extra = 'period 15.9 d · parent Saturn';
   else if (id === 'rhea') extra = 'period 4.52 d · parent Saturn';
   else if (id === 'enceladus') extra = 'period 1.37 d · parent Saturn';
+  else if (id === 'iapetus') extra = 'period 79.3 d · parent Saturn';
+  else if (id === 'dione') extra = 'period 2.74 d · parent Saturn';
+  else if (id === 'mimas') extra = 'period 0.94 d · parent Saturn';
+  else if (id === 'miranda') extra = 'period 1.41 d · parent Uranus';
+  else if (id === 'ariel') extra = 'period 2.52 d · parent Uranus';
   else if (id === 'triton') extra = 'period 5.88 d · parent Neptune · retrograde';
   else if (id === 'charon') extra = 'period 6.39 d · parent Pluto';
   else if (id === 'halley') {
@@ -5516,18 +5541,21 @@ function flyToBody(id) {
       for (let i = 0; i < galileanLabels.length; i++) galileanLabels[i].visible = false;
     }
   }
-  if (prev === 'uranus') {
+  if (moonFlyFamily(prev) === 'uranus') {
     uranusRing.visible = false;
-    uranusMoonGroup.visible = false;
-    uranusMoonGroup.rotation.y = 0;
     uranusAtmo.visible = false;
     uranusRingShadow.visible = false;
-    mirandaVeronaRupesScar.visible = false;
-    oberonHamletDisk.visible = false;
-    titaniaGertrudeCraterDisk.visible = false;
-    umbrielWundaFloorDisk.visible = false;
-    arielKachinaChasmataSegs.visible = false;
-    for (let i = 0; i < uranusMoonLabels.length; i++) uranusMoonLabels[i].visible = false;
+    if (prev === 'uranus') uranusMoonGroup.rotation.y = 0;
+    if (moonFlyFamily(id) !== 'uranus') {
+      uranusMoonGroup.visible = false;
+      uranusMoonGroup.rotation.y = 0;
+      mirandaVeronaRupesScar.visible = false;
+      oberonHamletDisk.visible = false;
+      titaniaGertrudeCraterDisk.visible = false;
+      umbrielWundaFloorDisk.visible = false;
+      arielKachinaChasmataSegs.visible = false;
+      for (let i = 0; i < uranusMoonLabels.length; i++) uranusMoonLabels[i].visible = false;
+    }
   }
   if (moonFlyFamily(prev) === 'neptune') {
     neptuneRing.visible = false;
@@ -5611,7 +5639,7 @@ function flyToBody(id) {
       ensureRingTexture('saturn', saturnRing);
       ensureFocusedMoonMaps(id);
     }
-    if (id === 'titan' || id === 'rhea' || id === 'enceladus') {
+    if (id === 'titan' || id === 'rhea' || id === 'enceladus' || id === 'iapetus' || id === 'dione' || id === 'mimas') {
       saturnMoonGroup.visible = true;
       titanAtmo.visible = true;
       enceladusPlumeSpray.visible = true;
@@ -5679,6 +5707,16 @@ function flyToBody(id) {
       updateUranusMoons(simNow());
       updateUranusRingShadow();
       ensureRingTexture('uranus', uranusRing);
+      ensureFocusedMoonMaps(id);
+    }
+    if (id === 'miranda' || id === 'ariel') {
+      uranusMoonGroup.visible = true;
+      mirandaVeronaRupesScar.visible = id === 'miranda';
+      arielKachinaChasmataSegs.visible = id === 'ariel';
+      oberonHamletDisk.visible = false;
+      titaniaGertrudeCraterDisk.visible = false;
+      umbrielWundaFloorDisk.visible = false;
+      updateUranusMoons(simNow());
       ensureFocusedMoonMaps(id);
     }
     if (id === 'neptune') {
