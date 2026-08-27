@@ -18,7 +18,11 @@ public IP via IP2GeoAPI (no location permission prompt). The app also draws
 country borders and US state borders on the globe; tapping a region shows
 its name (state in the US, country elsewhere). The app also paints live
 radar precipitation over the globe from the RainViewer public API, behind a
-"show weather" toggle.
+"show weather" toggle. The app also shows the Moon at true size and
+distance in its true sky position, with the correct phase, plus a marker
+at the sublunar point (where the Moon is overhead). The app also shows the
+planets, a time-speed control (1x to 1 day/s), a GEO ring, aurora ovals, a
+lat/lon grid, and the eclipse umbra when the Moon's shadow hits Earth.
 
 - Live site: https://earth.4runner.online/ (the GitHub Pages URL
   https://gevertex.github.io/earth-sun/ 301-redirects there via a CNAME
@@ -32,7 +36,7 @@ radar precipitation over the globe from the RainViewer public API, behind a
 
 ## Files
 
-- `index.html` — the entire app: markup, CSS, and JS in one file (~1200 lines)
+- `index.html` — the entire app: markup, CSS, and JS in one file (~3000 lines)
 - `favicon.svg` — the app logo, used as the browser favicon
 - `apple-touch-icon.png` — 180 px PNG render of the logo, for iOS home screens
 - `README.md` — live site link, deploy steps, local run steps
@@ -46,10 +50,13 @@ python3 -m http.server 8080
 ```
 
 Three.js, `satellite.js`, and the Earth textures load from the unpkg.com CDN.
-Fresh satellite TLEs load from the satvisor GitHub mirror of Celestrak data
-(Celestrak is the fallback). The page needs internet access. Offline, the
-globe and sun still work; named satellites use embedded fallback TLEs; the
-location pin shows `unavailable`; the borders do not load.
+The Moon texture loads from the three.js GitHub repo (raw.githubusercontent
+is CORS-open; the three npm package excludes texture files). Fresh satellite
+TLEs load from the satvisor GitHub mirror of Celestrak data (Celestrak is
+the fallback). The page needs internet access. Offline, the globe and sun
+still work; named satellites use embedded fallback TLEs; the location pin
+shows `unavailable`; the borders do not load; the moon is a plain gray
+sphere.
 
 ## Deploy
 
@@ -84,6 +91,9 @@ GitHub Pages rebuilds the site within a minute or two after the push.
 - The Sun is at true scale: `SUN_RADIUS_KM = 696340` → `SUN_RADIUS`
   (≈ 1093), `AU_KM = 149597870.7` → `SUN_DISTANCE` (≈ 234,811). The disk
   is 0.53° across, the true apparent size of the Sun from Earth.
+- The Moon is at true scale: radius `1737.4 km` → ≈ 2.73 scene units,
+  distance ≈ 394,000 km → ≈ 618 scene units. The disk is 0.52° across,
+  the true apparent size of the Moon from Earth.
 
 ### Solar math (low-precision, Meeus/NOAA style)
 
@@ -146,6 +156,46 @@ GitHub Pages rebuilds the site within a minute or two after the push.
   `past` (amber `0xffb347`) covers -182..0 days, `future` (blue `0x6fd3ff`)
   covers 0..+182 days. `Line2` with linewidth 2.5. Material resolution is
   set on resize. The path rebuilds once per second (`lastPathSecond` check).
+
+### Moon (true size, distance, and sky position)
+
+- `moonPos(date)` returns `{ lambda, beta, dist }` (ecliptic longitude deg,
+  ecliptic latitude deg, Earth-Moon distance km) from Meeus A&A 2nd ed.
+  §47.2 medium-precision lunar coordinates (truncated ELP2000/82): 60-term
+  series `MOON_LR` (longitude, 1e-6 deg; distance, 1e-3 km) and `MOON_B`
+  (latitude, 1e-6 deg), with the argument variables `Lp, D, M, Mp, F` and
+  the Evection/Perigee precession corrections `A1, A2, A3`. Referred to the
+  mean equinox of date, the same frame as the satellite ECI positions.
+  Accuracy ≈ 0.02° in position, ≈ 24 km in distance (verified over a full
+  year against astronomy-engine).
+- `gmstIAU(date)` is the IAU 1982 GMST in degrees; it matches
+  `satellite.js` `sat.gstime` exactly.
+- `updateMoon(now)` (called each frame from `tick()`, skipped while the
+  layer is hidden): converts ecliptic (λ, β) to equatorial of date
+  (RA, Dec) with obliquity `eps = 23.439 − 0.0000004 T`, then
+  `lonGeo = RA − GMST` (normalized to `[-180, 180)`). The mesh sits at
+  `latLonToVec3(dec, lonGeo, dist * KM_TO_SCENE)`; `moonMesh.lookAt(0,0,0)`
+  gives tidal lock (the SphereGeometry texture center u=0.5 faces +Z, so
+  the near side faces Earth). The phase comes from the existing
+  `DirectionalLight` at the Sun; no extra lighting.
+- `moonMesh`: `SphereGeometry(1737.4 * KM_TO_SCENE, 48, 32)` (≈ 2.73
+  units), `MeshPhongMaterial`. Texture `moon_1024.jpg` loads from
+  `raw.githubusercontent.com/mrdoob/three.js/r160/examples/textures/planets/`
+  (the three npm package excludes texture files, so the unpkg URL 404s;
+  GitHub raw is CORS-open like the TLE and border fetches). Empty error
+  callback: offline the moon is a plain gray sphere.
+- Sublunar marker: sphere (radius 0.28, `0xd8d4cc`) at
+  `surfaceRadiusAt(u, v) + 0.12` under the Moon, plus a line from the
+  globe center (the point where the Moon is directly overhead).
+- `moonWorld` group holds the mesh and marker; the "show moon" toggle
+  (`#moon-toggle`, checked by default) sets `moonWorld.visible`.
+- The moon is not in the tap raycast targets, so it never blocks
+  satellite or region taps.
+- `tick()` feeds `simNow()` (the time-speed control), so the Moon follows
+  the simulated clock when the time scale is above 1x.
+- The eclipse umbra layer (a dark disk on the globe) is driven by
+  `moonMesh.position` and only appears when the Moon's shadow cone hits
+  Earth.
 
 ### Your location pin (IP2GeoAPI)
 
