@@ -804,6 +804,24 @@ jupiterRing.raycast = () => {};
 jupiterRing.visible = false;
 planetMeshes[3].add(jupiterRing);
 const jupiterAtmo = makeInspectAtmo(planetMeshes[3], jupiterGeoR, 0xd4b88a);
+const jupiterGrs = new THREE.Mesh(
+  new THREE.CircleGeometry(jupiterGeoR * 0.09, 20),
+  new THREE.MeshLambertMaterial({
+    color: 0xb44828, side: THREE.DoubleSide,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+  })
+);
+jupiterGrs.scale.set(1.65, 1, 1);
+{
+  const lat = -22 * DEG, lon = -43 * DEG;
+  const rr = jupiterGeoR * 1.012;
+  const cl = Math.cos(lat);
+  jupiterGrs.position.set(rr * cl * Math.cos(lon), rr * Math.sin(lat), -rr * cl * Math.sin(lon));
+  jupiterGrs.lookAt(jupiterGrs.position.x * 2, jupiterGrs.position.y * 2, jupiterGrs.position.z * 2);
+}
+jupiterGrs.raycast = () => {};
+jupiterGrs.visible = false;
+planetMeshes[3].add(jupiterGrs);
 function updateGalilean(now) {
   if (!galileanGroup.visible) {
     for (let i = 0; i < galileanLabels.length; i++) galileanLabels[i].visible = false;
@@ -1152,7 +1170,11 @@ function updatePlanets(now, lonDeg) {
     const lon = ((RA - gmst + 180) % 360 + 360) % 360 - 180;
     const p = latLonToVec3(Dec, lon, dist);
     planetMeshes[i].position.copy(p);
-    pPos[i*3] = p.x; pPos[i*3+1] = p.y; pPos[i*3+2] = p.z;
+    if (planetMeshes[i].userData.body === focusedBody) {
+      pPos[i*3] = pPos[i*3+1] = pPos[i*3+2] = NaN;
+    } else {
+      pPos[i*3] = p.x; pPos[i*3+1] = p.y; pPos[i*3+2] = p.z;
+    }
     const lbl = bodyLabel[planetMeshes[i].userData.body];
     if (lbl) {
       lbl.position.copy(planetMeshes[i].position);
@@ -1318,10 +1340,13 @@ function updateComet(now, lonDeg) {
   cometSkyGeo.attributes.position.needsUpdate = true;
   cometSky.visible = focusedBody !== 'halley';
   _tailDir.copy(p).sub(sunMesh.position);
-  if (_tailDir.lengthSq() < 1e-8) _tailDir.set(0, 1, 0);
+  const tailLenSq = _tailDir.lengthSq();
+  const rHelio = Math.sqrt(tailLenSq) / SUN_DISTANCE;
+  if (tailLenSq < 1e-8) _tailDir.set(0, 1, 0);
   else _tailDir.normalize();
   cometTail.position.copy(p);
   cometTail.quaternion.setFromUnitVectors(_tailY, _tailDir);
+  syncCometTailScale(rHelio);
   const lbl = bodyLabel.halley;
   if (lbl) {
     lbl.position.copy(p);
@@ -1384,7 +1409,11 @@ function _placeMinor(el, mesh, now, lonDeg, skyOff) {
   const y = dist * sl;
   const z = -dist * cl * Math.sin(lonr);
   mesh.position.set(x, y, z);
-  minorSkyPos[skyOff] = x; minorSkyPos[skyOff + 1] = y; minorSkyPos[skyOff + 2] = z;
+  if (focusedBody === mesh.userData.body) {
+    minorSkyPos[skyOff] = minorSkyPos[skyOff + 1] = minorSkyPos[skyOff + 2] = NaN;
+  } else {
+    minorSkyPos[skyOff] = x; minorSkyPos[skyOff + 1] = y; minorSkyPos[skyOff + 2] = z;
+  }
   const lbl = bodyLabel[mesh.userData.body];
   if (lbl) {
     lbl.position.set(x, y, z);
@@ -1400,7 +1429,6 @@ function updateMinors(now, lonDeg) {
   _placeMinor(CERES_EL, ceresMesh, now, lonDeg, 0);
   _placeMinor(VESTA_EL, vestaMesh, now, lonDeg, 3);
   minorSkyGeo.attributes.position.needsUpdate = true;
-  minorSky.visible = focusedBody !== 'ceres' && focusedBody !== 'vesta';
 }
 const minorsToggle = document.getElementById('minors-toggle');
 minorsToggle.addEventListener('change', () => {
@@ -3664,6 +3692,19 @@ const MOON_TEX = {
   Titan: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/titan.webp',
   Triton: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/triton.jpg',
   Mimas: 'https://cdn.jsdelivr.net/gh/ofrohn/threex.planets@master/images/maps/mimasmap.jpg',
+  Iapetus: 'https://cdn.jsdelivr.net/gh/ofrohn/threex.planets@master/images/maps/iapetusmap.jpg',
+  Dione: 'https://cdn.jsdelivr.net/gh/ofrohn/threex.planets@master/images/maps/dionemap.jpg',
+  Rhea: 'https://cdn.jsdelivr.net/gh/ofrohn/threex.planets@master/images/maps/rheamap.jpg',
+  Enceladus: 'https://cdn.jsdelivr.net/gh/ofrohn/threex.planets@master/images/maps/enceladusmap.jpg',
+  Charon: 'https://cdn.jsdelivr.net/gh/ofrohn/threex.planets@master/images/maps/charonmap.jpg',
+  Phobos: 'https://cdn.jsdelivr.net/gh/ofrohn/threex.planets@master/images/maps/phobosmap.jpg',
+  Deimos: 'https://cdn.jsdelivr.net/gh/ofrohn/threex.planets@master/images/maps/deimosmap.jpg',
+  Ariel: 'https://cdn.jsdelivr.net/gh/ofrohn/threex.planets@master/images/maps/arielmap.jpg',
+  Miranda: 'https://cdn.jsdelivr.net/gh/ofrohn/threex.planets@master/images/maps/mirandamap.jpg',
+  Umbriel: 'https://cdn.jsdelivr.net/gh/ofrohn/threex.planets@master/images/maps/umbrielmap.jpg',
+  Titania: 'https://cdn.jsdelivr.net/gh/ofrohn/threex.planets@master/images/maps/titaniamap.jpg',
+  Oberon: 'https://cdn.jsdelivr.net/gh/ofrohn/threex.planets@master/images/maps/oberonmap.jpg',
+  Proteus: 'https://cdn.jsdelivr.net/gh/ofrohn/threex.planets@master/images/maps/proteusmap.jpg',
 };
 const moonTexState = Object.create(null);
 function ensureMoonTexture(name, mesh) {
@@ -3739,14 +3780,30 @@ function ensureRingTexture(id, mesh) {
     () => { mesh.userData.ringTex = 'fail'; },
   );
 }
-function syncCometTailScale() {
+let lastTailHelio = -1, lastTailInspect = null, lastTailViewR = -1;
+function syncCometTailScale(rHelio) {
+  if (!(rHelio > 0)) {
+    rHelio = Math.hypot(
+      cometMesh.position.x - sunMesh.position.x,
+      cometMesh.position.y - sunMesh.position.y,
+      cometMesh.position.z - sunMesh.position.z,
+    ) / SUN_DISTANCE;
+  }
   const inspecting = focusedBody === 'halley';
-  const len = inspecting ? inspectViewR('halley') * 3.2 : 8;
-  const wid = inspecting ? inspectViewR('halley') * 0.22 : 0.9;
-  layoutCometTail(len, wid);
+  const peri = HALLEY_EL.a0 * (1 - HALLEY_EL.e0);
+  const k = peri / Math.max(rHelio, peri);
+  const viewR = inspecting ? inspectViewR('halley') : 0;
+  if (Math.abs(rHelio - lastTailHelio) < 0.008 && inspecting === lastTailInspect && viewR === lastTailViewR) return;
+  lastTailHelio = rHelio;
+  lastTailInspect = inspecting;
+  lastTailViewR = viewR;
+  const len0 = inspecting ? viewR * 3.2 : 8;
+  const wid0 = inspecting ? viewR * 0.22 : 0.9;
+  layoutCometTail(len0 * (0.16 + 0.84 * k), wid0 * (0.30 + 0.70 * k));
   cometTailGeo.attributes.position.needsUpdate = true;
   cometTailGeo.attributes.color.needsUpdate = true;
-  cometTail.material.size = inspecting ? Math.max(inspectViewR('halley') * 0.12, 0.2) : 0.35;
+  cometTail.material.size = inspecting ? Math.max(viewR * 0.12, 0.2) : 0.35;
+  cometTail.material.opacity = 0.22 + 0.73 * k * k;
 }
 const bodyTexState = Object.create(null);
 function ensureBodyTexture(id) {
@@ -3814,7 +3871,14 @@ function updateFocusReadout() {
   if (id === 'sun') extra = 'tilt 7.2°';
   else if (id === 'moon') extra = 'period 27.3 d · inclination 5.1°';
   else if (id === 'earth') extra = 'period 365.25 d · inclination 0° · tilt 23.4°';
-  else if (id === 'halley') extra = 'period 75.3 y · inclination 162.3° · perihelion 0.59 AU';
+  else if (id === 'halley') {
+    const Pdays = Math.pow(HALLEY_EL.a0, 1.5) * 365.25;
+    const jd = julianDate(simNow());
+    const n = Math.floor((jd - HALLEY_EL.tPeri) / Pdays);
+    const lastY = new Date((HALLEY_EL.tPeri + n * Pdays - 2440587.5) * 86400000).getUTCFullYear();
+    const nextY = new Date((HALLEY_EL.tPeri + (n + 1) * Pdays - 2440587.5) * 86400000).getUTCFullYear();
+    extra = 'period 75.3 y · inclination 162.3° · perihelion 0.59 AU · last perihelion ' + lastY + ' · next perihelion ' + nextY;
+  }
   else if (id === 'ceres') extra = 'period 4.61 y · inclination 10.6° · tilt 4°';
   else if (id === 'vesta') extra = 'period 3.63 y · inclination 7.1° · tilt 29°';
   else if (planetIdx >= 0) {
@@ -3859,6 +3923,7 @@ function flyToBody(id) {
     galileanGroup.rotation.y = 0;
     jupiterRing.visible = false;
     jupiterAtmo.visible = false;
+    jupiterGrs.visible = false;
     for (let i = 0; i < galileanLabels.length; i++) galileanLabels[i].visible = false;
   }
   if (prev === 'uranus') {
@@ -3903,6 +3968,7 @@ function flyToBody(id) {
       galileanGroup.visible = true;
       jupiterRing.visible = true;
       jupiterAtmo.visible = true;
+      jupiterGrs.visible = true;
       updateGalilean(simNow());
       ensureFocusedMoonMaps(id);
     }
