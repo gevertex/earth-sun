@@ -166,8 +166,8 @@ GitHub Pages rebuilds the site within a minute or two after the push.
   (latitude, 1e-6 deg), with the argument variables `Lp, D, M, Mp, F` and
   the Evection/Perigee precession corrections `A1, A2, A3`. Referred to the
   mean equinox of date, the same frame as the satellite ECI positions.
-  Accuracy ≈ 0.02° in position, ≈ 24 km in distance (verified over a full
-  year against astronomy-engine).
+  Accuracy ≈ 0.2° in position, ≈ 4 km in distance (spot-checked against
+  the JPL DE421 ephemeris; the gap is the medium-precision theory error).
 - `gmstIAU(date)` is the IAU 1982 GMST in degrees; it matches
   `satellite.js` `sat.gstime` exactly.
 - `updateMoon(now)` (called each frame from `tick()`, skipped while the
