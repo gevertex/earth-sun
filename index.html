@@ -157,6 +157,7 @@
     font-size: 11px;
     line-height: 1.4;
     margin: 4px 0 2px;
+    white-space: pre-line;
   }
   #controls .body-keys {
     color: #7f97b8;
@@ -653,7 +654,7 @@ const GALILEAN = [
 ];
 const galileanGroup = new THREE.Group();
 galileanGroup.visible = false;
-galileanGroup.rotation.x = 0.054;
+galileanGroup.rotation.x = 0;
 planetMeshes[3].add(galileanGroup);
 const galileanMeshes = [];
 for (let i = 0; i < 4; i++) {
@@ -708,6 +709,58 @@ function updateSaturnMoons(now) {
     saturnMoonMeshes[i].position.set(Math.cos(th) * a, 0, Math.sin(th) * a);
   }
 }
+
+const uranusGeoR = Math.max(PLANET_EL[5].r * KM_TO_SCENE, 0.5);
+const uranusRing = new THREE.Mesh(
+  new THREE.RingGeometry(1.45 * uranusGeoR, 1.85 * uranusGeoR, 32),
+  new THREE.MeshBasicMaterial({ color: 0x5c6570, side: THREE.DoubleSide, transparent: true, opacity: 0.38, depthWrite: false })
+);
+uranusRing.rotation.x = Math.PI / 2;
+uranusRing.raycast = () => {};
+uranusRing.visible = false;
+planetMeshes[5].add(uranusRing);
+
+const URANUS_MOONS = [
+  { name: 'Miranda', p: 1.413, aR: 2.2, rR: 0.06, c: 0xc8c4bc, phase: 0.40 },
+  { name: 'Ariel', p: 2.520, aR: 3.4, rR: 0.08, c: 0xd0ccc4, phase: 1.70 },
+  { name: 'Umbriel', p: 4.144, aR: 4.6, rR: 0.08, c: 0x6a6860, phase: 3.20 },
+  { name: 'Titania', p: 8.706, aR: 6.5, rR: 0.11, c: 0xc4b8a8, phase: 4.80 },
+  { name: 'Oberon', p: 13.463, aR: 8.4, rR: 0.10, c: 0xb0a498, phase: 5.90 },
+];
+const uranusMoonGroup = new THREE.Group();
+uranusMoonGroup.visible = false;
+planetMeshes[5].add(uranusMoonGroup);
+const uranusMoonMeshes = [];
+for (let i = 0; i < URANUS_MOONS.length; i++) {
+  const g = URANUS_MOONS[i];
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(g.rR * uranusGeoR, 8, 6),
+    new THREE.MeshBasicMaterial({ color: g.c }),
+  );
+  mesh.raycast = () => {};
+  uranusMoonGroup.add(mesh);
+  uranusMoonMeshes.push(mesh);
+}
+function updateUranusMoons(now) {
+  if (!uranusMoonGroup.visible) return;
+  const day = julianDate(now) - 2451545.0;
+  for (let i = 0; i < URANUS_MOONS.length; i++) {
+    const g = URANUS_MOONS[i];
+    const th = day / g.p * Math.PI * 2 + g.phase;
+    const a = g.aR * uranusGeoR;
+    uranusMoonMeshes[i].position.set(Math.cos(th) * a, 0, Math.sin(th) * a);
+  }
+}
+
+const plutoGeoR = Math.max(PLANET_EL[7].r * KM_TO_SCENE, 0.5);
+const charonMesh = new THREE.Mesh(
+  new THREE.SphereGeometry(0.5 * plutoGeoR, 8, 6),
+  new THREE.MeshBasicMaterial({ color: 0xa8a090 }),
+);
+charonMesh.position.set(3.5 * plutoGeoR, 0, 0);
+charonMesh.raycast = () => {};
+charonMesh.visible = false;
+planetMeshes[7].add(charonMesh);
 
 const PLANET_IDS = ['mercury','venus','mars','jupiter','saturn','uranus','neptune','pluto'];
 const ORBIT_SAMPLES = 80;
@@ -3038,6 +3091,21 @@ const BODY_TILT = {
   mercury: 0.03, venus: 177.4, mars: 25, jupiter: 3, saturn: 27,
   uranus: 98, neptune: 28, pluto: 120, sun: 7.2,
 };
+const SIDEREAL_DAYS = {
+  sun: 25.38, mercury: 58.646, venus: 243.02, mars: 1.026,
+  jupiter: 0.4135, saturn: 0.444, uranus: 0.718, neptune: 0.671, pluto: 6.387,
+};
+function applyInspectSpin(id, now) {
+  const days = SIDEREAL_DAYS[id];
+  if (!days) return;
+  const mesh = BODY_MESH[id];
+  if (!mesh) return;
+  const spin = (julianDate(now) - 2451545.0) / days * Math.PI * 2;
+  mesh.rotation.y = spin;
+  if (id === 'jupiter') galileanGroup.rotation.y = -spin;
+  else if (id === 'saturn') saturnMoonGroup.rotation.y = -spin;
+  else if (id === 'uranus') uranusMoonGroup.rotation.y = -spin;
+}
 const trueSizeToggle = document.getElementById('true-size-toggle');
 function bodyRealR(id) {
   if (id === 'sun') return SUN_RADIUS;
@@ -3115,10 +3183,26 @@ function updateFocusReadout() {
     if (id === 'moon') line += ' · ' + Math.round(km) + ' km';
     else line += ' · ' + (km / AU_KM).toFixed(2) + ' AU';
   }
-  const planetIdx = ['mercury','venus','mars','jupiter','saturn','uranus','neptune','pluto'].indexOf(id);
+  const planetIdx = PLANET_IDS.indexOf(id);
   if (planetIdx >= 0) line += ' · radius ' + Math.round(PLANET_EL[planetIdx].r) + ' km';
   if (id === 'jupiter') line += ' · Io Europa Ganymede Callisto';
   if (id === 'saturn') line += ' · Titan Rhea Iapetus Dione Enceladus';
+  if (id === 'uranus') line += ' · Miranda Ariel Umbriel Titania Oberon';
+  if (id === 'pluto') line += ' · Charon';
+  let extra = '';
+  if (id === 'sun') extra = 'tilt 7.2°';
+  else if (id === 'moon') extra = 'period 27.3 d · inclination 5.1°';
+  else if (id === 'earth') extra = 'period 365.25 d · inclination 0° · tilt 23.4°';
+  else if (planetIdx >= 0) {
+    const years = 36000 / PLANET_EL[planetIdx].Ldot;
+    const pStr = planetIdx <= 2
+      ? Math.round(years * 365.25) + ' d'
+      : years.toFixed(1) + ' y';
+    extra = 'period ' + pStr
+      + ' · inclination ' + PLANET_EL[planetIdx].I0.toFixed(1) + '°'
+      + ' · tilt ' + BODY_TILT[id] + '°';
+  }
+  if (extra) line += '\n' + extra;
   elBodyFocus.textContent = line;
 }
 const _bodyPos = new THREE.Vector3();
@@ -3142,8 +3226,18 @@ function flyToBody(id) {
   if (prev === 'saturn') {
     saturnRing.visible = false;
     saturnMoonGroup.visible = false;
+    saturnMoonGroup.rotation.y = 0;
   }
-  if (prev === 'jupiter') galileanGroup.visible = false;
+  if (prev === 'jupiter') {
+    galileanGroup.visible = false;
+    galileanGroup.rotation.y = 0;
+  }
+  if (prev === 'uranus') {
+    uranusRing.visible = false;
+    uranusMoonGroup.visible = false;
+    uranusMoonGroup.rotation.y = 0;
+  }
+  if (prev === 'pluto') charonMesh.visible = false;
 
   focusedBody = id;
   const mesh = BODY_MESH[id];
@@ -3156,6 +3250,12 @@ function flyToBody(id) {
       updateSaturnMoons(simNow());
     }
     if (id === 'jupiter') { galileanGroup.visible = true; updateGalilean(simNow()); }
+    if (id === 'uranus') {
+      uranusRing.visible = true;
+      uranusMoonGroup.visible = true;
+      updateUranusMoons(simNow());
+    }
+    if (id === 'pluto') charonMesh.visible = true;
   }
   ensureBodyTexture(id);
 
@@ -3256,6 +3356,8 @@ function tick() {
   updateMoon(now);
   updateGalilean(now);
   updateSaturnMoons(now);
+  updateUranusMoons(now);
+  applyInspectSpin(focusedBody, now);
   if (orbitWorld.visible && Date.now() - lastOrbitWall >= 2000) buildPlanetOrbits(now);
   bodyLabel.sun.position.copy(sunMesh.position);
   bodyLabel.sun.visible = focusedBody !== 'sun';
