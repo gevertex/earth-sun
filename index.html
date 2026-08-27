@@ -158,6 +158,12 @@
     line-height: 1.4;
     margin: 4px 0 2px;
   }
+  #controls .body-keys {
+    color: #7f97b8;
+    font-size: 11px;
+    line-height: 1.4;
+    margin: 0 0 2px;
+  }
   @media (max-width: 640px) {
     /* the readout panel takes the top of narrow screens; move the toggle down */
     #controls { top: auto; bottom: 40px; }
@@ -225,7 +231,9 @@
         <button type="button" data-body="neptune">Neptune</button>
         <button type="button" data-body="pluto">Pluto</button>
       </div>
+      <label><input type="checkbox" id="true-size-toggle"> true size</label>
       <div class="body-focus" id="body-focus">Earth</div>
+      <div class="body-keys">keys 1 Sun · 2–9 planets · 0 Earth</div>
     </div>
   </div>
   <div class="ctrl-section">
@@ -256,6 +264,7 @@
     <div class="ctrl-head" role="button" tabindex="0"><span class="caret">▸</span><span class="ctrl-title">Sky</span><span class="ctrl-count"></span></div>
     <div class="ctrl-body">
       <label><input type="checkbox" id="planets-toggle" checked> planets</label>
+      <label><input type="checkbox" id="orbits-toggle"> orbits</label>
       <label><input type="checkbox" id="moon-toggle" checked> moon</label>
       <label><input type="checkbox" id="asteroids-toggle"> asteroid belt</label>
       <label><input type="checkbox" id="meteor-toggle"> meteor shower</label>
@@ -667,6 +676,113 @@ function updateGalilean(now) {
     galileanMeshes[i].position.set(Math.cos(th) * a, 0, Math.sin(th) * a);
   }
 }
+
+const SATURN_MOONS = [
+  { name: 'Titan', p: 15.95, aR: 7.4, rR: 0.22, c: 0xd4a060, phase: 1.15 },
+  { name: 'Rhea', p: 4.518, aR: 5.0, rR: 0.10, c: 0xc8c0b4, phase: 4.05 },
+  { name: 'Iapetus', p: 79.33, aR: 11.5, rR: 0.09, c: 0xa89880, phase: 5.55 },
+  { name: 'Dione', p: 2.737, aR: 3.6, rR: 0.08, c: 0xd0ccc4, phase: 2.40 },
+  { name: 'Enceladus', p: 1.370, aR: 2.55, rR: 0.06, c: 0xe8e4dc, phase: 0.80 },
+];
+const saturnMoonGroup = new THREE.Group();
+saturnMoonGroup.visible = false;
+planetMeshes[4].add(saturnMoonGroup);
+const saturnMoonMeshes = [];
+for (let i = 0; i < SATURN_MOONS.length; i++) {
+  const g = SATURN_MOONS[i];
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(g.rR * saturnGeoR, 8, 6),
+    new THREE.MeshBasicMaterial({ color: g.c }),
+  );
+  mesh.raycast = () => {};
+  saturnMoonGroup.add(mesh);
+  saturnMoonMeshes.push(mesh);
+}
+function updateSaturnMoons(now) {
+  if (!saturnMoonGroup.visible) return;
+  const day = julianDate(now) - 2451545.0;
+  for (let i = 0; i < SATURN_MOONS.length; i++) {
+    const g = SATURN_MOONS[i];
+    const th = day / g.p * Math.PI * 2 + g.phase;
+    const a = g.aR * saturnGeoR;
+    saturnMoonMeshes[i].position.set(Math.cos(th) * a, 0, Math.sin(th) * a);
+  }
+}
+
+const PLANET_IDS = ['mercury','venus','mars','jupiter','saturn','uranus','neptune','pluto'];
+const ORBIT_SAMPLES = 80;
+const orbitWorld = new THREE.Group();
+orbitWorld.visible = false;
+scene.add(orbitWorld);
+const planetOrbitLines = [];
+const planetOrbitPos = [];
+const _orbitEl = {
+  a0:0, adot:0, e0:0, edot:0, I0:0, Idot:0,
+  L0:0, Ldot:0, varpi0:0, varpidot:0, Omega0:0, Omegadot:0,
+};
+for (let i = 0; i < 8; i++) {
+  const pos = new Float32Array(ORBIT_SAMPLES * 3);
+  planetOrbitPos.push(pos);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const line = new THREE.LineLoop(geo, new THREE.LineBasicMaterial({
+    color: PLANET_EL[i].c, transparent: true, opacity: 0.28, depthWrite: false,
+  }));
+  line.frustumCulled = false;
+  line.raycast = () => {};
+  orbitWorld.add(line);
+  planetOrbitLines.push(line);
+}
+let lastOrbitWall = 0;
+function buildPlanetOrbits(now) {
+  const { lonDeg } = subSolarPoint(now);
+  const T = (julianDate(now) - 2451545.0) / 36525.0;
+  const eh = _helio(EARTH_EL, T);
+  const se = _eclToEq(-eh[0], -eh[1], -eh[2], T);
+  const RA_sun = Math.atan2(se[1], se[0]) / DEG;
+  const gmst = RA_sun - lonDeg;
+  const step = 360 / ORBIT_SAMPLES;
+  for (let i = 0; i < 8; i++) {
+    const src = PLANET_EL[i];
+    _orbitEl.a0 = src.a0; _orbitEl.adot = src.adot;
+    _orbitEl.e0 = src.e0; _orbitEl.edot = src.edot;
+    _orbitEl.I0 = src.I0; _orbitEl.Idot = src.Idot;
+    _orbitEl.Ldot = src.Ldot;
+    _orbitEl.varpi0 = src.varpi0; _orbitEl.varpidot = src.varpidot;
+    _orbitEl.Omega0 = src.Omega0; _orbitEl.Omegadot = src.Omegadot;
+    const arr = planetOrbitPos[i];
+    for (let k = 0; k < ORBIT_SAMPLES; k++) {
+      _orbitEl.L0 = src.L0 + k * step;
+      const h = _helio(_orbitEl, T);
+      const g = _eclToEq(h[0]-eh[0], h[1]-eh[1], h[2]-eh[2], T);
+      const RA = Math.atan2(g[1], g[0]) / DEG;
+      const Dec = Math.atan2(g[2], Math.hypot(g[0], g[1])) / DEG;
+      const dist = Math.hypot(g[0], g[1], g[2]) * SUN_DISTANCE;
+      const lon = ((RA - gmst + 180) % 360 + 360) % 360 - 180;
+      const lat = Dec * DEG, lonr = lon * DEG;
+      const o = k * 3;
+      const cl = Math.cos(lat), sl = Math.sin(lat);
+      arr[o]     = dist * cl * Math.cos(lonr);
+      arr[o + 1] = dist * sl;
+      arr[o + 2] = -dist * cl * Math.sin(lonr);
+    }
+    planetOrbitLines[i].geometry.attributes.position.needsUpdate = true;
+  }
+  lastOrbitWall = Date.now();
+}
+function syncOrbitFocus() {
+  for (let i = 0; i < 8; i++) {
+    planetOrbitLines[i].visible = PLANET_IDS[i] !== focusedBody;
+  }
+}
+const orbitsToggle = document.getElementById('orbits-toggle');
+orbitsToggle.addEventListener('change', () => {
+  orbitWorld.visible = orbitsToggle.checked;
+  if (orbitsToggle.checked) {
+    buildPlanetOrbits(simNow());
+    syncOrbitFocus();
+  }
+});
 
 const pGeo = new THREE.BufferGeometry();
 pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
@@ -2883,6 +2999,7 @@ function setSimOrigin(date) {
   const t = Math.max(MIN, Math.min(MAX, date.getTime()));
   simEpoch = new Date(t);
   wallEpoch = new Date();
+  lastOrbitWall = 0;
 }
 
 function _readSimInputs() {
@@ -2917,6 +3034,46 @@ const BODY_MESH = {
   neptune: planetMeshes[6], pluto: planetMeshes[7],
 };
 const BODY_INSPECT = { sun: 25, mercury: 10, venus: 12, earth: 0, moon: 10, mars: 10, jupiter: 20, saturn: 20, uranus: 16, neptune: 16, pluto: 10 };
+const BODY_TILT = {
+  mercury: 0.03, venus: 177.4, mars: 25, jupiter: 3, saturn: 27,
+  uranus: 98, neptune: 28, pluto: 120, sun: 7.2,
+};
+const trueSizeToggle = document.getElementById('true-size-toggle');
+function bodyRealR(id) {
+  if (id === 'sun') return SUN_RADIUS;
+  if (id === 'moon') return 1737.4 * KM_TO_SCENE;
+  const idx = PLANET_IDS.indexOf(id);
+  if (idx >= 0) return PLANET_EL[idx].r * KM_TO_SCENE;
+  return R;
+}
+function bodyGeoR(id) {
+  if (id === 'sun') return SUN_RADIUS;
+  if (id === 'moon') return 1737.4 * KM_TO_SCENE;
+  const idx = PLANET_IDS.indexOf(id);
+  if (idx >= 0) return Math.max(PLANET_EL[idx].r * KM_TO_SCENE, 0.5);
+  return R;
+}
+function inspectViewR(id) {
+  return trueSizeToggle.checked ? bodyRealR(id) : BODY_INSPECT[id];
+}
+function applyInspectScale(id) {
+  const mesh = BODY_MESH[id];
+  if (!mesh) return;
+  mesh.scale.setScalar(inspectViewR(id) / bodyGeoR(id));
+}
+function applyBodyTilt(id, mesh) {
+  if (!mesh) return;
+  const tilt = BODY_TILT[id];
+  if (tilt != null) mesh.rotation.z = tilt * DEG;
+  else mesh.rotation.set(0, 0, 0);
+}
+function syncCameraNear(id) {
+  const near = (id !== 'earth' && trueSizeToggle.checked && bodyRealR(id) < 3) ? 0.02 : 0.1;
+  if (camera.near !== near) {
+    camera.near = near;
+    camera.updateProjectionMatrix();
+  }
+}
 const BODY_TEX = {
   sun: 'https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/sunmap.jpg',
   mercury: 'https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/mercurymap.jpg',
@@ -2961,6 +3118,7 @@ function updateFocusReadout() {
   const planetIdx = ['mercury','venus','mars','jupiter','saturn','uranus','neptune','pluto'].indexOf(id);
   if (planetIdx >= 0) line += ' · radius ' + Math.round(PLANET_EL[planetIdx].r) + ' km';
   if (id === 'jupiter') line += ' · Io Europa Ganymede Callisto';
+  if (id === 'saturn') line += ' · Titan Rhea Iapetus Dione Enceladus';
   elBodyFocus.textContent = line;
 }
 const _bodyPos = new THREE.Vector3();
@@ -2977,16 +3135,26 @@ function flyToBody(id) {
   if (id === focusedBody && flyT0 < 0) return;
   const prev = focusedBody;
   const prevMesh = BODY_MESH[prev];
-  if (prevMesh) prevMesh.scale.set(1, 1, 1);
-  if (prev === 'saturn') saturnRing.visible = false;
+  if (prevMesh) {
+    prevMesh.scale.set(1, 1, 1);
+    prevMesh.rotation.set(0, 0, 0);
+  }
+  if (prev === 'saturn') {
+    saturnRing.visible = false;
+    saturnMoonGroup.visible = false;
+  }
   if (prev === 'jupiter') galileanGroup.visible = false;
 
   focusedBody = id;
   const mesh = BODY_MESH[id];
   if (mesh) {
-    const geoR = id === 'sun' ? SUN_RADIUS : id === 'moon' ? 1737.4 * KM_TO_SCENE : Math.max(PLANET_EL[['mercury','venus','mars','jupiter','saturn','uranus','neptune','pluto'].indexOf(id)].r * KM_TO_SCENE, 0.5);
-    mesh.scale.setScalar(BODY_INSPECT[id] / geoR);
-    if (id === 'saturn') saturnRing.visible = true;
+    applyInspectScale(id);
+    applyBodyTilt(id, mesh);
+    if (id === 'saturn') {
+      saturnRing.visible = true;
+      saturnMoonGroup.visible = true;
+      updateSaturnMoons(simNow());
+    }
     if (id === 'jupiter') { galileanGroup.visible = true; updateGalilean(simNow()); }
   }
   ensureBodyTexture(id);
@@ -3016,11 +3184,13 @@ function flyToBody(id) {
     if (d < 20) _bodyOff.setLength(20);
     else if (d > 40) _bodyOff.setLength(40);
   } else {
-    _bodyOff.setLength(BODY_INSPECT[id] * 2.4);
+    _bodyOff.setLength(inspectViewR(id) * 2.4);
   }
   flyT0 = performance.now();
   controls.minDistance = 1;
   controls.maxDistance = 1e7;
+  syncCameraNear(id);
+  syncOrbitFocus();
   syncBodyList();
 }
 
@@ -3033,6 +3203,33 @@ function syncBodyList() {
 document.getElementById('body-list').addEventListener('click', (e) => {
   const btn = e.target.closest('button[data-body]');
   if (btn) flyToBody(btn.dataset.body);
+});
+
+trueSizeToggle.addEventListener('change', () => {
+  if (focusedBody === 'earth') {
+    syncCameraNear('earth');
+    return;
+  }
+  applyInspectScale(focusedBody);
+  const viewR = inspectViewR(focusedBody);
+  _bodyOff.setLength(viewR * 2.4);
+  if (flyT0 < 0) {
+    controls.minDistance = Math.max(viewR * 1.2, 0.35);
+    controls.maxDistance = Math.max(viewR * 30, 40);
+  }
+  syncCameraNear(focusedBody);
+});
+
+const BODY_KEY = {
+  '1': 'sun', '2': 'mercury', '3': 'venus', '4': 'mars',
+  '5': 'jupiter', '6': 'saturn', '7': 'uranus', '8': 'neptune',
+  '9': 'pluto', '0': 'earth',
+};
+addEventListener('keydown', (e) => {
+  if (e.altKey || e.ctrlKey || e.metaKey) return;
+  if (e.target && e.target.closest && e.target.closest('input, textarea, select')) return;
+  const id = BODY_KEY[e.key];
+  if (id) flyToBody(id);
 });
 
 function tick() {
@@ -3058,6 +3255,8 @@ function tick() {
   updatePlanets(now, lonDeg);
   updateMoon(now);
   updateGalilean(now);
+  updateSaturnMoons(now);
+  if (orbitWorld.visible && Date.now() - lastOrbitWall >= 2000) buildPlanetOrbits(now);
   bodyLabel.sun.position.copy(sunMesh.position);
   bodyLabel.sun.visible = focusedBody !== 'sun';
   bodyLabel.moon.position.copy(moonMesh.position);
@@ -3079,10 +3278,11 @@ function tick() {
         controls.minDistance = 12;
         controls.maxDistance = 120;
         controls.target.set(0, 0, 0);
+        syncCameraNear('earth');
       } else {
-        const inspectR = BODY_INSPECT[focusedBody];
-        controls.minDistance = inspectR * 1.2;
-        controls.maxDistance = inspectR * 30;
+        const inspectR = inspectViewR(focusedBody);
+        controls.minDistance = Math.max(inspectR * 1.2, 0.35);
+        controls.maxDistance = Math.max(inspectR * 30, 40);
       }
     }
   } else if (focusedBody !== 'earth') {
@@ -3279,6 +3479,7 @@ function syncPresetButtons() {
   let quiet = document.getElementById('time-scale').value === '1';
   let full = true;
   boxes.forEach((b) => {
+    if (b.id === 'true-size-toggle') return;
     if (QUIET_ON.has(b.id) !== b.checked) quiet = false;
     if (b.checked === FULL_OFF.has(b.id)) full = false;
   });
@@ -3288,6 +3489,7 @@ function syncPresetButtons() {
 
 function applyCtrlPreset(mode) {
   document.querySelectorAll('#controls input[type="checkbox"]').forEach((box) => {
+    if (box.id === 'true-size-toggle') return;
     const want = mode === 'quiet' ? QUIET_ON.has(box.id) : !FULL_OFF.has(box.id);
     if (box.checked === want) return;
     box.checked = want;
