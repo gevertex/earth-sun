@@ -904,6 +904,58 @@ const europaLineaeSegs = new THREE.LineSegments(europaLineaeGeo, europaLineaeMat
 europaLineaeSegs.raycast = () => {};
 europaLineaeSegs.visible = false;
 galileanMeshes[1].add(europaLineaeSegs);
+const ganymedeGalileoRegioR = GALILEAN[2].rR * jupiterGeoR;
+const ganymedeGalileoRegioDisk = new THREE.Mesh(
+  new THREE.CircleGeometry(ganymedeGalileoRegioR * 0.40, 28),
+  new THREE.MeshLambertMaterial({
+    color: 0x3a322c, side: THREE.DoubleSide,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+  })
+);
+{
+  const lat = 34 * DEG, lon = 145 * DEG;
+  const rr = ganymedeGalileoRegioR * 1.012;
+  const cl = Math.cos(lat);
+  ganymedeGalileoRegioDisk.position.set(rr * cl * Math.cos(lon), rr * Math.sin(lat), -rr * cl * Math.sin(lon));
+  ganymedeGalileoRegioDisk.lookAt(ganymedeGalileoRegioDisk.position.x * 2, ganymedeGalileoRegioDisk.position.y * 2, ganymedeGalileoRegioDisk.position.z * 2);
+}
+ganymedeGalileoRegioDisk.raycast = () => {};
+ganymedeGalileoRegioDisk.visible = false;
+galileanMeshes[2].add(ganymedeGalileoRegioDisk);
+const callistoValhallaR = GALILEAN[3].rR * jupiterGeoR;
+const callistoValhallaRings = new THREE.Group();
+{
+  const callistoValhallaLat = 15 * DEG, callistoValhallaLon = -56 * DEG;
+  const callistoValhallaRr = callistoValhallaR * 1.012;
+  const callistoValhallaCl = Math.cos(callistoValhallaLat);
+  const callistoValhallaPx = callistoValhallaRr * callistoValhallaCl * Math.cos(callistoValhallaLon);
+  const callistoValhallaPy = callistoValhallaRr * Math.sin(callistoValhallaLat);
+  const callistoValhallaPz = -callistoValhallaRr * callistoValhallaCl * Math.sin(callistoValhallaLon);
+  const callistoValhallaFracs = [0.16, 0.28, 0.42];
+  for (let callistoValhallaI = 0; callistoValhallaI < 3; callistoValhallaI++) {
+    const callistoValhallaSrc = new THREE.CircleGeometry(callistoValhallaR * callistoValhallaFracs[callistoValhallaI], 28);
+    const callistoValhallaSrcPos = callistoValhallaSrc.attributes.position;
+    const callistoValhallaRimN = callistoValhallaSrcPos.count - 2;
+    const callistoValhallaRim = new Float32Array(callistoValhallaRimN * 3);
+    for (let callistoValhallaK = 1; callistoValhallaK < callistoValhallaSrcPos.count - 1; callistoValhallaK++) {
+      const callistoValhallaO = (callistoValhallaK - 1) * 3;
+      callistoValhallaRim[callistoValhallaO] = callistoValhallaSrcPos.getX(callistoValhallaK);
+      callistoValhallaRim[callistoValhallaO + 1] = callistoValhallaSrcPos.getY(callistoValhallaK);
+      callistoValhallaRim[callistoValhallaO + 2] = callistoValhallaSrcPos.getZ(callistoValhallaK);
+    }
+    const callistoValhallaLoopGeo = new THREE.BufferGeometry();
+    callistoValhallaLoopGeo.setAttribute('position', new THREE.BufferAttribute(callistoValhallaRim, 3));
+    const callistoValhallaLoop = new THREE.LineLoop(callistoValhallaLoopGeo, new THREE.LineBasicMaterial({
+      color: 0x2a2218, transparent: true, opacity: 0.86, depthWrite: false,
+    }));
+    callistoValhallaLoop.position.set(callistoValhallaPx, callistoValhallaPy, callistoValhallaPz);
+    callistoValhallaLoop.lookAt(callistoValhallaPx * 2, callistoValhallaPy * 2, callistoValhallaPz * 2);
+    callistoValhallaLoop.raycast = () => {};
+    callistoValhallaRings.add(callistoValhallaLoop);
+  }
+}
+callistoValhallaRings.visible = false;
+galileanMeshes[3].add(callistoValhallaRings);
 const jupiterRingInner = 1.72 * jupiterGeoR, jupiterRingOuter = 1.90 * jupiterGeoR;
 const jupiterRing = new THREE.Mesh(
   new THREE.RingGeometry(jupiterRingInner, jupiterRingOuter, 64),
@@ -1133,6 +1185,35 @@ for (let i = 0; i < URANUS_MOONS.length; i++) {
   uranusMoonLabels.push(makeMoonLabel(g.name));
   addMoonOrbit(uranusMoonGroup, g.aR * uranusGeoR, g.c);
 }
+const mirandaVeronaRupesR = URANUS_MOONS[0].rR * uranusGeoR * 1.012;
+const MIRANDA_VERONA_STEPS = 10;
+const mirandaVeronaRupesPos = new Float32Array((MIRANDA_VERONA_STEPS - 1) * 6);
+{
+  const mirandaVeronaLat = 18 * DEG, mirandaVeronaLon = -40 * DEG;
+  const mirandaVeronaTilt = 1.25, mirandaVeronaSpan = 0.95;
+  let mirandaVeronaW = 0;
+  for (let mirandaVeronaI = 0; mirandaVeronaI < MIRANDA_VERONA_STEPS - 1; mirandaVeronaI++) {
+    const mirandaVeronaS0 = (mirandaVeronaI / (MIRANDA_VERONA_STEPS - 1) - 0.5) * mirandaVeronaSpan;
+    const mirandaVeronaS1 = ((mirandaVeronaI + 1) / (MIRANDA_VERONA_STEPS - 1) - 0.5) * mirandaVeronaSpan;
+    for (const mirandaVeronaS of [mirandaVeronaS0, mirandaVeronaS1]) {
+      const mirandaVeronaLa = mirandaVeronaLat + mirandaVeronaS * 0.18 * Math.cos(mirandaVeronaTilt);
+      const mirandaVeronaLo = mirandaVeronaLon + mirandaVeronaS * Math.sin(mirandaVeronaTilt);
+      const mirandaVeronaCl = Math.cos(mirandaVeronaLa);
+      mirandaVeronaRupesPos[mirandaVeronaW++] = mirandaVeronaRupesR * mirandaVeronaCl * Math.cos(mirandaVeronaLo);
+      mirandaVeronaRupesPos[mirandaVeronaW++] = mirandaVeronaRupesR * Math.sin(mirandaVeronaLa);
+      mirandaVeronaRupesPos[mirandaVeronaW++] = -mirandaVeronaRupesR * mirandaVeronaCl * Math.sin(mirandaVeronaLo);
+    }
+  }
+}
+const mirandaVeronaRupesGeo = new THREE.BufferGeometry();
+mirandaVeronaRupesGeo.setAttribute('position', new THREE.BufferAttribute(mirandaVeronaRupesPos, 3));
+const mirandaVeronaRupesMat = new THREE.LineBasicMaterial({
+  color: 0x2a2420, transparent: true, opacity: 0.9, depthWrite: false,
+});
+const mirandaVeronaRupesScar = new THREE.LineSegments(mirandaVeronaRupesGeo, mirandaVeronaRupesMat);
+mirandaVeronaRupesScar.raycast = () => {};
+mirandaVeronaRupesScar.visible = false;
+uranusMoonMeshes[0].add(mirandaVeronaRupesScar);
 function updateUranusMoons(now) {
   if (!uranusMoonGroup.visible) {
     for (let i = 0; i < uranusMoonLabels.length; i++) uranusMoonLabels[i].visible = false;
@@ -1386,6 +1467,24 @@ charonMesh.position.set(CHARON_BARY_A, 0, 0);
 charonMesh.raycast = () => {};
 charonMesh.userData.moon = 'Charon';
 charonGroup.add(charonMesh);
+const charonMordorMaculaR = 0.5 * plutoGeoR;
+const charonMordorMaculaDisk = new THREE.Mesh(
+  new THREE.CircleGeometry(charonMordorMaculaR * 0.48, 24),
+  new THREE.MeshLambertMaterial({
+    color: 0x2a2420, side: THREE.DoubleSide,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+  })
+);
+{
+  const lat = 78 * DEG, lon = 0 * DEG;
+  const rr = charonMordorMaculaR * 1.012;
+  const cl = Math.cos(lat);
+  charonMordorMaculaDisk.position.set(rr * cl * Math.cos(lon), rr * Math.sin(lat), -rr * cl * Math.sin(lon));
+  charonMordorMaculaDisk.lookAt(charonMordorMaculaDisk.position.x * 2, charonMordorMaculaDisk.position.y * 2, charonMordorMaculaDisk.position.z * 2);
+}
+charonMordorMaculaDisk.raycast = () => {};
+charonMordorMaculaDisk.visible = false;
+charonMesh.add(charonMordorMaculaDisk);
 const charonLabel = makeMoonLabel('Charon');
 addMoonOrbit(charonGroup, CHARON_BARY_A, 0xa8a090);
 addMoonOrbit(charonGroup, PLUTO_BARY_A, 0xcbb89a);
@@ -1540,6 +1639,24 @@ const moonMesh = new THREE.Mesh(
 );
 moonWorld.add(moonMesh);
 moonMesh.userData.body = 'moon';
+const moonTychoCraterR = 1737.4 * KM_TO_SCENE;
+const moonTychoCraterDisk = new THREE.Mesh(
+  new THREE.CircleGeometry(moonTychoCraterR * 0.08, 24),
+  new THREE.MeshLambertMaterial({
+    color: 0x3a3834, side: THREE.DoubleSide,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+  })
+);
+{
+  const lat = -43 * DEG, lon = -11 * DEG;
+  const rr = moonTychoCraterR * 1.012;
+  const cl = Math.cos(lat);
+  moonTychoCraterDisk.position.set(rr * cl * Math.cos(lon), rr * Math.sin(lat), -rr * cl * Math.sin(lon));
+  moonTychoCraterDisk.lookAt(moonTychoCraterDisk.position.x * 2, moonTychoCraterDisk.position.y * 2, moonTychoCraterDisk.position.z * 2);
+}
+moonTychoCraterDisk.raycast = () => {};
+moonTychoCraterDisk.visible = false;
+moonMesh.add(moonTychoCraterDisk);
 
 const BODY_TITLE = {
   sun: 'Sun', mercury: 'Mercury', venus: 'Venus', earth: 'Earth', moon: 'Moon',
@@ -4358,6 +4475,8 @@ function flyToBody(id) {
     jupiterAuroraGroup.visible = false;
     ioVolcanoGlow.visible = false;
     europaLineaeSegs.visible = false;
+    ganymedeGalileoRegioDisk.visible = false;
+    callistoValhallaRings.visible = false;
     for (let i = 0; i < galileanLabels.length; i++) galileanLabels[i].visible = false;
   }
   if (prev === 'uranus') {
@@ -4366,6 +4485,7 @@ function flyToBody(id) {
     uranusMoonGroup.rotation.y = 0;
     uranusAtmo.visible = false;
     uranusRingShadow.visible = false;
+    mirandaVeronaRupesScar.visible = false;
     for (let i = 0; i < uranusMoonLabels.length; i++) uranusMoonLabels[i].visible = false;
   }
   if (prev === 'neptune') {
@@ -4394,9 +4514,11 @@ function flyToBody(id) {
     plutoInspectHaze.visible = false;
     plutoTombaughLobeA.visible = false;
     plutoTombaughLobeB.visible = false;
+    charonMordorMaculaDisk.visible = false;
     planetMeshes[7].material.visible = true;
   }
   if (prev === 'mercury') mercuryCalorisDisk.visible = false;
+  if (prev === 'moon') moonTychoCraterDisk.visible = false;
   if (prev === 'venus') venusAtmo.visible = false;
   if (prev === 'halley') cometAtmo.visible = false;
   if (prev === 'ceres') ceresOccatorDots.visible = false;
@@ -4430,6 +4552,8 @@ function flyToBody(id) {
       jupiterAuroraGroup.visible = true;
       ioVolcanoGlow.visible = true;
       europaLineaeSegs.visible = true;
+      ganymedeGalileoRegioDisk.visible = true;
+      callistoValhallaRings.visible = true;
       updateGalilean(simNow());
       ensureFocusedMoonMaps(id);
     }
@@ -4441,6 +4565,7 @@ function flyToBody(id) {
       uranusMoonGroup.visible = true;
       uranusAtmo.visible = true;
       uranusRingShadow.visible = true;
+      mirandaVeronaRupesScar.visible = true;
       updateUranusMoons(simNow());
       updateUranusRingShadow();
       ensureRingTexture('uranus', uranusRing);
@@ -4471,6 +4596,7 @@ function flyToBody(id) {
       plutoInspectHaze.visible = true;
       plutoTombaughLobeA.visible = true;
       plutoTombaughLobeB.visible = true;
+      charonMordorMaculaDisk.visible = true;
       planetMeshes[7].material.visible = false;
       updateCharon(simNow());
       ensureFocusedMoonMaps(id);
@@ -4487,6 +4613,7 @@ function flyToBody(id) {
     moonToggle.checked = true;
     moonToggle.dispatchEvent(new Event('change'));
   }
+  if (id === 'moon') moonTychoCraterDisk.visible = true;
   if (id === 'halley' && !cometToggle.checked) {
     cometToggle.checked = true;
     cometToggle.dispatchEvent(new Event('change'));
