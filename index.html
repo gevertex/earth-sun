@@ -713,11 +713,13 @@ saturnRingShadow.raycast = () => {};
 saturnRingShadow.visible = false;
 planetMeshes[4].add(saturnRingShadow);
 const _satSun = new THREE.Vector3();
+let saturnRingSunEl = 0;
 function updateSaturnRingShadow() {
   if (!saturnRingShadow.visible) return;
   _satSun.copy(sunMesh.position);
   planetMeshes[4].worldToLocal(_satSun);
   const el = Math.atan2(_satSun.y, Math.hypot(_satSun.x, _satSun.z));
+  saturnRingSunEl = el;
   const lat = -el;
   const c = Math.cos(lat);
   saturnRingShadow.position.set(0, Math.sin(lat) * saturnGeoR * 1.003, 0);
@@ -967,6 +969,24 @@ uranusRing.visible = false;
 planetMeshes[5].add(uranusRing);
 const uranusAtmo = makeInspectAtmo(planetMeshes[5], uranusGeoR, 0x8ee8e8);
 uranusAtmo.material.opacity = 0.12;
+const uranusRingShadow = new THREE.Mesh(
+  new THREE.SphereGeometry(uranusGeoR * 1.003, 48, 16, 0, Math.PI * 2, Math.PI / 2 - 0.10, 0.20),
+  new THREE.MeshBasicMaterial({ color: 0x0a0c12, transparent: true, opacity: 0.35, depthWrite: false, side: THREE.FrontSide })
+);
+uranusRingShadow.raycast = () => {};
+uranusRingShadow.visible = false;
+planetMeshes[5].add(uranusRingShadow);
+const _uraSun = new THREE.Vector3();
+function updateUranusRingShadow() {
+  if (!uranusRingShadow.visible) return;
+  _uraSun.copy(sunMesh.position);
+  planetMeshes[5].worldToLocal(_uraSun);
+  const el = Math.atan2(_uraSun.y, Math.hypot(_uraSun.x, _uraSun.z));
+  const lat = -el;
+  const c = Math.cos(lat);
+  uranusRingShadow.position.set(0, Math.sin(lat) * uranusGeoR * 1.003, 0);
+  uranusRingShadow.scale.set(c, 1 + Math.abs(el) * 2.8, c);
+}
 
 const URANUS_MOONS = [
   { name: 'Miranda', p: 1.413, aR: 2.2, rR: 0.06, c: 0xc8c4bc, phase: 0.40 },
@@ -1020,6 +1040,24 @@ neptuneRing.visible = false;
 planetMeshes[6].add(neptuneRing);
 const neptuneAtmo = makeInspectAtmo(planetMeshes[6], neptuneGeoR, 0x3a70ee);
 neptuneAtmo.material.opacity = 0.14;
+const neptuneSpot = new THREE.Mesh(
+  new THREE.CircleGeometry(neptuneGeoR * 0.11, 20),
+  new THREE.MeshLambertMaterial({
+    color: 0x1a3060, side: THREE.DoubleSide,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+  })
+);
+neptuneSpot.scale.set(1.75, 1, 1);
+{
+  const lat = -20 * DEG, lon = -50 * DEG;
+  const rr = neptuneGeoR * 1.012;
+  const cl = Math.cos(lat);
+  neptuneSpot.position.set(rr * cl * Math.cos(lon), rr * Math.sin(lat), -rr * cl * Math.sin(lon));
+  neptuneSpot.lookAt(neptuneSpot.position.x * 2, neptuneSpot.position.y * 2, neptuneSpot.position.z * 2);
+}
+neptuneSpot.raycast = () => {};
+neptuneSpot.visible = false;
+planetMeshes[6].add(neptuneSpot); // Neptune Great Dark Spot
 
 const NEPTUNE_MOONS = [
   { name: 'Triton', p: 5.877, aR: 5.2, rR: 0.16, c: 0xc8b8a0, phase: 1.20, retro: true },
@@ -1062,6 +1100,26 @@ function updateNeptuneMoons(now) {
 }
 
 const marsGeoR = Math.max(PLANET_EL[2].r * KM_TO_SCENE, 0.5);
+const marsAtmo = makeInspectAtmo(planetMeshes[2], marsGeoR, 0xe8b090);
+marsAtmo.material.opacity = 0.14;
+const marsPolarCapN = new THREE.Mesh(
+  new THREE.SphereGeometry(marsGeoR * 1.004, 32, 12, 0, Math.PI * 2, 0, 0.28),
+  new THREE.MeshLambertMaterial({
+    color: 0xeef4ff, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+  })
+);
+marsPolarCapN.raycast = () => {};
+marsPolarCapN.visible = false;
+planetMeshes[2].add(marsPolarCapN);
+const marsPolarCapS = new THREE.Mesh(
+  new THREE.SphereGeometry(marsGeoR * 1.004, 32, 12, 0, Math.PI * 2, Math.PI - 0.22, 0.22),
+  new THREE.MeshLambertMaterial({
+    color: 0xe8eef8, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+  })
+);
+marsPolarCapS.raycast = () => {};
+marsPolarCapS.visible = false;
+planetMeshes[2].add(marsPolarCapS);
 const MARS_MOONS = [
   { name: 'Phobos', p: 0.319, aR: 2.2, rR: 0.10, c: 0xb89878, phase: 0.70 },
   { name: 'Deimos', p: 1.263, aR: 3.8, rR: 0.07, c: 0xa88870, phase: 3.40 },
@@ -1357,6 +1415,13 @@ cometMesh.userData.body = 'halley';
 cometWorld.add(cometMesh);
 const cometAtmo = makeInspectAtmo(cometMesh, cometGeoR * 2.2, 0xb8e8ff);
 cometAtmo.material.opacity = 0.28;
+function updateHalleyComaFade(rHelio) {
+  if (!cometAtmo.visible) return;
+  if (!(rHelio > 0)) return;
+  const peri = HALLEY_EL.a0 * (1 - HALLEY_EL.e0);
+  const k = peri / Math.max(rHelio, peri);
+  cometAtmo.material.opacity = 0.06 + 0.22 * k * k;
+}
 const COMET_TAIL_N = 48;
 const cometTailPos = new Float32Array(COMET_TAIL_N * 3);
 const cometTailCol = new Float32Array(COMET_TAIL_N * 3);
@@ -1430,6 +1495,7 @@ function updateComet(now, lonDeg) {
   cometTail.position.copy(p);
   cometTail.quaternion.setFromUnitVectors(_tailY, _tailDir);
   syncCometTailScale(rHelio);
+  updateHalleyComaFade(rHelio);
   const lbl = bodyLabel.halley;
   if (lbl) {
     lbl.position.copy(p);
@@ -3985,6 +4051,12 @@ function updateFocusReadout() {
       + ' · inclination ' + PLANET_EL[planetIdx].I0.toFixed(1) + '°'
       + ' · tilt ' + BODY_TILT[id] + '°';
   }
+  if (id === 'saturn') {
+    extra += ' · sun vs rings ' + (saturnRingSunEl / DEG).toFixed(1) + '°';
+    extra += saturnRingSunEl > 0.02 ? ' · saturn season northern summer'
+      : saturnRingSunEl < -0.02 ? ' · saturn season southern summer'
+      : ' · saturn season equinox';
+  }
   if (extra) line += '\n' + extra;
   elBodyFocus.textContent = line;
 }
@@ -4030,6 +4102,7 @@ function flyToBody(id) {
     uranusMoonGroup.visible = false;
     uranusMoonGroup.rotation.y = 0;
     uranusAtmo.visible = false;
+    uranusRingShadow.visible = false;
     for (let i = 0; i < uranusMoonLabels.length; i++) uranusMoonLabels[i].visible = false;
   }
   if (prev === 'neptune') {
@@ -4037,11 +4110,15 @@ function flyToBody(id) {
     neptuneMoonGroup.visible = false;
     neptuneMoonGroup.rotation.y = 0;
     neptuneAtmo.visible = false;
+    neptuneSpot.visible = false;
     for (let i = 0; i < neptuneMoonLabels.length; i++) neptuneMoonLabels[i].visible = false;
   }
   if (prev === 'mars') {
     marsMoonGroup.visible = false;
     marsMoonGroup.rotation.y = 0;
+    marsAtmo.visible = false;
+    marsPolarCapN.visible = false;
+    marsPolarCapS.visible = false;
     for (let i = 0; i < marsMoonLabels.length; i++) marsMoonLabels[i].visible = false;
   }
   if (prev === 'pluto') {
@@ -4086,7 +4163,9 @@ function flyToBody(id) {
       uranusRing.visible = true;
       uranusMoonGroup.visible = true;
       uranusAtmo.visible = true;
+      uranusRingShadow.visible = true;
       updateUranusMoons(simNow());
+      updateUranusRingShadow();
       ensureRingTexture('uranus', uranusRing);
       ensureFocusedMoonMaps(id);
     }
@@ -4094,10 +4173,18 @@ function flyToBody(id) {
       neptuneRing.visible = true;
       neptuneMoonGroup.visible = true;
       neptuneAtmo.visible = true;
+      neptuneSpot.visible = true;
       updateNeptuneMoons(simNow());
       ensureFocusedMoonMaps(id);
     }
-    if (id === 'mars') { marsMoonGroup.visible = true; updateMarsMoons(simNow()); ensureFocusedMoonMaps(id); }
+    if (id === 'mars') {
+      marsMoonGroup.visible = true;
+      marsAtmo.visible = true;
+      marsPolarCapN.visible = true;
+      marsPolarCapS.visible = true;
+      updateMarsMoons(simNow());
+      ensureFocusedMoonMaps(id);
+    }
     if (id === 'pluto') {
       charonGroup.visible = true;
       plutoInspectMesh.visible = true;
@@ -4215,6 +4302,7 @@ function tick() {
   updateMoon(now);
   applyInspectSpin(focusedBody, now);
   updateSaturnRingShadow();
+  updateUranusRingShadow();
   updateGalilean(now);
   updateSaturnMoons(now);
   updateUranusMoons(now);
