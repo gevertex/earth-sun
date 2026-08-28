@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <link rel="icon" type="image/svg+xml" href="favicon.svg" />
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
 <link rel="preload" as="image" href="https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg" crossorigin>
@@ -14,22 +14,16 @@
 <style>
   html, body { margin: 0; height: 100%; overflow: hidden; background: #000; }
   #app { position: fixed; inset: 0; }
-  #readout {
-    position: fixed; top: 16px; left: 16px;
-    font: 14px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
-    color: #cfe8ff; background: rgba(8, 14, 26, 0.72);
-    border: 1px solid rgba(120, 170, 255, 0.25);
-    border-radius: 8px; padding: 10px 14px;
-    pointer-events: none; min-width: 250px;
+  #readout-summary {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: #cfe8ff;
+    margin: 0 0 6px;
   }
-  #readout-head {
-    display: flex; align-items: baseline; gap: 7px;
-    color: #fff; font-weight: 600; white-space: nowrap;
-    pointer-events: auto; cursor: pointer;
-    user-select: none; touch-action: manipulation;
+  #readout-body {
+    font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: #cfe8ff;
   }
-  #readout-head .caret { color: #7f97b8; font-size: 11px; }
-  #readout.collapsed #readout-body { display: none; }
   #readout .title { color: #fff; font-weight: 600; margin-bottom: 4px; }
   #readout .dim { color: #7f97b8; }
   #hint {
@@ -60,16 +54,104 @@
   }
   #region-tip .name { font-weight: 600; }
   #region-tip .dim { color: #7f97b8; }
-  #controls {
-    position: fixed; top: 16px; right: 16px;
-    font: 13px/1.5 system-ui, sans-serif;
-    color: #cfe8ff; background: rgba(8, 14, 26, 0.72);
+  .nav-fab {
+    position: fixed;
+    top: max(12px, env(safe-area-inset-top, 0px));
+    right: max(12px, env(safe-area-inset-right, 0px));
+    left: auto; bottom: auto;
+    inset: auto;
+    z-index: 40;
+    width: 44px; height: 44px;
+    min-width: 44px; min-height: 44px;
+    margin: 0; padding: 0;
+    border-radius: 50%;
     border: 1px solid rgba(120, 170, 255, 0.25);
-    border-radius: 8px; padding: 8px 12px;
-    cursor: default; user-select: none;
-    max-height: 70vh; overflow-y: auto;
-    min-width: 220px;
+    background: rgba(8, 14, 26, 0.72);
+    color: #cfe8ff;
+    display: grid; place-items: center;
+    cursor: pointer;
+    user-select: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    overflow: visible;
+    color-scheme: dark;
   }
+  .nav-fab svg {
+    width: 22px; height: 22px;
+    fill: none; stroke: currentColor;
+    stroke-width: 2; stroke-linecap: round;
+    display: block;
+  }
+  .nav-fab .nav-icon-close { display: none; }
+  .nav-fab[aria-expanded="true"] .nav-icon-menu { display: none; }
+  .nav-fab[aria-expanded="true"] .nav-icon-close { display: block; }
+  .nav-fab:focus { outline: none; }
+  .nav-fab:focus-visible { outline: 2px solid rgba(120, 170, 255, 0.7); outline-offset: 2px; }
+
+  .Drawer {
+    --drawer-width: min(20em, 80dvw);
+    --drawer-backdrop: 0;
+    position: fixed;
+    inset: 0;
+    width: auto; height: auto;
+    max-width: none; max-height: none;
+    margin: 0; padding: 0;
+    background: transparent;
+    border: 0;
+    overflow: visible;
+    color: inherit;
+    z-index: 20;
+  }
+  .Drawer::backdrop {
+    background: #000;
+    opacity: calc(var(--drawer-backdrop) / 2);
+  }
+  .Drawer-backdrop { display: none; }
+  .Drawer-scroller {
+    position: relative;
+    display: grid;
+    grid-template-columns: 100% var(--drawer-width);
+    overflow-x: scroll;
+    overflow-y: hidden;
+    overscroll-behavior: none;
+    scrollbar-width: none;
+    scroll-snap-type: x mandatory;
+    height: 100svh;
+    width: 100%;
+  }
+  .Drawer-scroller::-webkit-scrollbar { display: none; }
+  .Drawer-scroller::before {
+    content: '';
+    scroll-snap-align: start;
+    scroll-initial-target: nearest;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .Drawer-scroller { scroll-behavior: smooth; }
+  }
+
+  #controls {
+    font: 13px/1.5 system-ui, sans-serif;
+    color: #cfe8ff;
+    background: rgba(8, 14, 26, 0.72);
+    border: 1px solid rgba(120, 170, 255, 0.25);
+    border-right: 0;
+    border-radius: 0;
+    padding: 8px 12px;
+    padding-top: max(60px, calc(env(safe-area-inset-top, 0px) + 52px));
+    padding-right: max(12px, env(safe-area-inset-right, 0px));
+    padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
+    padding-left: 12px;
+    cursor: default; user-select: none;
+    height: 100svh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scroll-snap-align: end;
+    touch-action: pan-y;
+    box-sizing: border-box;
+    outline: none;
+  }
+  #controls:focus-visible { outline: 2px solid rgba(120, 170, 255, 0.45); outline-offset: -2px; }
   #controls input { margin-right: 7px; vertical-align: -2px; cursor: default; }
   #controls select {
     background: #0c1626; color: #cfe8ff;
@@ -86,6 +168,11 @@
     cursor: default;
   }
   #controls label { display: block; cursor: default; padding: 1px 0; }
+  #controls #readout + .ctrl-presets {
+    border-top: 1px solid rgba(120, 170, 255, 0.18);
+    margin-top: 4px;
+    padding-top: 8px;
+  }
   #controls .ctrl-presets { display: flex; gap: 6px; margin-bottom: 6px; }
   #controls .ctrl-presets button {
     flex: 1;
@@ -173,11 +260,87 @@
     margin: 0 0 2px;
   }
   @media (max-width: 640px) {
-    /* the readout panel takes the top of narrow screens; move the toggle down */
-    #controls { top: auto; bottom: 40px; }
-    /* keep the one-line summary on one line on narrow screens */
-    #readout { font-size: 12px; }
+    #controls label {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+    }
+    #controls .ctrl-head {
+      min-height: 44px;
+      align-items: center;
+    }
+    #controls .ctrl-presets button,
+    #controls .body-list button {
+      min-height: 44px;
+      padding: 8px 12px;
+    }
+    #controls input[type="checkbox"] {
+      width: 18px; height: 18px;
+      flex-shrink: 0;
+    }
   }
+
+  @supports (animation-timeline: scroll()) {
+    .Drawer {
+      timeline-scope: --drawer-fade;
+      animation: fade-drawer-backdrop linear both;
+      animation-timeline: --drawer-fade;
+    }
+    .Drawer-scroller { scroll-timeline: --drawer-fade x; }
+    @property --drawer-backdrop {
+      syntax: '<number>';
+      inherits: true;
+      initial-value: 0;
+    }
+    @keyframes fade-drawer-backdrop {
+      0% { --drawer-backdrop: 0 }
+      100% { --drawer-backdrop: 1 }
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .Drawer-scroller { scroll-behavior: auto; }
+    .no-popover #controls,
+    .no-popover .Drawer-backdrop { transition: none !important; }
+  }
+
+  /* Popover API missing: class + transform fallback (no top layer / ::backdrop). */
+  .no-popover .Drawer {
+    display: none;
+    pointer-events: none;
+  }
+  .no-popover .Drawer.is-open {
+    display: block;
+    pointer-events: auto;
+  }
+  .no-popover .Drawer-backdrop {
+    display: block;
+    position: absolute;
+    inset: 0;
+    background: #000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.28s ease;
+  }
+  .no-popover .Drawer.is-open .Drawer-backdrop {
+    opacity: 0.45;
+    pointer-events: auto;
+  }
+  .no-popover .Drawer-scroller {
+    display: block;
+    overflow: hidden;
+    scroll-snap-type: none;
+  }
+  .no-popover .Drawer-scroller::before { content: none; }
+  .no-popover #controls {
+    position: absolute;
+    top: 0; right: 0;
+    width: var(--drawer-width);
+    transform: translateX(100%);
+    transition: transform 0.28s ease;
+    scroll-snap-align: unset;
+  }
+  .no-popover .Drawer.is-open #controls { transform: translateX(0); }
 </style>
 <script type="importmap">
 {
@@ -191,27 +354,35 @@
 </head>
 <body>
 <div id="app"></div>
-<div id="readout" class="collapsed">
-  <div id="readout-head" role="button" tabindex="0"><span id="readout-summary">--</span><span class="caret">▸</span></div>
-  <div id="readout-body">
-    <div class="title">Subsolar point (where the Sun is overhead)</div>
-    <div>UTC <span id="utc">--:--:--</span></div>
-    <div>Latitude <span id="lat">--</span></div>
-    <div>Longitude <span id="lon">--</span></div>
-    <div>Solar declination <span id="dec">--</span></div>
-    <div class="dim">Equation of time <span id="eot">--</span> min</div>
-    <div class="dim" style="margin-top:6px">Sun path, this time of day:<br><span style="color:#ffb347">━ past</span> &nbsp;·&nbsp; <span style="color:#6fd3ff">━ future</span> &nbsp;(1 yr)</div>
-    <div class="dim" style="margin-top:6px">Satellites, real orbits (tap a dot):<br><span style="color:#6fd3ff">● LEO</span> &nbsp;·&nbsp; <span style="color:#9dff6f">● MEO</span> &nbsp;·&nbsp; <span style="color:#ff6fb3">● GEO</span></div>
-    <div class="dim">TLE data <span id="tle">--</span></div>
-    <div class="dim">Starlink <span id="starlink">--</span></div>
-    <div class="dim">Weather radar <span id="weather">--</span></div>
-    <div class="dim">Moon <span id="moon-phase">--</span></div>
-    <div class="dim"><span style="color:#ff5450">●</span> Your location <span id="myloc">--</span></div>
-  </div>
-</div>
 <div id="sat-tip"></div>
 <div id="region-tip"></div>
-<div id="controls">
+<button type="button" id="nav-toggle" class="nav-fab" popover="manual" aria-label="Menu" aria-expanded="false" aria-controls="drawer">
+  <svg class="nav-icon-menu" aria-hidden="true" viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h14"/></svg>
+  <svg class="nav-icon-close" aria-hidden="true" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+</button>
+<div id="drawer" class="Drawer" popover="manual">
+  <div class="Drawer-backdrop" aria-hidden="true"></div>
+  <div class="Drawer-scroller">
+<div id="controls" class="Drawer-sheet" tabindex="-1">
+  <div class="ctrl-section" id="readout">
+    <div class="ctrl-head" id="readout-head" role="button" tabindex="0"><span class="caret">▾</span><span class="ctrl-title">Sun</span></div>
+    <div class="ctrl-body" id="readout-body">
+      <div id="readout-summary">--</div>
+      <div class="title">Subsolar point (where the Sun is overhead)</div>
+      <div>UTC <span id="utc">--:--:--</span></div>
+      <div>Latitude <span id="lat">--</span></div>
+      <div>Longitude <span id="lon">--</span></div>
+      <div>Solar declination <span id="dec">--</span></div>
+      <div class="dim">Equation of time <span id="eot">--</span> min</div>
+      <div class="dim" style="margin-top:6px">Sun path, this time of day:<br><span style="color:#ffb347">━ past</span> &nbsp;·&nbsp; <span style="color:#6fd3ff">━ future</span> &nbsp;(1 yr)</div>
+      <div class="dim" style="margin-top:6px">Satellites, real orbits (tap a dot):<br><span style="color:#6fd3ff">● LEO</span> &nbsp;·&nbsp; <span style="color:#9dff6f">● MEO</span> &nbsp;·&nbsp; <span style="color:#ff6fb3">● GEO</span></div>
+      <div class="dim">TLE data <span id="tle">--</span></div>
+      <div class="dim">Starlink <span id="starlink">--</span></div>
+      <div class="dim">Weather radar <span id="weather">--</span></div>
+      <div class="dim">Moon <span id="moon-phase">--</span></div>
+      <div class="dim"><span style="color:#ff5450">●</span> Your location <span id="myloc">--</span></div>
+    </div>
+  </div>
   <div class="ctrl-presets">
     <button type="button" id="preset-quiet" class="active">Quiet</button>
     <button type="button" id="preset-full">Full</button>
@@ -419,6 +590,8 @@
       <label><input type="checkbox" id="aurora-toggle"> aurora</label>
       <label><input type="checkbox" id="magnetopause-toggle"> magnetopause</label>
     </div>
+  </div>
+</div>
   </div>
 </div>
 <div id="hint">drag to rotate · scroll to zoom · weather data by <a href="https://www.rainviewer.com/" target="_blank" rel="noopener">RainViewer</a></div>
@@ -991,7 +1164,8 @@ function addMoonOrbit(group, a, color) {
   line.raycast = () => {};
   group.add(line);
 }
-function makeMoonLabel(name) {
+const pickLabels = [];
+function makeMoonLabel(name, bodyId) {
   const c = document.createElement('canvas');
   c.width = 256; c.height = 64;
   const ctx = c.getContext('2d');
@@ -1010,9 +1184,12 @@ function makeMoonLabel(name) {
   }));
   sp.scale.set(0.10, 0.025, 1);
   sp.center.set(0.5, 0);
+  // sizeAttenuation:false makes Sprite.raycast unreliable; onTap uses screen-space hits.
   sp.raycast = () => {};
+  if (bodyId) sp.userData.body = bodyId;
   sp.visible = false;
   scene.add(sp);
+  pickLabels.push(sp);
   return sp;
 }
 const _moonLbl = new THREE.Vector3();
@@ -1063,7 +1240,7 @@ for (let i = 0; i < 4; i++) {
   mesh.userData.body = GALILEAN_FLY_ID[i];
   galileanGroup.add(mesh);
   galileanMeshes.push(mesh);
-  galileanLabels.push(makeMoonLabel(g.name));
+  galileanLabels.push(makeMoonLabel(g.name, GALILEAN_FLY_ID[i]));
   addMoonOrbit(galileanGroup, g.aR * jupiterGeoR, g.c);
 }
 const ioVolcanoGlow = new THREE.Mesh(
@@ -1404,7 +1581,7 @@ for (let jupInnerI = 0; jupInnerI < JUPITER_INNER_MOONS.length; jupInnerI++) {
   else jupInnerMesh.raycast = () => {};
   galileanGroup.add(jupInnerMesh);
   jupiterInnerMeshes.push(jupInnerMesh);
-  jupiterInnerLabels.push(makeMoonLabel(jupInnerG.name));
+  jupiterInnerLabels.push(makeMoonLabel(jupInnerG.name, JUPITER_INNER_FLY_ID[jupInnerI]));
   addMoonOrbit(galileanGroup, jupInnerG.aR * jupiterGeoR, jupInnerG.c);
 }
 function updateJupiterInnerMoons(now) {
@@ -1452,7 +1629,7 @@ for (let jupOuterI = 0; jupOuterI < JUPITER_OUTER_MOONS.length; jupOuterI++) {
   else jupOuterMesh.raycast = () => {};
   jupiterOuterMoonGroup.add(jupOuterMesh);
   jupiterOuterMeshes.push(jupOuterMesh);
-  jupiterOuterLabels.push(makeMoonLabel(jupOuterG.name));
+  jupiterOuterLabels.push(makeMoonLabel(jupOuterG.name, JUPITER_OUTER_FLY_ID[jupOuterI]));
   addMoonOrbit(jupiterOuterMoonGroup, jupOuterG.aR * jupiterGeoR, jupOuterG.c);
 }
 function tumbleHimaliaSlowSpin(mesh, day) {
@@ -1582,7 +1759,7 @@ for (let i = 0; i < SATURN_MOONS.length; i++) {
   else mesh.raycast = () => {};
   saturnMoonGroup.add(mesh);
   saturnMoonMeshes.push(mesh);
-  saturnMoonLabels.push(makeMoonLabel(g.name));
+  saturnMoonLabels.push(makeMoonLabel(g.name, SATURN_FLY_ID[i]));
   addMoonOrbit(saturnMoonGroup, g.aR * saturnGeoR, g.c);
 }
 const titanAtmo = makeInspectAtmo(saturnMoonMeshes[0], SATURN_MOONS[0].rR * saturnGeoR, 0xcc8833);
@@ -1944,7 +2121,7 @@ for (let i = 0; i < URANUS_MOONS.length; i++) {
   else mesh.raycast = () => {};
   uranusMoonGroup.add(mesh);
   uranusMoonMeshes.push(mesh);
-  uranusMoonLabels.push(makeMoonLabel(g.name));
+  uranusMoonLabels.push(makeMoonLabel(g.name, URANUS_FLY_ID[i]));
   addMoonOrbit(uranusMoonGroup, g.aR * uranusGeoR, g.c);
 }
 const mirandaVeronaRupesR = URANUS_MOONS[0].rR * uranusGeoR * 1.012;
@@ -2146,7 +2323,7 @@ for (let i = 0; i < NEPTUNE_MOONS.length; i++) {
   else mesh.raycast = () => {};
   neptuneMoonGroup.add(mesh);
   neptuneMoonMeshes.push(mesh);
-  neptuneMoonLabels.push(makeMoonLabel(g.name));
+  neptuneMoonLabels.push(makeMoonLabel(g.name, NEPTUNE_FLY_ID[i]));
   addMoonOrbit(neptuneMoonGroup, g.aR * neptuneGeoR, g.c);
 }
 const TRITON_N2_SPRAY_N = 40;
@@ -2375,7 +2552,7 @@ for (let i = 0; i < MARS_MOONS.length; i++) {
   else mesh.raycast = () => {};
   marsMoonGroup.add(mesh);
   marsMoonMeshes.push(mesh);
-  marsMoonLabels.push(makeMoonLabel(g.name));
+  marsMoonLabels.push(makeMoonLabel(g.name, MARS_FLY_ID[i]));
   addMoonOrbit(marsMoonGroup, g.aR * marsGeoR, g.c);
 }
 const phobosStickneyR = MARS_MOONS[0].rR * marsGeoR;
@@ -2538,7 +2715,7 @@ const charonSerenityChasmaSegs = new THREE.LineSegments(charonSerenityChasmaGeo,
 charonSerenityChasmaSegs.raycast = () => {};
 charonSerenityChasmaSegs.visible = false;
 charonMesh.add(charonSerenityChasmaSegs);
-const charonLabel = makeMoonLabel('Charon');
+const charonLabel = makeMoonLabel('Charon', 'charon');
 addMoonOrbit(charonGroup, CHARON_BARY_A, 0xa8a090);
 addMoonOrbit(charonGroup, PLUTO_BARY_A, 0xcbb89a);
 function updateCharon(now) {
@@ -3056,9 +3233,12 @@ for (const id of Object.keys(BODY_TITLE)) {
   }));
   sp.scale.set(0.16, 0.04, 1);
   sp.center.set(0.5, 0);
+  // sizeAttenuation:false makes Sprite.raycast unreliable; onTap uses screen-space hits.
   sp.raycast = () => {};
+  sp.userData.body = id;
   scene.add(sp);
   bodyLabel[id] = sp;
+  pickLabels.push(sp);
 }
 bodyLabel.earth.position.set(0, R + 0.2, 0);
 bodyLabel.earth.visible = false;
@@ -4549,8 +4729,37 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   if (moved < 6 && dt < 500) onTap(e.clientX, e.clientY);
 });
 
-// A tap names what it hits: a satellite dot first, then the globe surface.
+// Screen-space pick for name sprites (sizeAttenuation:false breaks Sprite.raycast).
+// Sprite center is (0.5, 0): the world position is the bottom-center of the pill.
+const _labelNdc = new THREE.Vector3();
+function hitBodyLabel(clientX, clientY) {
+  let bestId = null;
+  let bestZ = Infinity;
+  const pe = camera.projectionMatrix.elements;
+  const sxScale = Math.abs(pe[0]);
+  const syScale = Math.abs(pe[5]);
+  for (let i = 0; i < pickLabels.length; i++) {
+    const sp = pickLabels[i];
+    if (!sp.visible) continue;
+    const id = sp.userData.body;
+    if (!id || id === focusedBody) continue;
+    sp.getWorldPosition(_labelNdc);
+    _labelNdc.project(camera);
+    if (_labelNdc.z < -1 || _labelNdc.z > 1) continue;
+    const sx = (_labelNdc.x + 1) * 0.5 * innerWidth;
+    const sy = (-_labelNdc.y + 1) * 0.5 * innerHeight;
+    const w = Math.max(44, sxScale * sp.scale.x * 0.5 * innerWidth);
+    const h = Math.max(44, syScale * sp.scale.y * 0.5 * innerHeight);
+    if (clientX < sx - w * 0.5 || clientX > sx + w * 0.5) continue;
+    if (clientY > sy || clientY < sy - h) continue;
+    if (_labelNdc.z < bestZ) { bestZ = _labelNdc.z; bestId = id; }
+  }
+  return bestId;
+}
+
+// A tap names what it hits: a satellite dot first, then a body/label, then the globe.
 function onTap(clientX, clientY) {
+  if (document.getElementById('app').hasAttribute('inert')) return;
   pointer.x = (clientX / innerWidth) * 2 - 1;
   pointer.y = -(clientY / innerHeight) * 2 + 1;
   raycaster.setFromCamera(pointer, camera);
@@ -4587,6 +4796,13 @@ function onTap(clientX, clientY) {
       }
     }
   }
+  const labelId = hitBodyLabel(clientX, clientY);
+  if (labelId) {
+    hideRegionTip();
+    hideSatTip();
+    flyToBody(labelId);
+    return;
+  }
   const pickBodies = [sunMesh, moonMesh, ...planetMeshes];
   if (cometWorld.visible) pickBodies.push(cometMesh);
   if (minorWorld.visible) pickBodies.push(ceresMesh, vestaMesh, erisMesh, haumeaMesh, makemakeMesh, pallasMesh, hygieaMesh, sednaMesh, quaoarMesh, orcusMesh, gonggongMesh, varunaMesh, ixionMesh, salaciaMesh, ms4Mesh, vardaMesh, aw197Mesh, ux25Mesh, az84Mesh, tc302Mesh, rn43Mesh, gv9Mesh, vs2Mesh, kx14Mesh, xr190Mesh, dziewannaMesh, uz224Mesh, fy27Mesh, uk126Mesh, jj43Mesh, rf43Mesh, qu182Mesh, kz39Mesh, rm43Mesh, og19Mesh, qh181Mesh, rr245Mesh, st291Mesh, vp113Mesh);
@@ -4598,20 +4814,27 @@ function onTap(clientX, clientY) {
   if (charonGroup.visible) pickBodies.push(charonMesh);
   if (marsMoonGroup.visible) pickBodies.push(marsMoonMeshes[0], marsMoonMeshes[1]);
   const bodyHits = raycaster.intersectObjects(pickBodies, false);
-  if (bodyHits.length) {
-    const gh = raycaster.intersectObject(globe, false);
-    if (!gh.length || bodyHits[0].distance < gh[0].distance) {
-      const bodyId = bodyHits[0].object.userData.body;
-      if (bodyId) {
-        hideRegionTip();
-        hideSatTip();
-        flyToBody(bodyId);
-        return;
-      }
+  const gh = raycaster.intersectObject(globe, false);
+  const globeDist = gh.length ? gh[0].distance : Infinity;
+  for (let i = 0; i < bodyHits.length; i++) {
+    const bodyId = bodyHits[i].object.userData.body;
+    if (!bodyId) continue; // e.g. Nereid: no fly target
+    if (bodyHits[i].distance < globeDist) {
+      hideRegionTip();
+      hideSatTip();
+      flyToBody(bodyId);
+      return;
     }
+    break;
   }
-  const hits = raycaster.intersectObject(globe, false);
+  const hits = gh;
   if (!hits.length) { hideRegionTip(); hideSatTip(); return; }
+  if (focusedBody !== 'earth') {
+    hideRegionTip();
+    hideSatTip();
+    flyToBody('earth');
+    return;
+  }
   const dir = hits[0].point.clone().normalize();
   const lat = Math.asin(dir.y) / DEG;
   const lon = Math.atan2(-dir.z, dir.x) / DEG;
@@ -5792,18 +6015,6 @@ function updateMoonReadout(now) {
   elMoon.textContent = name + ' · ' + km + ' km';
 }
 
-// The readout starts collapsed to a one-line summary; tap the line to expand.
-const readout = document.getElementById('readout');
-const readoutHead = document.getElementById('readout-head');
-const readoutCaret = document.querySelector('#readout-head .caret');
-const toggleReadout = () => {
-  readoutCaret.textContent = readout.classList.toggle('collapsed') ? '▸' : '▾';
-};
-readoutHead.addEventListener('click', toggleReadout);
-readoutHead.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleReadout(); }
-});
-
 document.querySelectorAll('#controls .ctrl-head').forEach((head) => {
   const section = head.closest('.ctrl-section');
   const caret = head.querySelector('.caret');
@@ -6583,6 +6794,7 @@ function updateFocusReadout() {
   elBodyFocus.textContent = line;
 }
 const _bodyPos = new THREE.Vector3();
+const _bodyDelta = new THREE.Vector3();
 const _focusWorldKm = new THREE.Vector3();
 const _bodyOff = new THREE.Vector3();
 const _flyFromCam = new THREE.Vector3();
@@ -6965,6 +7177,13 @@ document.getElementById('body-list').addEventListener('click', (e) => {
   if (btn) flyToBody(btn.dataset.body);
 });
 
+function setInspectDistances(id) {
+  const r = inspectViewR(id);
+  // Just outside the inspect mesh; generous zoom-out so OrbitControls does not clip.
+  controls.minDistance = Math.max(r * 1.05, 0.05);
+  controls.maxDistance = Math.max(r * 200, 400);
+}
+
 trueSizeToggle.addEventListener('change', () => {
   if (focusedBody === 'earth') {
     syncCameraNear('earth');
@@ -6973,10 +7192,16 @@ trueSizeToggle.addEventListener('change', () => {
   applyInspectScale(focusedBody);
   if (focusedBody === 'halley') syncCometTailScale();
   const viewR = inspectViewR(focusedBody);
+  const mesh = BODY_MESH[focusedBody];
+  if (mesh) mesh.getWorldPosition(_bodyPos);
+  else _bodyPos.set(0, 0, 0);
+  _bodyOff.copy(camera.position).sub(controls.target);
+  if (_bodyOff.lengthSq() < 1e-6) _bodyOff.set(0, 8, 30);
   _bodyOff.setLength(viewR * 2.4);
   if (flyT0 < 0) {
-    controls.minDistance = Math.max(viewR * 1.2, 0.35);
-    controls.maxDistance = Math.max(viewR * 30, 40);
+    camera.position.copy(_bodyPos).add(_bodyOff);
+    controls.target.copy(_bodyPos);
+    setInspectDistances(focusedBody);
   }
   syncCameraNear(focusedBody);
 });
@@ -7053,15 +7278,15 @@ function tick() {
         controls.target.set(0, 0, 0);
         syncCameraNear('earth');
       } else {
-        const inspectR = inspectViewR(focusedBody);
-        controls.minDistance = Math.max(inspectR * 1.2, 0.35);
-        controls.maxDistance = Math.max(inspectR * 30, 40);
+        setInspectDistances(focusedBody);
       }
     }
   } else if (focusedBody !== 'earth') {
     const mesh = BODY_MESH[focusedBody];
     if (mesh) {
       mesh.getWorldPosition(_bodyPos);
+      _bodyDelta.copy(_bodyPos).sub(controls.target);
+      camera.position.add(_bodyDelta);
       controls.target.copy(_bodyPos);
     }
   }
@@ -7287,6 +7512,147 @@ document.getElementById('controls').addEventListener('change', () => {
 });
 updateCtrlCounts();
 syncPresetButtons();
+
+/* ---------- hamburger navigation drawer ---------- */
+const navToggle = document.getElementById('nav-toggle');
+const drawer = document.getElementById('drawer');
+const drawerScroller = drawer.querySelector('.Drawer-scroller');
+const drawerSheet = document.getElementById('controls');
+const hasPopover = typeof drawer.showPopover === 'function';
+const hasScrollTimeline = typeof CSS !== 'undefined' && CSS.supports && CSS.supports('animation-timeline: scroll()');
+const hasScrollInitial = typeof CSS !== 'undefined' && CSS.supports && CSS.supports('scroll-initial-target', 'nearest');
+let drawerOpen = false;
+let drawerOpening = false;
+let drawerClosing = false;
+let drawerWasVisible = false;
+
+if (!hasPopover) document.documentElement.classList.add('no-popover');
+
+function promoteFab() {
+  if (!hasPopover || typeof navToggle.showPopover !== 'function') return;
+  try {
+    if (navToggle.matches(':popover-open')) navToggle.hidePopover();
+    navToggle.showPopover();
+  } catch (_) { /* ignore */ }
+}
+
+if (hasPopover) promoteFab();
+
+function setGlobeInteractive(on) {
+  controls.enabled = on;
+  const app = document.getElementById('app');
+  if (on) app.removeAttribute('inert');
+  else app.setAttribute('inert', '');
+}
+
+function syncDrawerBackdrop() {
+  if (hasScrollTimeline) return;
+  const max = Math.max(drawerScroller.scrollWidth - drawerScroller.clientWidth, 1);
+  drawer.style.setProperty('--drawer-backdrop', String(drawerScroller.scrollLeft / max));
+}
+
+if (!hasScrollTimeline && hasPopover) {
+  drawerScroller.addEventListener('scroll', syncDrawerBackdrop, { passive: true });
+}
+
+function onDrawerOpened() {
+  if (drawerClosing) return;
+  drawerOpening = false;
+  drawerOpen = true;
+  navToggle.setAttribute('aria-expanded', 'true');
+  setGlobeInteractive(false);
+  drawerSheet.focus({ preventScroll: true });
+}
+
+function onDrawerClosed() {
+  // showPopover parks the sheet off-screen first; ignore that initial miss
+  // unless the user already dragged it on-screen or asked to close.
+  if (drawerOpening && !drawerClosing && !drawerWasVisible) return;
+  drawerOpening = false;
+  drawerClosing = false;
+  drawerWasVisible = false;
+  drawerOpen = false;
+  navToggle.setAttribute('aria-expanded', 'false');
+  setGlobeInteractive(true);
+  if (hasPopover) {
+    try { drawer.hidePopover(); } catch (_) { /* ignore */ }
+    drawer.style.setProperty('--drawer-backdrop', '0');
+    promoteFab();
+  }
+}
+
+if (hasPopover && typeof IntersectionObserver === 'function') {
+  const visibleThreshold = 1 / Math.max(window.innerWidth, 1);
+  const observer = new IntersectionObserver(
+    (entries) => {
+      const entry = entries[entries.length - 1];
+      if (entry.intersectionRatio >= visibleThreshold) drawerWasVisible = true;
+      if (entry.intersectionRatio < visibleThreshold) onDrawerClosed();
+      if (entry.intersectionRatio === 1) onDrawerOpened();
+    },
+    { root: drawer, threshold: [visibleThreshold, 1] },
+  );
+  observer.observe(drawerSheet);
+}
+
+async function openDrawer() {
+  if (drawerOpen || drawerOpening) return;
+  drawerOpening = true;
+  drawerClosing = false;
+  navToggle.setAttribute('aria-expanded', 'true');
+  setGlobeInteractive(false);
+  if (hasPopover) {
+    try { drawer.showPopover(); } catch (_) { /* ignore */ }
+    promoteFab();
+    if (!hasScrollInitial) {
+      drawerScroller.scrollLeft = 0;
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    }
+    drawerScroller.scrollTo({ left: drawerScroller.scrollWidth, behavior: 'auto' });
+    syncDrawerBackdrop();
+  } else {
+    drawer.classList.add('is-open');
+    onDrawerOpened();
+  }
+}
+
+function closeDrawer() {
+  if (!drawerOpen && !drawerOpening) return;
+  drawerClosing = true;
+  drawerOpening = false;
+  navToggle.setAttribute('aria-expanded', 'false');
+  if (hasPopover) {
+    drawerScroller.scrollTo({ left: 0, behavior: 'auto' });
+    syncDrawerBackdrop();
+  } else {
+    drawer.classList.remove('is-open');
+    onDrawerClosed();
+  }
+}
+
+navToggle.addEventListener('click', () => {
+  if (drawerOpen || drawerOpening) closeDrawer();
+  else openDrawer();
+});
+
+drawer.addEventListener('click', (event) => {
+  if (!drawerSheet.contains(event.target)) closeDrawer();
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') closeDrawer();
+});
+
+if (!hasPopover) {
+  let swipeStartX = 0;
+  drawerSheet.addEventListener('touchstart', (e) => {
+    swipeStartX = e.changedTouches[0].clientX;
+  }, { passive: true });
+  drawerSheet.addEventListener('touchend', (e) => {
+    const dx = e.changedTouches[0].clientX - swipeStartX;
+    if (dx > 56) closeDrawer();
+  }, { passive: true });
+}
 </script>
 </body>
 </html>
