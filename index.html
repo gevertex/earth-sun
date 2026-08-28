@@ -7,6 +7,7 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
 <link rel="preload" as="image" href="https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg" crossorigin>
 <link rel="preconnect" href="https://unpkg.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="preconnect" href="https://raw.githubusercontent.com" crossorigin>
 <link rel="preconnect" href="https://api.rainviewer.com" crossorigin>
 <link rel="preconnect" href="https://api.ip2geoapi.com" crossorigin>
@@ -88,6 +89,42 @@
   .nav-fab:focus { outline: none; }
   .nav-fab:focus-visible { outline: 2px solid rgba(120, 170, 255, 0.7); outline-offset: 2px; }
 
+  #focus-chip {
+    position: fixed;
+    top: calc(max(12px, env(safe-area-inset-top, 0px)) + 44px + 8px);
+    right: max(12px, env(safe-area-inset-right, 0px));
+    left: auto; bottom: auto;
+    z-index: 15;
+    min-width: 44px; min-height: 44px;
+    max-width: min(16rem, calc(100vw - 24px));
+    margin: 0; padding: 6px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(120, 170, 255, 0.25);
+    background: rgba(8, 14, 26, 0.72);
+    color: #cfe8ff;
+    font: 12px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace;
+    text-align: left;
+    cursor: pointer;
+    user-select: none;
+    pointer-events: auto;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    color-scheme: dark;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 1px;
+  }
+  #focus-chip:focus { outline: none; }
+  #focus-chip:focus-visible { outline: 2px solid rgba(120, 170, 255, 0.7); outline-offset: 2px; }
+  #focus-chip.is-away {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+  #focus-chip-name { color: #fff; font-weight: 600; }
+  #focus-chip-dist { color: #7f97b8; font-weight: 400; }
+
   .Drawer {
     --drawer-width: min(20em, 80dvw);
     --drawer-backdrop: 0;
@@ -167,6 +204,23 @@
     font-size: 12px;
     cursor: default;
   }
+  #controls input[type="search"] {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    background: #0c1626;
+    color: #cfe8ff;
+    border: 1px solid rgba(120,170,255,.25);
+    padding: 4px 8px;
+    margin: 0 0 6px;
+    font-size: 12px;
+    cursor: text;
+    color-scheme: dark;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+  #controls input[type="search"]::placeholder { color: #7f97b8; }
   #controls label { display: block; cursor: default; padding: 1px 0; }
   #controls #readout + .ctrl-presets {
     border-top: 1px solid rgba(120, 170, 255, 0.18);
@@ -246,6 +300,7 @@
     gap: 4px;
     padding-left: 12px;
   }
+  #controls .moon-fly-row[hidden] { display: none !important; }
   #controls .body-focus {
     color: #7f97b8;
     font-size: 11px;
@@ -277,6 +332,9 @@
     #controls input[type="checkbox"] {
       width: 18px; height: 18px;
       flex-shrink: 0;
+    }
+    #controls input[type="search"] {
+      min-height: 44px;
     }
   }
 
@@ -356,6 +414,10 @@
 <div id="app"></div>
 <div id="sat-tip"></div>
 <div id="region-tip"></div>
+<button type="button" id="focus-chip" aria-label="Open menu">
+  <span id="focus-chip-name">Earth</span>
+  <span id="focus-chip-dist" hidden></span>
+</button>
 <button type="button" id="nav-toggle" class="nav-fab" popover="manual" aria-label="Menu" aria-expanded="false" aria-controls="drawer">
   <svg class="nav-icon-menu" aria-hidden="true" viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h14"/></svg>
   <svg class="nav-icon-close" aria-hidden="true" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
@@ -397,6 +459,7 @@
   <div class="ctrl-section">
     <div class="ctrl-head" role="button" tabindex="0"><span class="caret">▾</span><span class="ctrl-title">Bodies</span></div>
     <div class="ctrl-body">
+      <input type="search" id="body-filter" placeholder="Find a body" autocomplete="off" enterkeyhint="search">
       <div class="body-list" id="body-list">
         <button type="button" data-body="sun">Sun</button>
         <button type="button" data-body="mercury">Mercury</button>
@@ -594,7 +657,7 @@
 </div>
   </div>
 </div>
-<div id="hint">drag to rotate · scroll to zoom · weather data by <a href="https://www.rainviewer.com/" target="_blank" rel="noopener">RainViewer</a></div>
+<div id="hint">drag to rotate · tap a body or name to fly · weather data by <a href="https://www.rainviewer.com/" target="_blank" rel="noopener">RainViewer</a></div>
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -675,6 +738,15 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.05;
 controls.minDistance = 12;
 controls.maxDistance = 120;
+
+const texUrlState = Object.create(null);
+function applyMapAnisotropy(tex) {
+  if (!tex) return;
+  tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.generateMipmaps = true;
+  tex.needsUpdate = true;
+}
 
 // Starfield: existing points on a shell just inside CAM_FAR_SCENE so outer
 // fly-tos do not put stars in front of Sedna-range bodies.
@@ -799,10 +871,16 @@ document.getElementById('quakes-toggle').addEventListener('change', (e) => {
   if (e.target.checked && !quakeFetched) fetchQuakes();
 });
 
+let earthMarbleTex = null;
+let earthMapTier = 'marble';
 new THREE.TextureLoader().load(
   'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg',
   (tex) => {
     tex.colorSpace = THREE.SRGBColorSpace;
+    applyMapAnisotropy(tex);
+    earthMarbleTex = tex;
+    earthMapTier = 'marble';
+    globeMat.userData.earthHi = false;
     globeMat.map = tex;
     globeMat.color.set(0xffffff);
     globeMat.needsUpdate = true;
@@ -818,6 +896,7 @@ new THREE.TextureLoader().load(
   'https://unpkg.com/three-globe/example/img/earth-night.jpg',
   (tex) => {
     tex.colorSpace = THREE.SRGBColorSpace;
+    applyMapAnisotropy(tex);
     globeMat.emissiveMap = tex;
     globeMat.emissive.set(0xffffff);
     globeMat.emissiveIntensity = 2.5;
@@ -834,6 +913,7 @@ let hData = null, hW = 0, hH = 0;
 new THREE.TextureLoader().load(
   'https://unpkg.com/three-globe/example/img/earth-topology.png',
   (tex) => {
+    applyMapAnisotropy(tex);
     globeMat.displacementMap = tex;
     globeMat.displacementScale = DISPLACEMENT;
     globeMat.bumpMap = tex;
@@ -1558,7 +1638,7 @@ function updateGalilean(now) {
     const a = g.aR * jupiterGeoR;
     galileanMeshes[i].position.set(Math.cos(th) * a, 0, Math.sin(th) * a);
     tidalLockMoon(galileanMeshes[i]);
-    placeMoonLabel(galileanLabels[i], galileanMeshes[i], focusedBody !== GALILEAN_FLY_ID[i]);
+    placeMoonLabel(galileanLabels[i], galileanMeshes[i], showBodyLabel(GALILEAN_FLY_ID[i]));
   }
 }
 const JUPITER_INNER_MOONS = [
@@ -1596,7 +1676,7 @@ function updateJupiterInnerMoons(now) {
     const jupInnerA = jupInnerG.aR * jupiterGeoR;
     jupiterInnerMeshes[jupInnerI].position.set(Math.cos(jupInnerTh) * jupInnerA, 0, Math.sin(jupInnerTh) * jupInnerA);
     tidalLockMoon(jupiterInnerMeshes[jupInnerI]);
-    placeMoonLabel(jupiterInnerLabels[jupInnerI], jupiterInnerMeshes[jupInnerI], focusedBody !== JUPITER_INNER_FLY_ID[jupInnerI]);
+    placeMoonLabel(jupiterInnerLabels[jupInnerI], jupiterInnerMeshes[jupInnerI], showBodyLabel(JUPITER_INNER_FLY_ID[jupInnerI]));
   }
 }
 const JUPITER_OUTER_MOONS = [
@@ -1711,7 +1791,7 @@ function updateJupiterOuterMoons(now) {
     else if (JUPITER_OUTER_FLY_ID[jupOuterI] === 'megaclite') tumbleMegacliteJupiterFarRetroSpin(jupiterOuterMeshes[jupOuterI], day);
     else if (JUPITER_OUTER_FLY_ID[jupOuterI] === 'autonoe') tumbleAutonoeJupiterPasiphaeRetroSpin(jupiterOuterMeshes[jupOuterI], day);
     else tidalLockMoon(jupiterOuterMeshes[jupOuterI]);
-    placeMoonLabel(jupiterOuterLabels[jupOuterI], jupiterOuterMeshes[jupOuterI], focusedBody !== JUPITER_OUTER_FLY_ID[jupOuterI]);
+    placeMoonLabel(jupiterOuterLabels[jupOuterI], jupiterOuterMeshes[jupOuterI], showBodyLabel(JUPITER_OUTER_FLY_ID[jupOuterI]));
   }
 }
 
@@ -2048,7 +2128,7 @@ function updateSaturnMoons(now) {
     else if (SATURN_FLY_ID[i] === 'bebhionn') tumbleBebhionnGallicFarSpin(saturnMoonMeshes[i], day);
     else if (SATURN_FLY_ID[i] === 'ymir') tumbleYmirNorseFarRetroSpin(saturnMoonMeshes[i], day);
     else tidalLockMoon(saturnMoonMeshes[i]);
-    placeMoonLabel(saturnMoonLabels[i], saturnMoonMeshes[i], focusedBody !== SATURN_FLY_ID[i]);
+    placeMoonLabel(saturnMoonLabels[i], saturnMoonMeshes[i], showBodyLabel(SATURN_FLY_ID[i]));
   }
 }
 
@@ -2254,7 +2334,7 @@ function updateUranusMoons(now) {
     const a = g.aR * uranusGeoR;
     uranusMoonMeshes[i].position.set(Math.cos(th) * a, 0, Math.sin(th) * a);
     tidalLockMoon(uranusMoonMeshes[i]);
-    placeMoonLabel(uranusMoonLabels[i], uranusMoonMeshes[i], focusedBody !== URANUS_FLY_ID[i]);
+    placeMoonLabel(uranusMoonLabels[i], uranusMoonMeshes[i], showBodyLabel(URANUS_FLY_ID[i]));
   }
 }
 
@@ -2420,7 +2500,7 @@ function updateNeptuneMoons(now) {
     else if (NEPTUNE_FLY_ID[i] === 's2002n5') tumbleS2002N5SaoGroupSpin(neptuneMoonMeshes[i], day);
     else if (NEPTUNE_FLY_ID[i] === 's2021n1') tumbleS2021N1NeptuneFarRetroSpin(neptuneMoonMeshes[i], day);
     else tidalLockMoon(neptuneMoonMeshes[i]);
-    placeMoonLabel(neptuneMoonLabels[i], neptuneMoonMeshes[i], focusedBody !== NEPTUNE_FLY_ID[i]);
+    placeMoonLabel(neptuneMoonLabels[i], neptuneMoonMeshes[i], showBodyLabel(NEPTUNE_FLY_ID[i]));
   }
 }
 
@@ -2585,7 +2665,7 @@ function updateMarsMoons(now) {
     const a = g.aR * marsGeoR;
     marsMoonMeshes[i].position.set(Math.cos(th) * a, 0, Math.sin(th) * a);
     tidalLockMoon(marsMoonMeshes[i]);
-    placeMoonLabel(marsMoonLabels[i], marsMoonMeshes[i], focusedBody !== MARS_FLY_ID[i]);
+    placeMoonLabel(marsMoonLabels[i], marsMoonMeshes[i], showBodyLabel(MARS_FLY_ID[i]));
   }
 }
 
@@ -2727,7 +2807,7 @@ function updateCharon(now) {
   plutoInspectMesh.position.set(-c * PLUTO_BARY_A, 0, -s * PLUTO_BARY_A);
   tidalLockMoon(charonMesh);
   tidalLockMoon(plutoInspectMesh);
-  placeMoonLabel(charonLabel, charonMesh, focusedBody !== 'charon');
+  placeMoonLabel(charonLabel, charonMesh, showBodyLabel('charon'));
 }
 
 const PLANET_IDS = ['mercury','venus','mars','jupiter','saturn','uranus','neptune','pluto'];
@@ -3070,7 +3150,7 @@ function updatePlanets(now, lonDeg) {
     const lbl = bodyLabel[planetMeshes[i].userData.body];
     if (lbl) {
       lbl.position.copy(planetMeshes[i].position);
-      lbl.visible = planetMeshes[i].userData.body !== focusedBody;
+      lbl.visible = showBodyLabel(planetMeshes[i].userData.body);
     }
   }
   pGeo.attributes.position.needsUpdate = true;
@@ -3409,7 +3489,7 @@ function updateComet(now, lonDeg) {
   const lbl = bodyLabel.halley;
   if (lbl) {
     lbl.position.copy(p);
-    lbl.visible = focusedBody !== 'halley';
+    lbl.visible = showBodyLabel('halley');
   }
 }
 const cometToggle = document.getElementById('comet-toggle');
@@ -3788,7 +3868,7 @@ function _placeMinor(el, mesh, now, lonDeg, skyOff) {
   const lbl = bodyLabel[mesh.userData.body];
   if (lbl) {
     lbl.position.set(x, y, z);
-    lbl.visible = focusedBody !== mesh.userData.body;
+    lbl.visible = showBodyLabel(mesh.userData.body);
   }
 }
 function updateMinors(now, lonDeg) {
@@ -3882,7 +3962,7 @@ minorsToggle.addEventListener('change', () => {
 
 new THREE.TextureLoader().load(
   'https://raw.githubusercontent.com/mrdoob/three.js/r160/examples/textures/planets/moon_1024.jpg',
-  (tex) => { tex.colorSpace = THREE.SRGBColorSpace; moonMesh.material.map = tex; moonMesh.material.needsUpdate = true; },
+  (tex) => { tex.colorSpace = THREE.SRGBColorSpace; applyMapAnisotropy(tex); if (bodyTexState.moon !== 'hi') { moonMesh.material.map = tex; moonMesh.material.needsUpdate = true; bodyTexState.moon = 'lo'; } },
   undefined,
   () => {},
 );
@@ -3905,15 +3985,15 @@ const moonToggle = document.getElementById('moon-toggle');
 moonToggle.addEventListener('change', () => {
   moonWorld.visible = moonToggle.checked;
   if (!moonToggle.checked) moonTychoCraterDisk.visible = false;
-  else if (focusedBody === 'moon') moonTychoCraterDisk.visible = true;
+  else if (focusedBody === 'moon') moonTychoCraterDisk.visible = false;
   if (!moonToggle.checked) moonCopernicusCraterDisk.visible = false;
-  else if (focusedBody === 'moon') moonCopernicusCraterDisk.visible = true;
+  else if (focusedBody === 'moon') moonCopernicusCraterDisk.visible = false;
   if (!moonToggle.checked) moonAristarchusCraterDisk.visible = false;
-  else if (focusedBody === 'moon') moonAristarchusCraterDisk.visible = true;
+  else if (focusedBody === 'moon') moonAristarchusCraterDisk.visible = false;
   if (!moonToggle.checked) moonKeplerImpactCraterDisk.visible = false;
-  else if (focusedBody === 'moon') moonKeplerImpactCraterDisk.visible = true;
+  else if (focusedBody === 'moon') moonKeplerImpactCraterDisk.visible = false;
   if (!moonToggle.checked) moonPlatoImpactCraterDisk.visible = false;
-  else if (focusedBody === 'moon') moonPlatoImpactCraterDisk.visible = true;
+  else if (focusedBody === 'moon') moonPlatoImpactCraterDisk.visible = false;
 });
 
 /* ---------- Van Allen belts: Earth-fixed torii (not inertial) ---------- */
@@ -4719,8 +4799,9 @@ function updateRegionTip() {
 // (A drag rotates the globe via OrbitControls and must not trigger a pick.)
 let tapDown = null;
 renderer.domElement.addEventListener('pointerdown', (e) => {
+  stopShowOrbit();
   tapDown = { x: e.clientX, y: e.clientY, t: performance.now() };
-});
+}, true);
 renderer.domElement.addEventListener('pointerup', (e) => {
   if (!tapDown) return;
   const moved = Math.hypot(e.clientX - tapDown.x, e.clientY - tapDown.y);
@@ -4728,6 +4809,8 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   tapDown = null;
   if (moved < 6 && dt < 500) onTap(e.clientX, e.clientY);
 });
+renderer.domElement.addEventListener('wheel', stopShowOrbit, { capture: true, passive: true });
+renderer.domElement.addEventListener('touchstart', stopShowOrbit, { capture: true, passive: true });
 
 // Screen-space pick for name sprites (sizeAttenuation:false breaks Sprite.raycast).
 // Sprite center is (0.5, 0): the world position is the bottom-center of the pill.
@@ -5983,6 +6066,10 @@ const elEot = document.getElementById('eot');
 const elTle = document.getElementById('tle');
 const elMoon = document.getElementById('moon-phase');
 const elBodyFocus = document.getElementById('body-focus');
+const elFocusChip = document.getElementById('focus-chip');
+const elFocusChipName = document.getElementById('focus-chip-name');
+const elFocusChipDist = document.getElementById('focus-chip-dist');
+const elBodyFilter = document.getElementById('body-filter');
 let lastMoonReadout = 0;
 let lastFocusReadout = 0;
 const _focusDate = new Date(0);
@@ -6403,6 +6490,18 @@ const BODY_TEX_HI = {
   neptune: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/neptune.jpg',
   moon: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/moon.jpg',
 };
+const EARTH_DAY_HI = [
+  'https://cdn.jsdelivr.net/gh/turban/webgl-earth@master/images/2_no_clouds_4k.jpg',
+  'https://raw.githubusercontent.com/turban/webgl-earth/master/images/2_no_clouds_4k.jpg',
+];
+const EARTH_DAY_8K = [
+  'https://cdn.jsdelivr.net/gh/turban/webgl-earth@master/images/2_no_clouds_8k.jpg',
+  'https://raw.githubusercontent.com/turban/webgl-earth/master/images/2_no_clouds_8k.jpg',
+];
+let earthHiState = 'idle';
+let earth8kState = 'idle';
+let earth4kTex = null;
+let earth8kTex = null;
 const MOON_TEX = {
   Io: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/io.jpg',
   Europa: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/europa.jpg',
@@ -6439,6 +6538,7 @@ function ensureMoonTexture(name, mesh) {
     url,
     (tex) => {
       tex.colorSpace = THREE.SRGBColorSpace;
+      applyMapAnisotropy(tex);
       mesh.material.map = tex;
       mesh.material.color.set(0xffffff);
       mesh.material.needsUpdate = true;
@@ -6530,44 +6630,201 @@ function syncCometTailScale(rHelio) {
   cometTail.material.opacity = 0.22 + 0.73 * k * k;
 }
 const bodyTexState = Object.create(null);
-function ensureBodyTexture(id) {
-  if (bodyTexState[id] === 'ok' || bodyTexState[id] === 'load' || bodyTexState[id] === 'fail') return;
+function applyBodyTexToMesh(id, tex) {
   const mesh = BODY_MESH[id];
   if (!mesh) return;
-  const hi = BODY_TEX_HI[id];
-  const lo = BODY_TEX[id];
-  const url = (hi && bodyTexState[id] !== 'hi-fail') ? hi : lo;
-  if (!url) return;
-  bodyTexState[id] = 'load';
+  tex.colorSpace = THREE.SRGBColorSpace;
+  applyMapAnisotropy(tex);
+  mesh.material.map = tex;
+  mesh.material.color.set(0xffffff);
+  if (id === 'sun') {
+    mesh.material.emissiveMap = tex;
+    mesh.material.emissive.set(0xffffff);
+    mesh.material.emissiveIntensity = 0.85;
+  }
+  mesh.material.needsUpdate = true;
+  if (id === 'pluto') {
+    plutoInspectMesh.material.map = tex;
+    plutoInspectMesh.material.color.set(0xffffff);
+    plutoInspectMesh.material.needsUpdate = true;
+  }
+}
+const texByUrl = Object.create(null);
+const texUrlWaiters = Object.create(null);
+function loadTexUrlOnce(url, onLoad, onFail) {
+  if (!url) { if (onFail) onFail(); return; }
+  const st = texUrlState[url];
+  if (st === 'ok') { if (onLoad) onLoad(texByUrl[url]); return; }
+  if (st === 'fail') { if (onFail) onFail(); return; }
+  if (st === 'load') {
+    (texUrlWaiters[url] || (texUrlWaiters[url] = [])).push({ onLoad, onFail });
+    return;
+  }
+  texUrlState[url] = 'load';
+  texUrlWaiters[url] = [{ onLoad, onFail }];
   new THREE.TextureLoader().load(
     url,
     (tex) => {
-      tex.colorSpace = THREE.SRGBColorSpace;
-      mesh.material.map = tex;
-      mesh.material.color.set(0xffffff);
-      if (id === 'sun') {
-        mesh.material.emissiveMap = tex;
-        mesh.material.emissive.set(0xffffff);
-        mesh.material.emissiveIntensity = 0.85;
-      }
-      mesh.material.needsUpdate = true;
-      if (id === 'pluto') {
-        plutoInspectMesh.material.map = tex;
-        plutoInspectMesh.material.color.set(0xffffff);
-        plutoInspectMesh.material.needsUpdate = true;
-      }
-      bodyTexState[id] = 'ok';
+      texUrlState[url] = 'ok';
+      texByUrl[url] = tex;
+      const waiters = texUrlWaiters[url] || [];
+      texUrlWaiters[url] = null;
+      for (let i = 0; i < waiters.length; i++) if (waiters[i].onLoad) waiters[i].onLoad(tex);
     },
     undefined,
     () => {
-      if (hi && url === hi) {
-        bodyTexState[id] = 'hi-fail';
-        ensureBodyTexture(id);
-      } else {
-        bodyTexState[id] = 'fail';
-      }
+      texUrlState[url] = 'fail';
+      const waiters = texUrlWaiters[url] || [];
+      texUrlWaiters[url] = null;
+      for (let i = 0; i < waiters.length; i++) if (waiters[i].onFail) waiters[i].onFail();
     },
   );
+}
+function ensureBodyTexture(id) {
+  const st = bodyTexState[id];
+  if (st === 'lo' || st === 'hi' || st === 'load' || st === 'fail') return;
+  const mesh = BODY_MESH[id];
+  if (!mesh) return;
+  const lo = BODY_TEX[id];
+  if (!lo) return;
+  if (texUrlState[lo] === 'fail') { bodyTexState[id] = 'fail'; return; }
+  bodyTexState[id] = 'load';
+  loadTexUrlOnce(lo, (tex) => {
+    if (bodyTexState[id] !== 'hi') {
+      applyBodyTexToMesh(id, tex);
+      bodyTexState[id] = 'lo';
+    }
+  }, () => { if (bodyTexState[id] !== 'hi') bodyTexState[id] = 'fail'; });
+}
+function ensureBodyHiTexture(id) {
+  const hi = BODY_TEX_HI[id];
+  if (!hi) return;
+  if (bodyTexState[id] === 'hi' || bodyTexState[id] === 'hi-load' || bodyTexState[id] === 'hi-fail') return;
+  const mesh = BODY_MESH[id];
+  if (!mesh || !mesh.material) return;
+  if (texUrlState[hi] === 'fail') { bodyTexState[id] = 'hi-fail'; return; }
+  bodyTexState[id] = 'hi-load';
+  loadTexUrlOnce(hi, (tex) => {
+    if (bodyTexState[id] !== 'hi-load') return;
+    applyBodyTexToMesh(id, tex);
+    bodyTexState[id] = 'hi';
+  }, () => { if (bodyTexState[id] === 'hi-load') bodyTexState[id] = 'hi-fail'; });
+}
+function restoreBodyLoTexture(id) {
+  if (bodyTexState[id] !== 'hi' && bodyTexState[id] !== 'hi-load') return;
+  const lo = BODY_TEX[id];
+  const tex = lo && texByUrl[lo];
+  if (tex) {
+    applyBodyTexToMesh(id, tex);
+    bodyTexState[id] = 'lo';
+  } else {
+    bodyTexState[id] = undefined;
+    ensureBodyTexture(id);
+  }
+}
+function applyEarthDayMap(tex, tier) {
+  if (!tex) return;
+  applyMapAnisotropy(tex);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  globeMat.map = tex;
+  globeMat.color.set(0xffffff);
+  globeMat.userData.earthHi = tier !== 'marble';
+  globeMat.needsUpdate = true;
+  earthMapTier = tier;
+}
+function earthCamDist() {
+  return Math.min(camera.position.length(), camera.position.distanceTo(controls.target));
+}
+function ensureEarth4kMap() {
+  if (earth4kTex) {
+    if (earthMapTier === 'marble') applyEarthDayMap(earth4kTex, '4k');
+    return;
+  }
+  if (earthHiState === 'ok' || earthHiState === 'load' || earthHiState === 'fail') return;
+  const tryAt = (i) => {
+    if (i >= EARTH_DAY_HI.length) { earthHiState = 'fail'; return; }
+    const url = EARTH_DAY_HI[i];
+    if (texUrlState[url] === 'fail') { tryAt(i + 1); return; }
+    earthHiState = 'load';
+    loadTexUrlOnce(url, (tex) => {
+      earth4kTex = tex;
+      earthHiState = 'ok';
+      applyMapAnisotropy(tex);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      const d = earthCamDist();
+      if (earthMapTier === 'marble' && d < 36) applyEarthDayMap(tex, '4k');
+    }, () => {
+      earthHiState = 'idle';
+      tryAt(i + 1);
+    });
+  };
+  tryAt(0);
+}
+function ensureEarth8kMap() {
+  if (earth8kTex) {
+    applyEarthDayMap(earth8kTex, '8k');
+    return;
+  }
+  if (earth8kState === 'ok' || earth8kState === 'load' || earth8kState === 'fail') return;
+  if (renderer.capabilities.maxTextureSize < 8000) { earth8kState = 'fail'; return; }
+  const tryAt = (i) => {
+    if (i >= EARTH_DAY_8K.length) { earth8kState = 'fail'; return; }
+    const url = EARTH_DAY_8K[i];
+    if (texUrlState[url] === 'fail') { tryAt(i + 1); return; }
+    earth8kState = 'load';
+    loadTexUrlOnce(url, (tex) => {
+      earth8kTex = tex;
+      earth8kState = 'ok';
+      applyMapAnisotropy(tex);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      if (earthCamDist() < 16) applyEarthDayMap(tex, '8k');
+    }, () => {
+      earth8kState = 'idle';
+      tryAt(i + 1);
+    });
+  };
+  tryAt(0);
+}
+function updateEarthDayTier(d) {
+  if (earthMapTier === '8k') {
+    if (d > 36 && earthMarbleTex) applyEarthDayMap(earthMarbleTex, 'marble');
+    else if (d > 16) {
+      if (earth4kTex) applyEarthDayMap(earth4kTex, '4k');
+      else ensureEarth4kMap();
+    }
+    return;
+  }
+  if (earthMapTier === '4k') {
+    if (d > 36) {
+      if (earthMarbleTex) applyEarthDayMap(earthMarbleTex, 'marble');
+    } else if (d < 14) ensureEarth8kMap();
+    return;
+  }
+  if (d < 14) {
+    ensureEarth4kMap();
+    ensureEarth8kMap();
+  } else if (d < 22) ensureEarth4kMap();
+}
+let lastTexLodMs = 0;
+function updateTextureLod() {
+  const t = performance.now();
+  if (t - lastTexLodMs < 160) return;
+  lastTexLodMs = t;
+  const id = focusedBody;
+  const nearOrigin = controls.target.lengthSq() < 64;
+  if (id === 'earth' || nearOrigin) updateEarthDayTier(earthCamDist());
+  if (!id || id === 'earth') return;
+  if (!BODY_TEX_HI[id]) return;
+  const mesh = BODY_MESH[id];
+  if (!mesh) return;
+  mesh.getWorldPosition(_focusWorldKm);
+  const d = Math.min(camera.position.distanceTo(_focusWorldKm), camera.position.distanceTo(controls.target));
+  const viewR = inspectViewR(id);
+  if (bodyTexState[id] === 'hi' || bodyTexState[id] === 'hi-load') {
+    if (d > viewR * 6 * 36 / 22) restoreBodyLoTexture(id);
+  } else if (d < viewR * 6) {
+    ensureBodyHiTexture(id);
+  }
 }
 function updateFocusReadout() {
   const t = performance.now();
@@ -6575,16 +6832,23 @@ function updateFocusReadout() {
   lastFocusReadout = t;
   const id = focusedBody;
   let line = BODY_TITLE[id] || MOON_FLY_CAPTION[id] || id;
+  let chipDist = '';
   const mesh = BODY_MESH[id];
   if (MOON_FLY_PARENT[id] && mesh) {
     mesh.getWorldPosition(_focusWorldKm);
     const au = (_focusWorldKm.length() / KM_TO_SCENE) / AU_KM;
+    chipDist = au.toFixed(2) + ' AU';
     line = MOON_FLY_CAPTION[id] + ' · ' + BODY_TITLE[MOON_FLY_PARENT[id]] + ' · ' + au.toFixed(2) + ' AU';
     line += ' · radius ' + Math.round(MOON_FLY_KM[id]) + ' km';
   } else if (id !== 'earth' && mesh) {
     const km = mesh.position.length() / KM_TO_SCENE;
-    if (id === 'moon') line += ' · ' + Math.round(km) + ' km';
-    else line += ' · ' + (km / AU_KM).toFixed(2) + ' AU';
+    if (id === 'moon') {
+      chipDist = Math.round(km) + ' km';
+      line += ' · ' + chipDist;
+    } else {
+      chipDist = (km / AU_KM).toFixed(2) + ' AU';
+      line += ' · ' + chipDist;
+    }
   }
   const planetIdx = PLANET_IDS.indexOf(id);
   if (planetIdx >= 0) line += ' · radius ' + Math.round(PLANET_EL[planetIdx].r) + ' km';
@@ -6792,6 +7056,10 @@ function updateFocusReadout() {
   if (id === 'mercury') extra += ' · solar day 176 Earth days · 3:2 resonance';
   if (extra) line += '\n' + extra;
   elBodyFocus.textContent = line;
+  elFocusChipName.textContent = BODY_TITLE[id] || MOON_FLY_CAPTION[id] || id;
+  elFocusChipDist.textContent = chipDist;
+  elFocusChipDist.hidden = !chipDist;
+  elFocusChip.setAttribute('aria-label', id === 'earth' ? 'Open menu' : 'Go to Earth');
 }
 const _bodyPos = new THREE.Vector3();
 const _bodyDelta = new THREE.Vector3();
@@ -6803,9 +7071,283 @@ const _flyToCam = new THREE.Vector3();
 let focusedBody = 'earth';
 let flyT0 = -1;
 const FLY_MS = 1000;
+const FLY_LOOK_MS = 450;
+const AUTO_ORBIT_MS = 8000;
+const AUTO_ORBIT_YAW = 0.12;
+let flyDurMs = FLY_MS;
+let flyLookMs = 0;
+let flyMoveMs = FLY_MS;
+let showOrbitT0 = -1;
+const _worldUp = new THREE.Vector3(0, 1, 0);
+const _showOrbitFromOff = new THREE.Vector3();
+const _showOrbitStartOff = new THREE.Vector3();
+
+function prefersReducedMotion() {
+  return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+function showBodyLabel(id) {
+  return id !== focusedBody || flyT0 >= 0;
+}
+function setQuarteringTopOffset(out, bodyPos, fromPos, r) {
+  const dx = fromPos.x - bodyPos.x;
+  const dz = fromPos.z - bodyPos.z;
+  const az = Math.atan2(dx, dz) + Math.PI * 0.25;
+  const elev = 38 * DEG;
+  const ce = Math.cos(elev), se = Math.sin(elev);
+  out.set(r * ce * Math.sin(az), r * se, r * ce * Math.cos(az));
+}
+function skipFlyLook(bodyPos) {
+  if (prefersReducedMotion()) return true;
+  if (controls.target.distanceToSquared(bodyPos) < 1) return true;
+  _flyToCam.copy(bodyPos).sub(camera.position);
+  const toBody = _flyToCam.length();
+  if (toBody < 1e-6) return true;
+  _flyToCam.multiplyScalar(1 / toBody);
+  _bodyDelta.copy(controls.target).sub(camera.position);
+  const toTgt = _bodyDelta.length();
+  if (toTgt < 1e-6) return false;
+  _bodyDelta.multiplyScalar(1 / toTgt);
+  return _flyToCam.dot(_bodyDelta) > 0.995;
+}
+function flyTravelMs(dist) {
+  if (prefersReducedMotion()) return FLY_MS;
+  if (!(dist > 0) || dist < SUN_DISTANCE * 0.02) return FLY_MS;
+  const au = dist / SUN_DISTANCE;
+  const u = Math.log(Math.max(au, 1)) / Math.log(80);
+  const k = u < 0 ? 0 : u > 1 ? 1 : u;
+  return 1000 + 2000 * k;
+}
+function stopShowOrbit() {
+  if (showOrbitT0 < 0) {
+    if (typeof document !== 'undefined' && document.getElementById('app') && !document.getElementById('app').hasAttribute('inert')) {
+      controls.enabled = true;
+    }
+    return;
+  }
+  showOrbitT0 = -1;
+  if (typeof document !== 'undefined' && document.getElementById('app') && document.getElementById('app').hasAttribute('inert')) return;
+  controls.enabled = true;
+}
+function beginShowOrbit() {
+  if (focusedBody === 'earth' || prefersReducedMotion()) return;
+  const mesh = BODY_MESH[focusedBody];
+  if (!mesh) return;
+  mesh.getWorldPosition(_bodyPos);
+  const rShow = inspectViewR(focusedBody) * 3.2;
+  setQuarteringTopOffset(_showOrbitFromOff, _bodyPos, camera.position, rShow);
+  _showOrbitStartOff.copy(camera.position).sub(_bodyPos);
+  if (_showOrbitStartOff.y <= 0 || _showOrbitStartOff.lengthSq() < 1e-6) {
+    setQuarteringTopOffset(_showOrbitStartOff, _bodyPos, camera.position, inspectViewR(focusedBody) * 2.4);
+  }
+  showOrbitT0 = performance.now();
+  controls.enabled = false;
+}
+
+function hideInspectStickerDisks() {
+  const disks = [
+    venusMaxwellMontesDisk, mercuryCalorisDisk, mercuryRachmaninoffBasinDisk,
+    ioLokiPateraGlowDisk, ioPelePateraGlowDisk,
+    europaPwyllImpactCraterDisk, europaCilixImpactCraterDisk, ganymedeGalileoRegioDisk,
+    titanXanaduDisk, titanKrakenMareDisk, titanLigeiaMareDisk,
+    mimasHerschelDisk, rheaInktomiCraterDisk,
+    oberonHamletDisk, titaniaGertrudeCraterDisk, umbrielWundaFloorDisk,
+    tritonSouthPolarCapDisk, marsOlympusMonsHighlandDisk, marsHellasPlanitiaBasinDisk,
+    phobosStickneyDisk, plutoCthulhuMaculaDisk, charonMordorMaculaDisk,
+    moonTychoCraterDisk, moonCopernicusCraterDisk, moonAristarchusCraterDisk,
+    moonKeplerImpactCraterDisk, moonPlatoImpactCraterDisk,
+    ceresAhunaMonsDomeDisk, vestaRheasilviaDisk,
+  ];
+  for (let i = 0; i < disks.length; i++) disks[i].visible = false;
+  callistoValhallaRings.visible = false;
+  callistoAsgardRings.visible = false;
+  plutoTombaughLobeA.visible = false;
+  plutoTombaughLobeB.visible = false;
+}
+function armInspectPresentation(id) {
+  if (!BODY_MESH[id] && id !== 'moon') return;
+    if (id === 'saturn') {
+      saturnRing.visible = true;
+      saturnMoonGroup.visible = true;
+      saturnAtmo.visible = true;
+      saturnRingShadow.visible = true;
+      saturnHex.visible = true;
+      titanAtmo.visible = true;
+      enceladusPlumeSpray.visible = true;
+      enceladusTigerStripeSulciSegs.visible = true;
+      mimasHerschelDisk.visible = false;
+      iapetusTwoToneOverlay.visible = true;
+      titanXanaduDisk.visible = false;
+      titanKrakenMareDisk.visible = false;
+      titanLigeiaMareDisk.visible = false;
+      dioneWispySegs.visible = true;
+      rheaInktomiCraterDisk.visible = false;
+      updateSaturnMoons(simNow());
+      updateSaturnRingShadow();
+      ensureRingTexture('saturn', saturnRing);
+      ensureFocusedMoonMaps(id);
+    }
+    if (id === 'titan' || id === 'rhea' || id === 'enceladus' || id === 'iapetus' || id === 'dione' || id === 'mimas' || id === 'tethys' || id === 'hyperion' || id === 'phoebe' || id === 'janus' || id === 'epimetheus' || id === 'prometheus' || id === 'pandora' || id === 'atlas' || id === 'pan' || id === 'siarnaq' || id === 'kiviuq' || id === 'ijiraq' || id === 'paaliaq' || id === 'tarqeq' || id === 'albiorix' || id === 'tarvos' || id === 'erriapus' || id === 'bebhionn' || id === 'ymir') {
+      saturnMoonGroup.visible = true;
+      titanAtmo.visible = true;
+      enceladusPlumeSpray.visible = true;
+      enceladusTigerStripeSulciSegs.visible = true;
+      mimasHerschelDisk.visible = false;
+      iapetusTwoToneOverlay.visible = true;
+      titanXanaduDisk.visible = false;
+      titanKrakenMareDisk.visible = false;
+      titanLigeiaMareDisk.visible = false;
+      dioneWispySegs.visible = true;
+      rheaInktomiCraterDisk.visible = false;
+      updateSaturnMoons(simNow());
+      ensureFocusedMoonMaps(id);
+    }
+    if (id === 'jupiter') {
+      galileanGroup.visible = true;
+      jupiterOuterMoonGroup.visible = true;
+      jupiterRing.visible = true;
+      jupiterAtmo.visible = true;
+      jupiterGrs.visible = true;
+      jupiterAuroraGroup.visible = true;
+      ioVolcanoGlow.visible = true;
+      ioLokiPateraGlowDisk.visible = false;
+      ioPelePateraGlowDisk.visible = false;
+      europaLineaeSegs.visible = true;
+      europaPwyllImpactCraterDisk.visible = false;
+      europaCilixImpactCraterDisk.visible = false;
+      ganymedeGalileoRegioDisk.visible = false;
+      ganymedeUrukSulcusSegs.visible = true;
+      callistoValhallaRings.visible = false;
+      callistoAsgardRings.visible = false;
+      updateGalilean(simNow());
+      updateJupiterInnerMoons(simNow());
+      updateJupiterOuterMoons(simNow());
+      ensureFocusedMoonMaps(id);
+    }
+    if (id === 'io' || id === 'europa' || id === 'ganymede' || id === 'callisto' || id === 'amalthea' || id === 'thebe' || id === 'metis' || id === 'adrastea' || id === 'himalia' || id === 'elara' || id === 'lysithea' || id === 'leda' || id === 'ananke' || id === 'carme' || id === 'pasiphae' || id === 'sinope' || id === 'callirrhoe' || id === 'megaclite' || id === 'autonoe') {
+      galileanGroup.visible = true;
+      jupiterOuterMoonGroup.visible = true;
+      ioVolcanoGlow.visible = true;
+      ioLokiPateraGlowDisk.visible = false;
+      ioPelePateraGlowDisk.visible = false;
+      europaLineaeSegs.visible = true;
+      europaPwyllImpactCraterDisk.visible = false;
+      europaCilixImpactCraterDisk.visible = false;
+      ganymedeGalileoRegioDisk.visible = false;
+      ganymedeUrukSulcusSegs.visible = true;
+      callistoValhallaRings.visible = false;
+      callistoAsgardRings.visible = false;
+      updateGalilean(simNow());
+      updateJupiterInnerMoons(simNow());
+      updateJupiterOuterMoons(simNow());
+      ensureFocusedMoonMaps(id);
+    }
+    if (id === 'mercury') mercuryCalorisDisk.visible = false;
+    if (id === 'mercury') mercuryDiscoveryRupesSegs.visible = true;
+    if (id === 'mercury') mercuryRachmaninoffBasinDisk.visible = false;
+    if (id === 'venus') venusAtmo.visible = true;
+    if (id === 'venus') venusMaxwellMontesDisk.visible = false;
+    if (id === 'halley') cometAtmo.visible = true;
+    if (id === 'uranus') {
+      uranusRing.visible = true;
+      uranusMoonGroup.visible = true;
+      uranusAtmo.visible = true;
+      uranusRingShadow.visible = true;
+      mirandaVeronaRupesScar.visible = true;
+      oberonHamletDisk.visible = false;
+      titaniaGertrudeCraterDisk.visible = false;
+      umbrielWundaFloorDisk.visible = false;
+      arielKachinaChasmataSegs.visible = true;
+      updateUranusMoons(simNow());
+      updateUranusRingShadow();
+      ensureRingTexture('uranus', uranusRing);
+      ensureFocusedMoonMaps(id);
+    }
+    if (id === 'miranda' || id === 'ariel' || id === 'umbriel' || id === 'titania' || id === 'oberon' || id === 'puck' || id === 'portia' || id === 'juliet' || id === 'cressida' || id === 'desdemona' || id === 'rosalind' || id === 'belinda' || id === 'cupid' || id === 'perdita' || id === 'bianca' || id === 'cordelia') {
+      uranusMoonGroup.visible = true;
+      mirandaVeronaRupesScar.visible = id === 'miranda';
+      arielKachinaChasmataSegs.visible = id === 'ariel';
+      umbrielWundaFloorDisk.visible = false;
+      titaniaGertrudeCraterDisk.visible = false;
+      oberonHamletDisk.visible = false;
+      updateUranusMoons(simNow());
+      ensureFocusedMoonMaps(id);
+    }
+    if (id === 'neptune') {
+      neptuneRing.visible = true;
+      neptuneMoonGroup.visible = true;
+      neptuneAtmo.visible = true;
+      neptuneSpot.visible = true;
+      tritonN2SprayPts.visible = true;
+      tritonSouthPolarCapDisk.visible = false;
+      updateNeptuneMoons(simNow());
+      ensureFocusedMoonMaps(id);
+    }
+    if (id === 'triton' || id === 'proteus' || id === 'larissa' || id === 'galatea' || id === 'despina' || id === 'thalassa' || id === 'naiad' || id === 'hippocamp' || id === 'halimede' || id === 'sao' || id === 'laomedeia' || id === 'neso' || id === 'psamathe' || id === 's2002n5' || id === 's2021n1') {
+      neptuneMoonGroup.visible = true;
+      tritonN2SprayPts.visible = id === 'triton';
+      tritonSouthPolarCapDisk.visible = false;
+      updateNeptuneMoons(simNow());
+      ensureFocusedMoonMaps(id);
+    }
+    if (id === 'mars') {
+      marsMoonGroup.visible = true;
+      marsAtmo.visible = true;
+      marsPolarCapN.visible = true;
+      marsPolarCapS.visible = true;
+      marsOlympusMonsHighlandDisk.visible = false;
+      marsVallesMarinerisRiftSegs.visible = true;
+      marsHellasPlanitiaBasinDisk.visible = false;
+      phobosStickneyDisk.visible = false;
+      updateMarsCapLs();
+      updateMarsMoons(simNow());
+      ensureFocusedMoonMaps(id);
+    }
+    if (id === 'phobos' || id === 'deimos') {
+      marsMoonGroup.visible = true;
+      phobosStickneyDisk.visible = false;
+      updateMarsMoons(simNow());
+      ensureFocusedMoonMaps(id);
+    }
+    if (id === 'pluto') {
+      charonGroup.visible = true;
+      plutoInspectMesh.visible = true;
+      plutoInspectHaze.visible = true;
+      plutoTombaughLobeA.visible = false;
+      plutoTombaughLobeB.visible = false;
+      plutoCthulhuMaculaDisk.visible = false;
+      charonMordorMaculaDisk.visible = false;
+      charonSerenityChasmaSegs.visible = true;
+      planetMeshes[7].material.visible = false;
+      updateCharon(simNow());
+      ensureFocusedMoonMaps(id);
+    }
+    if (id === 'charon') {
+      charonGroup.visible = true;
+      planetMeshes[7].material.visible = true;
+      plutoInspectMesh.visible = false;
+      plutoInspectHaze.visible = false;
+      plutoTombaughLobeA.visible = false;
+      plutoTombaughLobeB.visible = false;
+      plutoCthulhuMaculaDisk.visible = false;
+      charonMordorMaculaDisk.visible = false;
+      charonSerenityChasmaSegs.visible = true;
+      updateCharon(simNow());
+      ensureFocusedMoonMaps(id);
+    }
+    if (id === 'ceres') ceresOccatorDots.visible = true;
+    if (id === 'ceres') ceresAhunaMonsDomeDisk.visible = false;
+    if (id === 'vesta') vestaRheasilviaDisk.visible = false;
+  if (id === 'moon') moonTychoCraterDisk.visible = false;
+  if (id === 'moon') moonCopernicusCraterDisk.visible = false;
+  if (id === 'moon') moonAristarchusCraterDisk.visible = false;
+  if (id === 'moon') moonKeplerImpactCraterDisk.visible = false;
+  if (id === 'moon') moonPlatoImpactCraterDisk.visible = false;
+  hideInspectStickerDisks();
+}
 
 function flyToBody(id) {
   if (!(id in BODY_MESH)) return;
+  closeDrawer();
   if (id === focusedBody && flyT0 < 0) return;
   const prev = focusedBody;
   const prevMesh = BODY_MESH[prev];
@@ -6938,182 +7480,18 @@ function flyToBody(id) {
   if (prev === 'vesta') vestaRheasilviaDisk.visible = false;
 
   focusedBody = id;
+  lastFocusReadout = 0;
   const mesh = BODY_MESH[id];
   if (mesh) {
-    applyInspectScale(id);
-    applyBodyTilt(id, mesh);
-    if (id === 'saturn') {
-      saturnRing.visible = true;
-      saturnMoonGroup.visible = true;
-      saturnAtmo.visible = true;
-      saturnRingShadow.visible = true;
-      saturnHex.visible = true;
-      titanAtmo.visible = true;
-      enceladusPlumeSpray.visible = true;
-      enceladusTigerStripeSulciSegs.visible = true;
-      mimasHerschelDisk.visible = true;
-      iapetusTwoToneOverlay.visible = true;
-      titanXanaduDisk.visible = true;
-      titanKrakenMareDisk.visible = true;
-      titanLigeiaMareDisk.visible = true;
-      dioneWispySegs.visible = true;
-      rheaInktomiCraterDisk.visible = true;
-      updateSaturnMoons(simNow());
-      updateSaturnRingShadow();
-      ensureRingTexture('saturn', saturnRing);
-      ensureFocusedMoonMaps(id);
+    mesh.getWorldPosition(_bodyPos);
+    if (id !== 'earth') {
+      applyInspectScale(id);
+      applyBodyTilt(id, mesh);
     }
-    if (id === 'titan' || id === 'rhea' || id === 'enceladus' || id === 'iapetus' || id === 'dione' || id === 'mimas' || id === 'tethys' || id === 'hyperion' || id === 'phoebe' || id === 'janus' || id === 'epimetheus' || id === 'prometheus' || id === 'pandora' || id === 'atlas' || id === 'pan' || id === 'siarnaq' || id === 'kiviuq' || id === 'ijiraq' || id === 'paaliaq' || id === 'tarqeq' || id === 'albiorix' || id === 'tarvos' || id === 'erriapus' || id === 'bebhionn' || id === 'ymir') {
-      saturnMoonGroup.visible = true;
-      titanAtmo.visible = true;
-      enceladusPlumeSpray.visible = true;
-      enceladusTigerStripeSulciSegs.visible = true;
-      mimasHerschelDisk.visible = true;
-      iapetusTwoToneOverlay.visible = true;
-      titanXanaduDisk.visible = true;
-      titanKrakenMareDisk.visible = true;
-      titanLigeiaMareDisk.visible = true;
-      dioneWispySegs.visible = true;
-      rheaInktomiCraterDisk.visible = true;
-      updateSaturnMoons(simNow());
-      ensureFocusedMoonMaps(id);
-    }
-    if (id === 'jupiter') {
-      galileanGroup.visible = true;
-      jupiterOuterMoonGroup.visible = true;
-      jupiterRing.visible = true;
-      jupiterAtmo.visible = true;
-      jupiterGrs.visible = true;
-      jupiterAuroraGroup.visible = true;
-      ioVolcanoGlow.visible = true;
-      ioLokiPateraGlowDisk.visible = true;
-      ioPelePateraGlowDisk.visible = true;
-      europaLineaeSegs.visible = true;
-      europaPwyllImpactCraterDisk.visible = true;
-      europaCilixImpactCraterDisk.visible = true;
-      ganymedeGalileoRegioDisk.visible = true;
-      ganymedeUrukSulcusSegs.visible = true;
-      callistoValhallaRings.visible = true;
-      callistoAsgardRings.visible = true;
-      updateGalilean(simNow());
-      updateJupiterInnerMoons(simNow());
-      updateJupiterOuterMoons(simNow());
-      ensureFocusedMoonMaps(id);
-    }
-    if (id === 'io' || id === 'europa' || id === 'ganymede' || id === 'callisto' || id === 'amalthea' || id === 'thebe' || id === 'metis' || id === 'adrastea' || id === 'himalia' || id === 'elara' || id === 'lysithea' || id === 'leda' || id === 'ananke' || id === 'carme' || id === 'pasiphae' || id === 'sinope' || id === 'callirrhoe' || id === 'megaclite' || id === 'autonoe') {
-      galileanGroup.visible = true;
-      jupiterOuterMoonGroup.visible = true;
-      ioVolcanoGlow.visible = true;
-      ioLokiPateraGlowDisk.visible = true;
-      ioPelePateraGlowDisk.visible = true;
-      europaLineaeSegs.visible = true;
-      europaPwyllImpactCraterDisk.visible = true;
-      europaCilixImpactCraterDisk.visible = true;
-      ganymedeGalileoRegioDisk.visible = true;
-      ganymedeUrukSulcusSegs.visible = true;
-      callistoValhallaRings.visible = true;
-      callistoAsgardRings.visible = true;
-      updateGalilean(simNow());
-      updateJupiterInnerMoons(simNow());
-      updateJupiterOuterMoons(simNow());
-      ensureFocusedMoonMaps(id);
-    }
-    if (id === 'mercury') mercuryCalorisDisk.visible = true;
-    if (id === 'mercury') mercuryDiscoveryRupesSegs.visible = true;
-    if (id === 'mercury') mercuryRachmaninoffBasinDisk.visible = true;
-    if (id === 'venus') venusAtmo.visible = true;
-    if (id === 'venus') venusMaxwellMontesDisk.visible = true;
-    if (id === 'halley') cometAtmo.visible = true;
-    if (id === 'uranus') {
-      uranusRing.visible = true;
-      uranusMoonGroup.visible = true;
-      uranusAtmo.visible = true;
-      uranusRingShadow.visible = true;
-      mirandaVeronaRupesScar.visible = true;
-      oberonHamletDisk.visible = true;
-      titaniaGertrudeCraterDisk.visible = true;
-      umbrielWundaFloorDisk.visible = true;
-      arielKachinaChasmataSegs.visible = true;
-      updateUranusMoons(simNow());
-      updateUranusRingShadow();
-      ensureRingTexture('uranus', uranusRing);
-      ensureFocusedMoonMaps(id);
-    }
-    if (id === 'miranda' || id === 'ariel' || id === 'umbriel' || id === 'titania' || id === 'oberon' || id === 'puck' || id === 'portia' || id === 'juliet' || id === 'cressida' || id === 'desdemona' || id === 'rosalind' || id === 'belinda' || id === 'cupid' || id === 'perdita' || id === 'bianca' || id === 'cordelia') {
-      uranusMoonGroup.visible = true;
-      mirandaVeronaRupesScar.visible = id === 'miranda';
-      arielKachinaChasmataSegs.visible = id === 'ariel';
-      umbrielWundaFloorDisk.visible = id === 'umbriel';
-      titaniaGertrudeCraterDisk.visible = id === 'titania';
-      oberonHamletDisk.visible = id === 'oberon';
-      updateUranusMoons(simNow());
-      ensureFocusedMoonMaps(id);
-    }
-    if (id === 'neptune') {
-      neptuneRing.visible = true;
-      neptuneMoonGroup.visible = true;
-      neptuneAtmo.visible = true;
-      neptuneSpot.visible = true;
-      tritonN2SprayPts.visible = true;
-      tritonSouthPolarCapDisk.visible = true;
-      updateNeptuneMoons(simNow());
-      ensureFocusedMoonMaps(id);
-    }
-    if (id === 'triton' || id === 'proteus' || id === 'larissa' || id === 'galatea' || id === 'despina' || id === 'thalassa' || id === 'naiad' || id === 'hippocamp' || id === 'halimede' || id === 'sao' || id === 'laomedeia' || id === 'neso' || id === 'psamathe' || id === 's2002n5' || id === 's2021n1') {
-      neptuneMoonGroup.visible = true;
-      tritonN2SprayPts.visible = id === 'triton';
-      tritonSouthPolarCapDisk.visible = id === 'triton';
-      updateNeptuneMoons(simNow());
-      ensureFocusedMoonMaps(id);
-    }
-    if (id === 'mars') {
-      marsMoonGroup.visible = true;
-      marsAtmo.visible = true;
-      marsPolarCapN.visible = true;
-      marsPolarCapS.visible = true;
-      marsOlympusMonsHighlandDisk.visible = true;
-      marsVallesMarinerisRiftSegs.visible = true;
-      marsHellasPlanitiaBasinDisk.visible = true;
-      phobosStickneyDisk.visible = true;
-      updateMarsCapLs();
-      updateMarsMoons(simNow());
-      ensureFocusedMoonMaps(id);
-    }
-    if (id === 'phobos' || id === 'deimos') {
-      marsMoonGroup.visible = true;
-      phobosStickneyDisk.visible = id === 'phobos';
-      updateMarsMoons(simNow());
-      ensureFocusedMoonMaps(id);
-    }
-    if (id === 'pluto') {
-      charonGroup.visible = true;
-      plutoInspectMesh.visible = true;
-      plutoInspectHaze.visible = true;
-      plutoTombaughLobeA.visible = true;
-      plutoTombaughLobeB.visible = true;
-      plutoCthulhuMaculaDisk.visible = true;
-      charonMordorMaculaDisk.visible = true;
-      charonSerenityChasmaSegs.visible = true;
-      planetMeshes[7].material.visible = false;
-      updateCharon(simNow());
-      ensureFocusedMoonMaps(id);
-    }
-    if (id === 'charon') {
-      charonGroup.visible = true;
-      planetMeshes[7].material.visible = true;
-      plutoInspectMesh.visible = false;
-      plutoInspectHaze.visible = false;
-      plutoTombaughLobeA.visible = false;
-      plutoTombaughLobeB.visible = false;
-      plutoCthulhuMaculaDisk.visible = false;
-      charonMordorMaculaDisk.visible = true;
-      charonSerenityChasmaSegs.visible = true;
-      updateCharon(simNow());
-      ensureFocusedMoonMaps(id);
-    }
-    if (id === 'ceres') ceresOccatorDots.visible = true;
-    if (id === 'ceres') ceresAhunaMonsDomeDisk.visible = true;
-    if (id === 'vesta') vestaRheasilviaDisk.visible = true;
+    armInspectPresentation(id);
+  } else {
+    _bodyPos.set(0, 0, 0);
+    armInspectPresentation(id);
   }
   ensureBodyTexture(id);
 
@@ -7124,11 +7502,6 @@ function flyToBody(id) {
     moonToggle.checked = true;
     moonToggle.dispatchEvent(new Event('change'));
   }
-  if (id === 'moon') moonTychoCraterDisk.visible = true;
-  if (id === 'moon') moonCopernicusCraterDisk.visible = true;
-  if (id === 'moon') moonAristarchusCraterDisk.visible = true;
-  if (id === 'moon') moonKeplerImpactCraterDisk.visible = true;
-  if (id === 'moon') moonPlatoImpactCraterDisk.visible = true;
   if (id === 'halley' && !cometToggle.checked) {
     cometToggle.checked = true;
     cometToggle.dispatchEvent(new Event('change'));
@@ -7147,16 +7520,24 @@ function flyToBody(id) {
     }
   }
 
+  stopShowOrbit();
   _flyFromTgt.copy(controls.target);
   _flyFromCam.copy(camera.position);
-  _bodyOff.copy(camera.position).sub(controls.target);
-  if (_bodyOff.lengthSq() < 1e-6) _bodyOff.set(0, 8, 30);
   if (id === 'earth') {
+    _bodyOff.copy(camera.position).sub(controls.target);
+    if (_bodyOff.lengthSq() < 1e-6) _bodyOff.set(0, 8, 30);
     const d = _bodyOff.length();
     if (d < 20) _bodyOff.setLength(20);
     else if (d > 40) _bodyOff.setLength(40);
+    flyLookMs = 0;
+    flyMoveMs = FLY_MS;
+    flyDurMs = FLY_MS;
   } else {
-    _bodyOff.setLength(inspectViewR(id) * 2.4);
+    setQuarteringTopOffset(_bodyOff, _bodyPos, camera.position, inspectViewR(id) * 2.4);
+    const dist = camera.position.distanceTo(_bodyPos);
+    flyLookMs = skipFlyLook(_bodyPos) ? 0 : FLY_LOOK_MS;
+    flyMoveMs = flyTravelMs(dist);
+    flyDurMs = flyLookMs + flyMoveMs;
   }
   flyT0 = performance.now();
   controls.minDistance = 1;
@@ -7171,6 +7552,58 @@ function syncBodyList() {
     b.classList.toggle('active', b.dataset.body === focusedBody);
   });
 }
+
+function bodyFilterMatch(btn, q) {
+  const name = (btn.textContent || '').toLowerCase();
+  const id = (btn.dataset.body || '').toLowerCase();
+  return name.includes(q) || id.includes(q);
+}
+
+function filterBodyList() {
+  const q = (elBodyFilter.value || '').trim().toLowerCase();
+  const list = document.getElementById('body-list');
+  const kids = list.children;
+  if (!q) {
+    for (let i = 0; i < kids.length; i++) {
+      kids[i].hidden = false;
+      if (kids[i].classList.contains('moon-fly-row')) {
+        const btns = kids[i].querySelectorAll('button');
+        for (let j = 0; j < btns.length; j++) btns[j].hidden = false;
+      }
+    }
+    return;
+  }
+  for (let i = 0; i < kids.length; i++) {
+    const el = kids[i];
+    if (el.classList.contains('moon-fly-row')) {
+      const btns = el.querySelectorAll('button');
+      let any = false;
+      for (let j = 0; j < btns.length; j++) {
+        const hit = bodyFilterMatch(btns[j], q);
+        btns[j].hidden = !hit;
+        if (hit) any = true;
+      }
+      el.hidden = !any;
+      if (any) {
+        let prev = el.previousElementSibling;
+        while (prev && prev.classList.contains('moon-fly-row')) prev = prev.previousElementSibling;
+        if (prev && prev.matches && prev.matches('button[data-body]')) prev.hidden = false;
+      }
+    } else if (el.matches && el.matches('button[data-body]')) {
+      el.hidden = !bodyFilterMatch(el, q);
+    }
+  }
+}
+
+elBodyFilter.addEventListener('input', filterBodyList);
+elBodyFilter.addEventListener('search', filterBodyList);
+elBodyFilter.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if (!elBodyFilter.value) return;
+  e.stopPropagation();
+  elBodyFilter.value = '';
+  filterBodyList();
+});
 
 document.getElementById('body-list').addEventListener('click', (e) => {
   const btn = e.target.closest('button[data-body]');
@@ -7256,30 +7689,63 @@ function tick() {
   updateMinors(now, lonDeg);
   if (orbitWorld.visible && Date.now() - lastOrbitWall >= 2000) buildPlanetOrbits(now);
   bodyLabel.sun.position.copy(sunMesh.position);
-  bodyLabel.sun.visible = focusedBody !== 'sun';
+  bodyLabel.sun.visible = showBodyLabel('sun');
   bodyLabel.moon.position.copy(moonMesh.position);
-  bodyLabel.moon.visible = moonWorld.visible && focusedBody !== 'moon';
-  bodyLabel.earth.visible = focusedBody !== 'earth';
+  bodyLabel.moon.visible = moonWorld.visible && showBodyLabel('moon');
+  bodyLabel.earth.visible = showBodyLabel('earth');
   updateFocusReadout();
+  updateTextureLod();
   if (flyT0 >= 0) {
-    const t = Math.min((performance.now() - flyT0) / FLY_MS, 1);
-    const e = t * t * (3 - 2 * t);
+    const elapsed = performance.now() - flyT0;
     const mesh = BODY_MESH[focusedBody];
     if (mesh) mesh.getWorldPosition(_bodyPos);
     else _bodyPos.set(0, 0, 0);
-    controls.target.lerpVectors(_flyFromTgt, _bodyPos, e);
-    _flyToCam.copy(_bodyPos).add(_bodyOff);
-    camera.position.lerpVectors(_flyFromCam, _flyToCam, e);
-    if (t >= 1) {
-      flyT0 = -1;
-      if (focusedBody === 'earth') {
+    if (focusedBody === 'earth') {
+      const t = Math.min(elapsed / flyDurMs, 1);
+      const e = t * t * (3 - 2 * t);
+      controls.target.lerpVectors(_flyFromTgt, _bodyPos, e);
+      _flyToCam.copy(_bodyPos).add(_bodyOff);
+      camera.position.lerpVectors(_flyFromCam, _flyToCam, e);
+      if (t >= 1) {
+        flyT0 = -1;
         controls.minDistance = 12;
         controls.maxDistance = 120;
         controls.target.set(0, 0, 0);
         syncCameraNear('earth');
-      } else {
-        setInspectDistances(focusedBody);
       }
+    } else if (elapsed < flyLookMs) {
+      const t = Math.min(elapsed / flyLookMs, 1);
+      const e = t * t * (3 - 2 * t);
+      controls.target.lerpVectors(_flyFromTgt, _bodyPos, e);
+      camera.position.copy(_flyFromCam);
+    } else {
+      const t = Math.min((elapsed - flyLookMs) / Math.max(flyMoveMs, 1), 1);
+      const e = t * t * (3 - 2 * t);
+      controls.target.copy(_bodyPos);
+      _flyToCam.copy(_bodyPos).add(_bodyOff);
+      camera.position.lerpVectors(_flyFromCam, _flyToCam, e);
+      if (t >= 1) {
+        flyT0 = -1;
+        setInspectDistances(focusedBody);
+        beginShowOrbit();
+      }
+    }
+  } else if (showOrbitT0 >= 0) {
+    const mesh = BODY_MESH[focusedBody];
+    if (!mesh) {
+      stopShowOrbit();
+    } else {
+      mesh.getWorldPosition(_bodyPos);
+      _bodyDelta.copy(_bodyPos).sub(controls.target);
+      camera.position.add(_bodyDelta);
+      controls.target.copy(_bodyPos);
+      const sec = (performance.now() - showOrbitT0) * 0.001;
+      const ez = Math.min(sec / 1.2, 1);
+      const ee = ez * ez * (3 - 2 * ez);
+      _bodyOff.lerpVectors(_showOrbitStartOff, _showOrbitFromOff, ee);
+      _bodyOff.applyAxisAngle(_worldUp, AUTO_ORBIT_YAW * Math.min(sec, AUTO_ORBIT_MS * 0.001));
+      camera.position.copy(_bodyPos).add(_bodyOff);
+      if (sec >= AUTO_ORBIT_MS * 0.001) stopShowOrbit();
     }
   } else if (focusedBody !== 'earth') {
     const mesh = BODY_MESH[focusedBody];
@@ -7560,6 +8026,7 @@ function onDrawerOpened() {
   drawerOpening = false;
   drawerOpen = true;
   navToggle.setAttribute('aria-expanded', 'true');
+  elFocusChip.classList.add('is-away');
   setGlobeInteractive(false);
   drawerSheet.focus({ preventScroll: true });
 }
@@ -7573,6 +8040,7 @@ function onDrawerClosed() {
   drawerWasVisible = false;
   drawerOpen = false;
   navToggle.setAttribute('aria-expanded', 'false');
+  elFocusChip.classList.remove('is-away');
   setGlobeInteractive(true);
   if (hasPopover) {
     try { drawer.hidePopover(); } catch (_) { /* ignore */ }
@@ -7600,6 +8068,7 @@ async function openDrawer() {
   drawerOpening = true;
   drawerClosing = false;
   navToggle.setAttribute('aria-expanded', 'true');
+  elFocusChip.classList.add('is-away');
   setGlobeInteractive(false);
   if (hasPopover) {
     try { drawer.showPopover(); } catch (_) { /* ignore */ }
@@ -7629,6 +8098,11 @@ function closeDrawer() {
     onDrawerClosed();
   }
 }
+
+elFocusChip.addEventListener('click', () => {
+  if (focusedBody !== 'earth') flyToBody('earth');
+  else openDrawer();
+});
 
 navToggle.addEventListener('click', () => {
   if (drawerOpen || drawerOpening) closeDrawer();
