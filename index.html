@@ -740,6 +740,8 @@ controls.minDistance = 12;
 controls.maxDistance = 120;
 
 const texUrlState = Object.create(null);
+const texByUrl = Object.create(null);
+const texUrlWaiters = Object.create(null);
 function applyMapAnisotropy(tex) {
   if (!tex) return;
   tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
@@ -4006,7 +4008,20 @@ minorsToggle.addEventListener('change', () => {
 
 new THREE.TextureLoader().load(
   'https://raw.githubusercontent.com/mrdoob/three.js/r160/examples/textures/planets/moon_1024.jpg',
-  (tex) => { tex.colorSpace = THREE.SRGBColorSpace; applyMapAnisotropy(tex); if (bodyTexState.moon !== 'hi') { moonMesh.material.map = tex; moonMesh.material.needsUpdate = true; bodyTexState.moon = 'lo'; } },
+  (tex) => {
+    tex.colorSpace = THREE.SRGBColorSpace;
+    applyMapAnisotropy(tex);
+    const moonLoUrl = 'https://raw.githubusercontent.com/mrdoob/three.js/r160/examples/textures/planets/moon_1024.jpg';
+    texUrlState[moonLoUrl] = 'ok';
+    texByUrl[moonLoUrl] = tex;
+    const moonSt = bodyTexState.moon;
+    if (moonSt !== 'hi' && moonSt !== '8k' && moonSt !== 'hi-load' && moonSt !== '8k-load') {
+      moonMesh.material.map = tex;
+      moonMesh.material.color.set(0xffffff);
+      moonMesh.material.needsUpdate = true;
+      bodyTexState.moon = 'lo';
+    }
+  },
   undefined,
   () => {},
 );
@@ -6441,17 +6456,26 @@ const BODY_TEX = {
   uranus: 'https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/uranusmap.jpg',
   neptune: 'https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/neptunemap.jpg',
   pluto: 'https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/plutomap1k.jpg',
+  moon: 'https://raw.githubusercontent.com/mrdoob/three.js/r160/examples/textures/planets/moon_1024.jpg',
   ceres: 'https://cdn.jsdelivr.net/gh/ofrohn/threex.planets@master/images/maps/ceresmap.jpg',
   vesta: 'https://cdn.jsdelivr.net/gh/ofrohn/threex.planets@master/images/maps/vestamap.jpg',
 };
 const BODY_TEX_HI = {
   sun: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/sun.jpg',
+  mercury: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/mercury.jpg',
+  venus: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/venus.jpg',
   mars: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/mars.jpg',
   jupiter: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/jupiter.jpg',
   saturn: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/saturn.jpg',
   uranus: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/uranus.jpg',
   neptune: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/neptune.jpg',
   moon: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/moon.jpg',
+  io: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/io.jpg',
+  europa: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/europa.jpg',
+  callisto: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/callisto.jpg',
+  triton: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/triton.jpg',
+};
+const BODY_TEX_8K = {
 };
 const EARTH_DAY_HI = [
   'https://cdn.jsdelivr.net/gh/turban/webgl-earth@master/images/2_no_clouds_4k.jpg',
@@ -6466,12 +6490,12 @@ let earth8kState = 'idle';
 let earth4kTex = null;
 let earth8kTex = null;
 const MOON_TEX = {
-  Io: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/io.jpg',
-  Europa: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/europa.jpg',
-  Ganymede: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/ganymede.jpg',
-  Callisto: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/callisto.jpg',
-  Titan: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/titan.webp',
-  Triton: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/triton.jpg',
+  Io: 'https://cdn.jsdelivr.net/gh/ofrohn/threex.planets@master/images/maps/iomap.jpg',
+  Europa: 'https://cdn.jsdelivr.net/gh/ofrohn/threex.planets@master/images/maps/europamap.jpg',
+  Ganymede: 'https://cdn.jsdelivr.net/gh/ofrohn/threex.planets@master/images/maps/ganymedemap.jpg',
+  Callisto: 'https://cdn.jsdelivr.net/gh/ofrohn/threex.planets@master/images/maps/callistomap.jpg',
+  Titan: 'https://cdn.jsdelivr.net/gh/ofrohn/threex.planets@master/images/maps/titanmap.jpg',
+  Triton: 'https://cdn.jsdelivr.net/gh/ofrohn/threex.planets@master/images/maps/tritonmap.jpg',
   Mimas: 'https://cdn.jsdelivr.net/gh/ofrohn/threex.planets@master/images/maps/mimasmap.jpg',
   Iapetus: 'https://cdn.jsdelivr.net/gh/ofrohn/threex.planets@master/images/maps/iapetusmap.jpg',
   Dione: 'https://cdn.jsdelivr.net/gh/ofrohn/threex.planets@master/images/maps/dionemap.jpg',
@@ -6489,6 +6513,14 @@ const MOON_TEX = {
   Titania: 'https://cdn.jsdelivr.net/gh/ofrohn/threex.planets@master/images/maps/titaniamap.jpg',
   Oberon: 'https://cdn.jsdelivr.net/gh/ofrohn/threex.planets@master/images/maps/oberonmap.jpg',
   Proteus: 'https://cdn.jsdelivr.net/gh/ofrohn/threex.planets@master/images/maps/proteusmap.jpg',
+  Amalthea: 'https://cdn.jsdelivr.net/gh/CelestiaProject/CelestiaContent@master/textures/lores/amalthea.jpg',
+  Thebe: 'https://cdn.jsdelivr.net/gh/CelestiaProject/CelestiaContent@master/textures/lores/thebe.jpg',
+  Metis: 'https://cdn.jsdelivr.net/gh/CelestiaProject/CelestiaContent@master/textures/lores/metis.jpg',
+  Janus: 'https://cdn.jsdelivr.net/gh/CelestiaProject/CelestiaContent@master/textures/lores/janus.jpg',
+  Epimetheus: 'https://cdn.jsdelivr.net/gh/CelestiaProject/CelestiaContent@master/textures/lores/epimetheus.jpg',
+  Prometheus: 'https://cdn.jsdelivr.net/gh/CelestiaProject/CelestiaContent@master/textures/lores/prometheus.jpg',
+  Larissa: 'https://cdn.jsdelivr.net/gh/CelestiaProject/CelestiaContent@master/textures/lores/larissa.jpg',
+  Puck: 'https://cdn.jsdelivr.net/gh/CelestiaProject/CelestiaContent@master/textures/medres/puck.jpg',
 };
 const moonTexState = Object.create(null);
 function ensureMoonTexture(name, mesh) {
@@ -6496,20 +6528,25 @@ function ensureMoonTexture(name, mesh) {
   if (moonTexState[name] === 'ok' || moonTexState[name] === 'load' || moonTexState[name] === 'fail') return;
   const url = MOON_TEX[name];
   if (!url) return;
+  if (texUrlState[url] === 'fail') { moonTexState[name] = 'fail'; return; }
   moonTexState[name] = 'load';
-  new THREE.TextureLoader().load(
-    url,
-    (tex) => {
+  const id = mesh.userData.body;
+  loadTexUrlOnce(url, (tex) => {
+    moonTexState[name] = 'ok';
+    const st = id && bodyTexState[id];
+    if (st === 'hi' || st === '8k' || st === 'hi-load' || st === '8k-load') return;
+    if (id && BODY_MESH[id]) {
+      applyBodyTexToMesh(id, tex);
+      if (bodyTexState[id] !== 'hi' && bodyTexState[id] !== '8k') bodyTexState[id] = 'lo';
+    } else {
       tex.colorSpace = THREE.SRGBColorSpace;
       applyMapAnisotropy(tex);
+      if (mesh.userData.baseColor == null) mesh.userData.baseColor = mesh.material.color.getHex();
       mesh.material.map = tex;
       mesh.material.color.set(0xffffff);
       mesh.material.needsUpdate = true;
-      moonTexState[name] = 'ok';
-    },
-    undefined,
-    () => { moonTexState[name] = 'fail'; },
-  );
+    }
+  }, () => { moonTexState[name] = 'fail'; });
 }
 function ensureFocusedMoonMaps(id) {
   if (moonFlyFamily(id) === 'jupiter') {
@@ -6542,6 +6579,7 @@ function ensureRingTexture(id, mesh) {
   mesh.userData.ringTex = 'load';
   const apply = (map, alpha) => {
     map.colorSpace = THREE.SRGBColorSpace;
+    applyMapAnisotropy(map);
     map.wrapS = THREE.ClampToEdgeWrapping;
     map.wrapT = THREE.ClampToEdgeWrapping;
     mesh.material.map = map;
@@ -6596,6 +6634,7 @@ const bodyTexState = Object.create(null);
 function applyBodyTexToMesh(id, tex) {
   const mesh = BODY_MESH[id];
   if (!mesh) return;
+  if (mesh.userData.baseColor == null) mesh.userData.baseColor = mesh.material.color.getHex();
   tex.colorSpace = THREE.SRGBColorSpace;
   applyMapAnisotropy(tex);
   mesh.material.map = tex;
@@ -6612,8 +6651,6 @@ function applyBodyTexToMesh(id, tex) {
     plutoInspectMesh.material.needsUpdate = true;
   }
 }
-const texByUrl = Object.create(null);
-const texUrlWaiters = Object.create(null);
 function loadTexUrlOnce(url, onLoad, onFail) {
   if (!url) { if (onFail) onFail(); return; }
   const st = texUrlState[url];
@@ -6643,29 +6680,44 @@ function loadTexUrlOnce(url, onLoad, onFail) {
     },
   );
 }
+function bodyLoUrl(id) {
+  if (BODY_TEX[id]) return BODY_TEX[id];
+  const cap = MOON_FLY_CAPTION[id];
+  if (cap && MOON_TEX[cap]) return MOON_TEX[cap];
+  return null;
+}
 function ensureBodyTexture(id) {
   const st = bodyTexState[id];
-  if (st === 'lo' || st === 'hi' || st === 'load' || st === 'fail') return;
+  if (st === 'lo' || st === 'hi' || st === '8k' || st === 'load' || st === 'fail' || st === 'hi-load' || st === '8k-load') return;
   const mesh = BODY_MESH[id];
   if (!mesh) return;
-  const lo = BODY_TEX[id];
+  const lo = bodyLoUrl(id);
   if (!lo) return;
   if (texUrlState[lo] === 'fail') { bodyTexState[id] = 'fail'; return; }
   bodyTexState[id] = 'load';
   loadTexUrlOnce(lo, (tex) => {
-    if (bodyTexState[id] !== 'hi') {
+    const cur = bodyTexState[id];
+    if (cur !== 'hi' && cur !== '8k' && cur !== 'hi-load' && cur !== '8k-load') {
       applyBodyTexToMesh(id, tex);
       bodyTexState[id] = 'lo';
     }
-  }, () => { if (bodyTexState[id] !== 'hi') bodyTexState[id] = 'fail'; });
+  }, () => {
+    const cur = bodyTexState[id];
+    if (cur !== 'hi' && cur !== '8k' && cur !== 'hi-load' && cur !== '8k-load') bodyTexState[id] = 'fail';
+  });
 }
-function ensureBodyHiTexture(id) {
+function ensureBodyHiTexture(id, force) {
   const hi = BODY_TEX_HI[id];
   if (!hi) return;
-  if (bodyTexState[id] === 'hi' || bodyTexState[id] === 'hi-load' || bodyTexState[id] === 'hi-fail') return;
+  if (!force && (bodyTexState[id] === 'hi' || bodyTexState[id] === 'hi-load' || bodyTexState[id] === 'hi-fail' || bodyTexState[id] === '8k' || bodyTexState[id] === '8k-load')) return;
   const mesh = BODY_MESH[id];
   if (!mesh || !mesh.material) return;
   if (texUrlState[hi] === 'fail') { bodyTexState[id] = 'hi-fail'; return; }
+  if (texUrlState[hi] === 'ok' && texByUrl[hi]) {
+    applyBodyTexToMesh(id, texByUrl[hi]);
+    bodyTexState[id] = 'hi';
+    return;
+  }
   bodyTexState[id] = 'hi-load';
   loadTexUrlOnce(hi, (tex) => {
     if (bodyTexState[id] !== 'hi-load') return;
@@ -6673,16 +6725,38 @@ function ensureBodyHiTexture(id) {
     bodyTexState[id] = 'hi';
   }, () => { if (bodyTexState[id] === 'hi-load') bodyTexState[id] = 'hi-fail'; });
 }
+function ensureBody8kTexture(id) {
+  const url = BODY_TEX_8K[id];
+  if (!url) return;
+  if (bodyTexState[id] === '8k' || bodyTexState[id] === '8k-load' || bodyTexState[id] === '8k-fail') return;
+  const mesh = BODY_MESH[id];
+  if (!mesh || !mesh.material) return;
+  if (texUrlState[url] === 'fail') { bodyTexState[id] = '8k-fail'; return; }
+  bodyTexState[id] = '8k-load';
+  loadTexUrlOnce(url, (tex) => {
+    if (bodyTexState[id] !== '8k-load') return;
+    applyBodyTexToMesh(id, tex);
+    bodyTexState[id] = '8k';
+  }, () => { if (bodyTexState[id] === '8k-load') bodyTexState[id] = '8k-fail'; });
+}
 function restoreBodyLoTexture(id) {
-  if (bodyTexState[id] !== 'hi' && bodyTexState[id] !== 'hi-load') return;
-  const lo = BODY_TEX[id];
+  if (bodyTexState[id] !== 'hi' && bodyTexState[id] !== 'hi-load' && bodyTexState[id] !== '8k' && bodyTexState[id] !== '8k-load') return;
+  const lo = bodyLoUrl(id);
   const tex = lo && texByUrl[lo];
   if (tex) {
     applyBodyTexToMesh(id, tex);
     bodyTexState[id] = 'lo';
-  } else {
+  } else if (lo) {
     bodyTexState[id] = undefined;
     ensureBodyTexture(id);
+  } else {
+    const mesh = BODY_MESH[id];
+    if (mesh && mesh.material) {
+      mesh.material.map = null;
+      if (mesh.userData.baseColor != null) mesh.material.color.set(mesh.userData.baseColor);
+      mesh.material.needsUpdate = true;
+    }
+    bodyTexState[id] = undefined;
   }
 }
 function applyEarthDayMap(tex, tier) {
@@ -6768,26 +6842,53 @@ function updateEarthDayTier(d) {
     ensureEarth8kMap();
   } else if (d < 22) ensureEarth4kMap();
 }
+const TEX_LOD_MS = 160;
+const TEX_HI_IN = 12;
+const TEX_HI_OUT = 18;
+const TEX_8K_IN = 8;
+const TEX_8K_OUT = 10;
 let lastTexLodMs = 0;
+let lastTexLodId = null;
 function updateTextureLod() {
   const t = performance.now();
-  if (t - lastTexLodMs < 160) return;
+  if (t - lastTexLodMs < TEX_LOD_MS) return;
   lastTexLodMs = t;
   const id = focusedBody;
+  if (lastTexLodId && lastTexLodId !== id && lastTexLodId !== 'earth') restoreBodyLoTexture(lastTexLodId);
+  lastTexLodId = id;
   const nearOrigin = controls.target.lengthSq() < 64;
   if (id === 'earth' || nearOrigin) updateEarthDayTier(earthCamDist());
   if (!id || id === 'earth') return;
-  if (!BODY_TEX_HI[id]) return;
   const mesh = BODY_MESH[id];
   if (!mesh) return;
   mesh.getWorldPosition(_focusWorldKm);
   const d = Math.min(camera.position.distanceTo(_focusWorldKm), camera.position.distanceTo(controls.target));
   const viewR = inspectViewR(id);
-  if (bodyTexState[id] === 'hi' || bodyTexState[id] === 'hi-load') {
-    if (d > viewR * 6 * 36 / 22) restoreBodyLoTexture(id);
-  } else if (d < viewR * 6) {
-    ensureBodyHiTexture(id);
+  if (!(viewR > 0)) return;
+  const ratio = d / viewR;
+  const st = bodyTexState[id];
+  const has8k = !!BODY_TEX_8K[id];
+  const hasHi = !!BODY_TEX_HI[id];
+  if (has8k && (st === '8k' || st === '8k-load')) {
+    if (ratio > TEX_8K_OUT) {
+      if (hasHi && ratio < TEX_HI_OUT) ensureBodyHiTexture(id, true);
+      else restoreBodyLoTexture(id);
+    }
+    return;
   }
+  if (has8k && ratio < TEX_8K_IN) {
+    ensureBody8kTexture(id);
+    return;
+  }
+  if (hasHi && (st === 'hi' || st === 'hi-load')) {
+    if (ratio > TEX_HI_OUT) restoreBodyLoTexture(id);
+    return;
+  }
+  if (hasHi && ratio < TEX_HI_IN) {
+    ensureBodyHiTexture(id);
+    return;
+  }
+  if (st !== 'lo' && st !== 'load' && bodyLoUrl(id)) ensureBodyTexture(id);
 }
 function updateFocusReadout() {
   const t = performance.now();
@@ -7442,6 +7543,7 @@ function flyToBody(id) {
   if (prev === 'ceres') ceresAhunaMonsDomeDisk.visible = false;
   if (prev === 'vesta') vestaRheasilviaDisk.visible = false;
 
+  if (prev && prev !== id && prev !== 'earth') restoreBodyLoTexture(prev);
   focusedBody = id;
   lastFocusReadout = 0;
   const mesh = BODY_MESH[id];
