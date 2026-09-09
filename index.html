@@ -9128,12 +9128,66 @@ const HA200_EL = {
 const minorWorld = new THREE.Group();
 minorWorld.visible = false;
 scene.add(minorWorld);
+let _irregularNoiseTex = null;
+function getSharedIrregularNoiseTex() {
+  if (_irregularNoiseTex) return _irregularNoiseTex;
+  const c = document.createElement('canvas');
+  c.width = 128;
+  c.height = 64;
+  const ctx = c.getContext('2d');
+  const img = ctx.createImageData(c.width, c.height);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const v = 96 + (Math.random() * 64 | 0);
+    img.data[i] = v;
+    img.data[i + 1] = v;
+    img.data[i + 2] = v;
+    img.data[i + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  // Soften with a second low-frequency pass so it reads as rough rock, not TV snow.
+  ctx.globalAlpha = 0.35;
+  for (let y = 0; y < c.height; y += 4) {
+    for (let x = 0; x < c.width; x += 4) {
+      const v = 80 + (Math.random() * 90 | 0);
+      ctx.fillStyle = 'rgb(' + v + ',' + v + ',' + v + ')';
+      ctx.fillRect(x, y, 4, 4);
+    }
+  }
+  ctx.globalAlpha = 1;
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.needsUpdate = true;
+  applyMapAnisotropy(tex);
+  _irregularNoiseTex = tex;
+  return tex;
+}
+function polishColorOnlyMesh(mesh) {
+  if (!mesh || !mesh.material || mesh.userData.irregularTex) return;
+  if (mesh.material.map) return;
+  if (mesh.userData.baseColor == null) mesh.userData.baseColor = mesh.material.color.getHex();
+  const tex = getSharedIrregularNoiseTex();
+  mesh.material.map = tex;
+  mesh.material.shininess = Math.max(mesh.material.shininess || 0, 10);
+  if (mesh.material.specular && mesh.material.specular.isColor) mesh.material.specular.set(0x2a2a2a);
+  else mesh.material.specular = new THREE.Color(0x2a2a2a);
+  mesh.userData.irregularTex = true;
+  mesh.material.needsUpdate = true;
+}
 function makeMinorMesh(el, id) {
+  const hiTopo = (id === 'ceres' || id === 'vesta');
   const mesh = new THREE.Mesh(
-    new THREE.SphereGeometry(Math.max(el.r * KM_TO_SCENE, 0.5), 32, 24),
-    new THREE.MeshPhongMaterial({ color: el.c, shininess: 4 }),
+    new THREE.SphereGeometry(Math.max(el.r * KM_TO_SCENE, 0.5), hiTopo ? 64 : 32, hiTopo ? 48 : 24),
+    new THREE.MeshPhongMaterial({
+      color: el.c,
+      shininess: hiTopo ? 12 : 8,
+      specular: 0x2a2a2a,
+    }),
   );
   mesh.userData.body = id;
+  // Color-only TNOs/irregulars get a shared noisy albedo; ceres/vesta maps replace this via LOD.
+  polishColorOnlyMesh(mesh);
   minorWorld.add(mesh);
   return mesh;
 }
@@ -13590,12 +13644,39 @@ const BODY_TEX_HI = {
   neptune: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/neptune.jpg',
   moon: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/moon.jpg',
   io: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/io.jpg',
-  europa: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/europa.jpg',
-  callisto: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/callisto.jpg',
-  triton: 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/triton.jpg',
+  europa: 'https://cdn.jsdelivr.net/gh/CelestiaProject/CelestiaContent@master/textures/hires/europa.jpg',
+  ganymede: 'https://cdn.jsdelivr.net/gh/CelestiaProject/CelestiaContent@master/textures/hires/ganymede.jpg',
+  callisto: 'https://cdn.jsdelivr.net/gh/CelestiaProject/CelestiaContent@master/textures/hires/callisto.jpg',
+  triton: 'https://cdn.jsdelivr.net/gh/CelestiaProject/CelestiaContent@master/textures/hires/triton.jpg',
+  pluto: 'https://cdn.jsdelivr.net/gh/CelestiaProject/CelestiaContent@master/textures/hires/pluto.jpg',
+  charon: 'https://cdn.jsdelivr.net/gh/CelestiaProject/CelestiaContent@master/textures/hires/charon.jpg',
+  ceres: 'https://cdn.jsdelivr.net/gh/CelestiaProject/CelestiaContent@master/textures/hires/ceres.jpg',
+  vesta: 'https://cdn.jsdelivr.net/gh/CelestiaProject/CelestiaContent@master/textures/hires/vesta.jpg',
+  phobos: 'https://cdn.jsdelivr.net/gh/CelestiaProject/CelestiaContent@master/textures/hires/phobos.jpg',
+  deimos: 'https://cdn.jsdelivr.net/gh/CelestiaProject/CelestiaContent@master/textures/hires/deimos.jpg',
+  mimas: 'https://cdn.jsdelivr.net/gh/CelestiaProject/CelestiaContent@master/textures/hires/mimas.jpg',
+  enceladus: 'https://cdn.jsdelivr.net/gh/CelestiaProject/CelestiaContent@master/textures/hires/enceladus.jpg',
+  rhea: 'https://cdn.jsdelivr.net/gh/CelestiaProject/CelestiaContent@master/textures/hires/rhea.jpg',
+  dione: 'https://cdn.jsdelivr.net/gh/CelestiaProject/CelestiaContent@master/textures/hires/dione.jpg',
+  tethys: 'https://cdn.jsdelivr.net/gh/CelestiaProject/CelestiaContent@master/textures/hires/tethys.jpg',
+  iapetus: 'https://cdn.jsdelivr.net/gh/CelestiaProject/CelestiaContent@master/textures/hires/iapetus.jpg',
+  phoebe: 'https://cdn.jsdelivr.net/gh/CelestiaProject/CelestiaContent@master/textures/hires/phoebe.jpg',
+  hyperion: 'https://cdn.jsdelivr.net/gh/CelestiaProject/CelestiaContent@master/textures/medres/hyperion.jpg',
+  miranda: 'https://cdn.jsdelivr.net/gh/CelestiaProject/CelestiaContent@master/textures/hires/miranda.jpg',
+  ariel: 'https://cdn.jsdelivr.net/gh/CelestiaProject/CelestiaContent@master/textures/hires/ariel.jpg',
+  umbriel: 'https://cdn.jsdelivr.net/gh/CelestiaProject/CelestiaContent@master/textures/medres/umbriel.jpg',
+  titania: 'https://cdn.jsdelivr.net/gh/CelestiaProject/CelestiaContent@master/textures/medres/titania.jpg',
+  oberon: 'https://cdn.jsdelivr.net/gh/CelestiaProject/CelestiaContent@master/textures/medres/oberon.jpg',
 };
 const BODY_TEX_8K = {
 };
+// Dedicated bump: Vesta has ofrohn vestabump. No public CDN Ceres bump found —
+// Ceres uses albedo luminance as bumpMap inside applyBodyTexToMesh instead.
+const BODY_BUMP = {
+  vesta: 'https://cdn.jsdelivr.net/gh/ofrohn/threex.planets@master/images/maps/vestabump.jpg',
+};
+const BODY_BUMP_SCALE = { ceres: 0.05, vesta: 0.09 };
+const bodyBumpState = Object.create(null);
 const EARTH_DAY_HI = [
   'https://cdn.jsdelivr.net/gh/turban/webgl-earth@master/images/2_no_clouds_4k.jpg',
   'https://raw.githubusercontent.com/turban/webgl-earth/master/images/2_no_clouds_4k.jpg',
@@ -13646,7 +13727,7 @@ function ensureMoonTexture(name, mesh) {
   if (!name || !mesh) return;
   if (moonTexState[name] === 'ok' || moonTexState[name] === 'load' || moonTexState[name] === 'fail') return;
   const url = MOON_TEX[name];
-  if (!url) return;
+  if (!url) { polishColorOnlyMesh(mesh); return; }
   if (texUrlState[url] === 'fail') { moonTexState[name] = 'fail'; return; }
   moonTexState[name] = 'load';
   const id = mesh.userData.body;
@@ -13750,6 +13831,27 @@ function syncCometTailScale(rHelio) {
   cometTail.material.opacity = 0.22 + 0.73 * k * k;
 }
 const bodyTexState = Object.create(null);
+function ensureBodyBump(id) {
+  const url = BODY_BUMP[id];
+  if (!url) return;
+  if (bodyBumpState[id] === 'ok' || bodyBumpState[id] === 'load' || bodyBumpState[id] === 'fail') return;
+  const mesh = BODY_MESH[id];
+  if (!mesh || !mesh.material) return;
+  if (texUrlState[url] === 'fail') { bodyBumpState[id] = 'fail'; return; }
+  bodyBumpState[id] = 'load';
+  loadTexUrlOnce(url, (tex) => {
+    const m = BODY_MESH[id];
+    if (!m || !m.material) { bodyBumpState[id] = 'fail'; return; }
+    // Clone so NoColorSpace bump does not clobber a shared albedo colorSpace.
+    const bump = tex.clone();
+    bump.colorSpace = THREE.NoColorSpace;
+    applyMapAnisotropy(bump);
+    m.material.bumpMap = bump;
+    m.material.bumpScale = BODY_BUMP_SCALE[id] != null ? BODY_BUMP_SCALE[id] : 0.06;
+    m.material.needsUpdate = true;
+    bodyBumpState[id] = 'ok';
+  }, () => { bodyBumpState[id] = 'fail'; });
+}
 function applyBodyTexToMesh(id, tex) {
   const mesh = BODY_MESH[id];
   if (!mesh) return;
@@ -13762,6 +13864,13 @@ function applyBodyTexToMesh(id, tex) {
     mesh.material.emissiveMap = tex;
     mesh.material.emissive.set(0xffffff);
     mesh.material.emissiveIntensity = 0.85;
+  }
+  // Ceres: no dedicated public CDN bump — use Dawn albedo luminance as bump.
+  if (id === 'ceres') {
+    mesh.material.bumpMap = tex;
+    mesh.material.bumpScale = BODY_BUMP_SCALE.ceres;
+  } else {
+    ensureBodyBump(id);
   }
   mesh.material.needsUpdate = true;
   if (id === 'pluto') {
@@ -13806,12 +13915,13 @@ function bodyLoUrl(id) {
   return null;
 }
 function ensureBodyTexture(id) {
+  ensureBodyBump(id);
   const st = bodyTexState[id];
   if (st === 'lo' || st === 'hi' || st === '8k' || st === 'load' || st === 'fail' || st === 'hi-load' || st === '8k-load') return;
   const mesh = BODY_MESH[id];
   if (!mesh) return;
   const lo = bodyLoUrl(id);
-  if (!lo) return;
+  if (!lo) { polishColorOnlyMesh(mesh); return; }
   if (texUrlState[lo] === 'fail') { bodyTexState[id] = 'fail'; return; }
   bodyTexState[id] = 'load';
   loadTexUrlOnce(lo, (tex) => {
