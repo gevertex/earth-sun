@@ -1954,6 +1954,51 @@ function moonSceneRadius(id) {
   const km = MOON_FLY_KM[id];
   return (km || 0) * KM_TO_SCENE;
 }
+// Shared irregular/elongated body geometry (SphereGeometry so maps/UVs survive).
+// ax/ay/az are unitless axes relative to mean radius; opts.noise / opts.dent / opts.southFlatten optional.
+function makeIrregularBodyGeo(radius, widthSeg, heightSeg, ax, ay, az, opts) {
+  opts = opts || {};
+  const geo = new THREE.SphereGeometry(radius, widthSeg, heightSeg);
+  const pos = geo.attributes.position;
+  const v = new THREE.Vector3();
+  const noiseAmp = opts.noise != null ? opts.noise : 0.08;
+  const seed = opts.seed != null ? opts.seed : 1.7;
+  const dent = opts.dent || null; // {nx,ny,nz, r, depth} on unit sphere
+  const southFlat = opts.southFlatten != null ? opts.southFlatten : 0;
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i);
+    const invR = 1 / Math.max(radius, 1e-12);
+    const nx = v.x * invR, ny = v.y * invR, nz = v.z * invR;
+    v.set(nx * ax * radius, ny * ay * radius, nz * az * radius);
+    if (noiseAmp) {
+      const n =
+        noiseAmp * Math.sin(nx * 7.1 * seed + ny * 5.3) +
+        noiseAmp * 0.72 * Math.sin(ny * 9.2 + nz * 4.1 * seed) +
+        noiseAmp * 0.55 * Math.sin(nz * 6.7 + nx * 8.3 + seed);
+      v.multiplyScalar(1 + n);
+    }
+    if (dent) {
+      const dx = nx - dent.nx, dy = ny - dent.ny, dz = nz - dent.nz;
+      const d2 = dx * dx + dy * dy + dz * dz;
+      const r2 = dent.r * dent.r;
+      if (d2 < r2) {
+        const t = 1 - d2 / r2;
+        v.multiplyScalar(1 - dent.depth * t * t);
+      }
+    }
+    if (southFlat > 0 && ny < -0.15) {
+      const t = (-ny - 0.15) / 0.85;
+      const k = 1 - southFlat * t * t;
+      v.y *= k;
+      v.x *= 1 - southFlat * 0.35 * t * t;
+      v.z *= 1 - southFlat * 0.35 * t * t;
+    }
+    pos.setXYZ(i, v.x, v.y, v.z);
+  }
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+  return geo;
+}
 function moonSceneSma(id) {
   const km = MOON_SMA_KM[id];
   return (km || 0) * KM_TO_SCENE;
@@ -2366,8 +2411,14 @@ const jupiterInnerMeshes = [];
 const jupiterInnerLabels = [];
 for (let jupInnerI = 0; jupInnerI < JUPITER_INNER_MOONS.length; jupInnerI++) {
   const jupInnerG = JUPITER_INNER_MOONS[jupInnerI];
+  const jupInnerId = JUPITER_INNER_FLY_ID[jupInnerI];
+  const jupInnerR = moonSceneRadius(jupInnerId);
+  // Amalthea: highly elongated irregular (not a sphere).
+  const jupInnerGeo = (jupInnerId === 'amalthea')
+    ? makeIrregularBodyGeo(jupInnerR, 20, 16, 1.50, 0.87, 0.77, { noise: 0.08, seed: 4.2 })
+    : new THREE.SphereGeometry(jupInnerR, 16, 12);
   const jupInnerMesh = new THREE.Mesh(
-    new THREE.SphereGeometry(moonSceneRadius(JUPITER_INNER_FLY_ID[jupInnerI]), 16, 12),
+    jupInnerGeo,
     new THREE.MeshPhongMaterial({ color: jupInnerG.c, shininess: 4 }),
   );
   jupInnerMesh.userData.moon = jupInnerG.name;
@@ -3544,8 +3595,14 @@ for (let i = 0; i < SATURN_MOONS.length; i++) {
   // Titan..Mimas (0-5) keep 16/12; mid moons 12/10; tiny irregulars 8/6.
   const satSegW = i <= 5 ? 16 : (i < 15 ? 12 : 8);
   const satSegH = i <= 5 ? 12 : (i < 15 ? 10 : 6);
+  const satMoonId = SATURN_FLY_ID[i];
+  const satMoonR = moonSceneRadius(satMoonId);
+  // Hyperion: highly irregular spongy potato (not a sphere).
+  const satMoonGeo = (satMoonId === 'hyperion')
+    ? makeIrregularBodyGeo(satMoonR, 24, 18, 1.33, 0.99, 0.76, { noise: 0.14, seed: 5.8 })
+    : new THREE.SphereGeometry(satMoonR, satSegW, satSegH);
   const mesh = new THREE.Mesh(
-    new THREE.SphereGeometry(moonSceneRadius(SATURN_FLY_ID[i]), satSegW, satSegH),
+    satMoonGeo,
     new THREE.MeshPhongMaterial({ color: g.c, shininess: 4 }),
   );
   mesh.userData.moon = g.name;
@@ -5447,8 +5504,13 @@ for (let i = 0; i < NEPTUNE_MOONS.length; i++) {
   const nepLayoutId = moonLayoutId(NEPTUNE_FLY_ID[i], g.name);
   const nepSegW = i < 2 ? 16 : 8;
   const nepSegH = i < 2 ? 12 : 6;
+  const nepMoonR = moonSceneRadius(nepLayoutId);
+  // Proteus: slightly irregular polyhedral potato (not a smooth sphere).
+  const nepMoonGeo = (NEPTUNE_FLY_ID[i] === 'proteus')
+    ? makeIrregularBodyGeo(nepMoonR, 24, 18, 1.05, 0.99, 0.96, { noise: 0.07, seed: 6.3 })
+    : new THREE.SphereGeometry(nepMoonR, nepSegW, nepSegH);
   const mesh = new THREE.Mesh(
-    new THREE.SphereGeometry(moonSceneRadius(nepLayoutId), nepSegW, nepSegH),
+    nepMoonGeo,
     new THREE.MeshPhongMaterial({ color: g.c, shininess: 4 }),
   );
   mesh.userData.moon = g.name;
@@ -5676,8 +5738,22 @@ const marsMoonMeshes = [];
 const marsMoonLabels = [];
 for (let i = 0; i < MARS_MOONS.length; i++) {
   const g = MARS_MOONS[i];
+  const marsMoonId = MARS_FLY_ID[i];
+  const marsMoonR = moonSceneRadius(marsMoonId);
+  // Phobos/Deimos: triaxial potato (not spheres); Phobos gets Stickney-scale dent.
+  let marsMoonGeo;
+  if (marsMoonId === 'phobos') {
+    marsMoonGeo = makeIrregularBodyGeo(marsMoonR, 24, 18, 1.15, 1.01, 0.81, {
+      noise: 0.07, seed: 2.1,
+      dent: { nx: Math.cos(1 * DEG) * Math.cos(-40 * DEG), ny: Math.sin(1 * DEG), nz: -Math.cos(1 * DEG) * Math.sin(-40 * DEG), r: 0.55, depth: 0.22 },
+    });
+  } else if (marsMoonId === 'deimos') {
+    marsMoonGeo = makeIrregularBodyGeo(marsMoonR, 20, 16, 1.26, 0.97, 0.82, { noise: 0.06, seed: 3.4 });
+  } else {
+    marsMoonGeo = new THREE.SphereGeometry(marsMoonR, 16, 12);
+  }
   const mesh = new THREE.Mesh(
-    new THREE.SphereGeometry(moonSceneRadius(MARS_FLY_ID[i]), 16, 12),
+    marsMoonGeo,
     new THREE.MeshPhongMaterial({ color: g.c, shininess: 4 }),
   );
   mesh.userData.moon = g.name;
@@ -10086,6 +10162,15 @@ ceresAhunaMonsDomeDisk.visible = false;
 ceresAhunaMonsDomeDisk.renderOrder = 2;
 ceresMesh.add(ceresAhunaMonsDomeDisk);
 const vestaMesh = makeMinorMesh(VESTA_EL, 'vesta');
+// Mild triaxial + south Rheasilvia flatten (keeps Sphere UVs for Dawn map/bump).
+{
+  const oldGeo = vestaMesh.geometry;
+  const vr = Math.max(VESTA_EL.r * KM_TO_SCENE, 0.5);
+  vestaMesh.geometry = makeIrregularBodyGeo(vr, 64, 48, 1.09, 1.06, 0.88, {
+    noise: 0.018, seed: 8.4, southFlatten: 0.14,
+  });
+  oldGeo.dispose();
+}
 const vestaRheasilviaR = Math.max(VESTA_EL.r * KM_TO_SCENE, 0.5);
 const vestaRheasilviaDisk = new THREE.Mesh(
   new THREE.CircleGeometry(vestaRheasilviaR * 0.82, 28),
@@ -10104,6 +10189,13 @@ vestaRheasilviaDisk.visible = false;
 vestaMesh.add(vestaRheasilviaDisk);
 const erisMesh = makeMinorMesh(ERIS_EL, 'eris');
 const haumeaMesh = makeMinorMesh(HAUMEA_EL, 'haumea');
+// Bake elongated ellipsoid into geometry so far + inspect match (not inspect-only scale).
+{
+  const oldGeo = haumeaMesh.geometry;
+  const hr = Math.max(HAUMEA_EL.r * KM_TO_SCENE, 0.5);
+  haumeaMesh.geometry = makeIrregularBodyGeo(hr, 48, 32, HAUMEA_INSPECT_X, 1, HAUMEA_INSPECT_Z, { noise: 0.02, seed: 7.1 });
+  oldGeo.dispose();
+}
 const makemakeMesh = makeMinorMesh(MAKEMAKE_EL, 'makemake');
 const pallasMesh = makeMinorMesh(PALLAS_EL, 'pallas');
 const hygieaMesh = makeMinorMesh(HYGIEA_EL, 'hygiea');
@@ -15910,8 +16002,8 @@ function inspectViewR(id) {
 function applyInspectScale(id) {
   const mesh = BODY_MESH[id];
   if (!mesh) return;
-  if (id === 'haumea') mesh.scale.set(HAUMEA_INSPECT_X, 1, HAUMEA_INSPECT_Z);
-  else mesh.scale.set(1, 1, 1);
+  // Haumea elongation is baked into geometry (far + inspect); keep uniform scale.
+  mesh.scale.set(1, 1, 1);
 }
 function applyBodyTilt(id, mesh) {
   if (!mesh) return;
