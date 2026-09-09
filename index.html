@@ -8702,10 +8702,11 @@ const cometSkyGeo = new THREE.BufferGeometry();
 cometSkyGeo.setAttribute('position', new THREE.BufferAttribute(cometSkyPos, 3));
 cometSkyGeo.setAttribute('color', new THREE.BufferAttribute(cometSkyCol, 3));
 const cometSky = new THREE.Points(cometSkyGeo, new THREE.PointsMaterial({
-  size: 6, sizeAttenuation: false, vertexColors: true, depthWrite: false, transparent: true, opacity: 0.95,
+  size: 4, sizeAttenuation: false, vertexColors: true, depthWrite: false, transparent: true, opacity: 0.8,
 }));
 cometSky.frustumCulled = false;
 cometSky.raycast = () => {};
+cometSky.visible = false;
 cometWorld.add(cometSky);
 function updateComet(now, lonDeg) {
   if (!cometWorld.visible) {
@@ -8726,10 +8727,14 @@ function updateComet(now, lonDeg) {
   const p = latLonToVec3(Dec, lon, dist, _cometPosScratch);
   cometMesh.position.copy(p);
   syncCometVisualScale();
-  if (focusedBody === 'halley') {
-    cometSkyPos[0] = cometSkyPos[1] = cometSkyPos[2] = SKY_DOT_PARK;
-  } else {
+  const camDistHalley = camera.position.distanceTo(p);
+  // Screen-space GL points render as squares — hide whenever the nucleus is resolvable.
+  const showSkyDot = focusedBody !== 'halley' && camDistHalley > 2.5;
+  cometSky.visible = showSkyDot;
+  if (showSkyDot) {
     cometSkyPos[0] = p.x; cometSkyPos[1] = p.y; cometSkyPos[2] = p.z;
+  } else {
+    cometSkyPos[0] = cometSkyPos[1] = cometSkyPos[2] = SKY_DOT_PARK;
   }
   cometSkyGeo.attributes.position.needsUpdate = true;
   _tailDir.copy(p).sub(sunMesh.position);
@@ -8744,7 +8749,8 @@ function updateComet(now, lonDeg) {
   const lbl = bodyLabel.halley;
   if (lbl) {
     lbl.position.copy(p);
-    lbl.visible = showBodyLabel('halley');
+    // Flat name sprite reads as a placard/cube next to the tiny true-size nucleus.
+    lbl.visible = focusedBody !== 'halley' && showBodyLabel('halley') && camDistHalley > 2.5;
   }
 }
 const cometToggle = document.getElementById('comet-toggle');
@@ -16408,7 +16414,8 @@ function syncCometTailScale(rHelio) {
   layoutCometTail(len0 * (0.16 + 0.84 * k), wid0 * (0.30 + 0.70 * k));
   cometTailGeo.attributes.position.needsUpdate = true;
   cometTailGeo.attributes.color.needsUpdate = true;
-  cometTail.material.size = inspecting ? Math.max(viewR * 0.12, 0.2) : 0.35;
+  // Never floor inspect size above the nucleus scale — a 0.2 floor looked like a white cube beside Halley.
+  cometTail.material.size = inspecting ? Math.max(viewR * 0.08, viewR * 0.35) : 0.35;
   cometTail.material.opacity = 0.22 + 0.73 * k * k;
 }
 const bodyTexState = Object.create(null);
