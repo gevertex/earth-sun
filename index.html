@@ -2413,10 +2413,19 @@ for (let jupInnerI = 0; jupInnerI < JUPITER_INNER_MOONS.length; jupInnerI++) {
   const jupInnerG = JUPITER_INNER_MOONS[jupInnerI];
   const jupInnerId = JUPITER_INNER_FLY_ID[jupInnerI];
   const jupInnerR = moonSceneRadius(jupInnerId);
-  // Amalthea: highly elongated irregular (not a sphere).
-  const jupInnerGeo = (jupInnerId === 'amalthea')
-    ? makeIrregularBodyGeo(jupInnerR, 20, 16, 1.50, 0.87, 0.77, { noise: 0.08, seed: 4.2 })
-    : new THREE.SphereGeometry(jupInnerR, 16, 12);
+  // Inner Jovians: Amalthea highly elongated; Thebe/Metis/Adrastea irregular potatoes.
+  let jupInnerGeo;
+  if (jupInnerId === 'amalthea') {
+    jupInnerGeo = makeIrregularBodyGeo(jupInnerR, 20, 16, 1.50, 0.87, 0.77, { noise: 0.08, seed: 4.2 });
+  } else if (jupInnerId === 'thebe') {
+    jupInnerGeo = makeIrregularBodyGeo(jupInnerR, 16, 12, 1.22, 0.98, 0.86, { noise: 0.07, seed: 4.6 });
+  } else if (jupInnerId === 'metis') {
+    jupInnerGeo = makeIrregularBodyGeo(jupInnerR, 14, 12, 1.28, 0.94, 0.82, { noise: 0.08, seed: 4.9 });
+  } else if (jupInnerId === 'adrastea') {
+    jupInnerGeo = makeIrregularBodyGeo(jupInnerR, 12, 10, 1.35, 0.90, 0.78, { noise: 0.10, seed: 5.1 });
+  } else {
+    jupInnerGeo = new THREE.SphereGeometry(jupInnerR, 16, 12);
+  }
   const jupInnerMesh = new THREE.Mesh(
     jupInnerGeo,
     new THREE.MeshPhongMaterial({ color: jupInnerG.c, shininess: 4 }),
@@ -2561,8 +2570,23 @@ const jupiterOuterMeshes = [];
 const jupiterOuterLabels = [];
 for (let jupOuterI = 0; jupOuterI < JUPITER_OUTER_MOONS.length; jupOuterI++) {
   const jupOuterG = JUPITER_OUTER_MOONS[jupOuterI];
+  const jupOuterId = JUPITER_OUTER_FLY_ID[jupOuterI];
+  const jupOuterR = moonSceneRadius(jupOuterId);
+  // Himalia/Elara (+ Lysithea/Leda): mild irregular potatoes; other outers stay spheres.
+  let jupOuterGeo;
+  if (jupOuterId === 'himalia') {
+    jupOuterGeo = makeIrregularBodyGeo(jupOuterR, 16, 12, 1.12, 0.98, 0.90, { noise: 0.06, seed: 8.1 });
+  } else if (jupOuterId === 'elara') {
+    jupOuterGeo = makeIrregularBodyGeo(jupOuterR, 14, 12, 1.14, 0.97, 0.88, { noise: 0.07, seed: 8.4 });
+  } else if (jupOuterId === 'lysithea') {
+    jupOuterGeo = makeIrregularBodyGeo(jupOuterR, 12, 10, 1.16, 0.96, 0.88, { noise: 0.07, seed: 8.7 });
+  } else if (jupOuterId === 'leda') {
+    jupOuterGeo = makeIrregularBodyGeo(jupOuterR, 12, 10, 1.18, 0.95, 0.86, { noise: 0.08, seed: 8.9 });
+  } else {
+    jupOuterGeo = new THREE.SphereGeometry(jupOuterR, 8, 6);
+  }
   const jupOuterMesh = new THREE.Mesh(
-    new THREE.SphereGeometry(moonSceneRadius(JUPITER_OUTER_FLY_ID[jupOuterI]), 8, 6),
+    jupOuterGeo,
     new THREE.MeshPhongMaterial({ color: jupOuterG.c, shininess: 4 }),
   );
   jupOuterMesh.userData.moon = jupOuterG.name;
@@ -3597,10 +3621,27 @@ for (let i = 0; i < SATURN_MOONS.length; i++) {
   const satSegH = i <= 5 ? 12 : (i < 15 ? 10 : 6);
   const satMoonId = SATURN_FLY_ID[i];
   const satMoonR = moonSceneRadius(satMoonId);
-  // Hyperion: highly irregular spongy potato (not a sphere).
-  const satMoonGeo = (satMoonId === 'hyperion')
-    ? makeIrregularBodyGeo(satMoonR, 24, 18, 1.33, 0.99, 0.76, { noise: 0.14, seed: 5.8 })
-    : new THREE.SphereGeometry(satMoonR, satSegW, satSegH);
+  // Irregular Saturn moons: Hyperion spongy; Phoebe captured; co-orbitals + ring shepherds potato/walnut.
+  let satMoonGeo;
+  if (satMoonId === 'hyperion') {
+    satMoonGeo = makeIrregularBodyGeo(satMoonR, 24, 18, 1.33, 0.99, 0.76, { noise: 0.14, seed: 5.8 });
+  } else if (satMoonId === 'phoebe') {
+    satMoonGeo = makeIrregularBodyGeo(satMoonR, 24, 18, 1.10, 0.99, 0.92, { noise: 0.09, seed: 6.1 });
+  } else if (satMoonId === 'janus') {
+    satMoonGeo = makeIrregularBodyGeo(satMoonR, 20, 16, 1.18, 0.97, 0.88, { noise: 0.08, seed: 6.4 });
+  } else if (satMoonId === 'epimetheus') {
+    satMoonGeo = makeIrregularBodyGeo(satMoonR, 18, 14, 1.16, 0.98, 0.90, { noise: 0.08, seed: 6.6 });
+  } else if (satMoonId === 'prometheus') {
+    satMoonGeo = makeIrregularBodyGeo(satMoonR, 18, 14, 1.45, 0.90, 0.72, { noise: 0.09, seed: 6.8 });
+  } else if (satMoonId === 'pandora') {
+    satMoonGeo = makeIrregularBodyGeo(satMoonR, 18, 14, 1.28, 0.94, 0.80, { noise: 0.08, seed: 7.0 });
+  } else if (satMoonId === 'atlas') {
+    satMoonGeo = makeIrregularBodyGeo(satMoonR, 16, 12, 1.35, 0.72, 1.20, { noise: 0.06, seed: 7.2 });
+  } else if (satMoonId === 'pan') {
+    satMoonGeo = makeIrregularBodyGeo(satMoonR, 16, 12, 1.30, 0.70, 1.15, { noise: 0.05, seed: 7.4 });
+  } else {
+    satMoonGeo = new THREE.SphereGeometry(satMoonR, satSegW, satSegH);
+  }
   const mesh = new THREE.Mesh(
     satMoonGeo,
     new THREE.MeshPhongMaterial({ color: g.c, shininess: 4 }),
@@ -3612,6 +3653,20 @@ for (let i = 0; i < SATURN_MOONS.length; i++) {
   saturnMoonMeshes.push(mesh);
   saturnMoonLabels.push(makeMoonLabel(g.name, SATURN_FLY_ID[i]));
   addMoonOrbit(saturnMoonGroup, moonSceneSma(SATURN_FLY_ID[i]), g.c);
+}
+// Pan equatorial ridge (walnut flying-saucer look) — child torus on pan mesh.
+{
+  const panIdx = SATURN_FLY_ID.indexOf('pan');
+  if (panIdx >= 0) {
+    const panR = moonSceneRadius('pan');
+    const panRidge = new THREE.Mesh(
+      new THREE.TorusGeometry(panR * 1.05, panR * 0.18, 10, 32),
+      new THREE.MeshPhongMaterial({ color: 0xb0aca0, shininess: 4 }),
+    );
+    panRidge.rotation.x = Math.PI / 2;
+    panRidge.raycast = () => {};
+    saturnMoonMeshes[panIdx].add(panRidge);
+  }
 }
 const titanAtmo = makeInspectAtmo(saturnMoonMeshes[0], moonSceneRadius('titan'), 0xcc8833);
 const titanXanaduR = moonSceneRadius('titan');
@@ -5226,8 +5281,23 @@ for (let i = 0; i < URANUS_MOONS.length; i++) {
   const g = URANUS_MOONS[i];
   const uraSegW = i < 5 ? 16 : 8;
   const uraSegH = i < 5 ? 12 : 6;
+  const uraMoonId = URANUS_FLY_ID[i];
+  const uraMoonR = moonSceneRadius(uraMoonId);
+  // Miranda: mild irregular (Verona Rupes overlay kept); Puck + far irregulars potato-ish.
+  let uraMoonGeo;
+  if (uraMoonId === 'miranda') {
+    uraMoonGeo = makeIrregularBodyGeo(uraMoonR, 24, 18, 1.04, 0.98, 0.97, { noise: 0.05, seed: 9.1 });
+  } else if (uraMoonId === 'puck') {
+    uraMoonGeo = makeIrregularBodyGeo(uraMoonR, 16, 12, 1.08, 0.98, 0.94, { noise: 0.06, seed: 9.3 });
+  } else if (uraMoonId === 'sycorax') {
+    uraMoonGeo = makeIrregularBodyGeo(uraMoonR, 14, 12, 1.12, 0.97, 0.90, { noise: 0.07, seed: 9.5 });
+  } else if (uraMoonId === 'caliban') {
+    uraMoonGeo = makeIrregularBodyGeo(uraMoonR, 12, 10, 1.14, 0.96, 0.88, { noise: 0.08, seed: 9.7 });
+  } else {
+    uraMoonGeo = new THREE.SphereGeometry(uraMoonR, uraSegW, uraSegH);
+  }
   const mesh = new THREE.Mesh(
-    new THREE.SphereGeometry(moonSceneRadius(URANUS_FLY_ID[i]), uraSegW, uraSegH),
+    uraMoonGeo,
     new THREE.MeshPhongMaterial({ color: g.c, shininess: 4 }),
   );
   mesh.userData.moon = g.name;
@@ -5505,10 +5575,23 @@ for (let i = 0; i < NEPTUNE_MOONS.length; i++) {
   const nepSegW = i < 2 ? 16 : 8;
   const nepSegH = i < 2 ? 12 : 6;
   const nepMoonR = moonSceneRadius(nepLayoutId);
-  // Proteus: slightly irregular polyhedral potato (not a smooth sphere).
-  const nepMoonGeo = (NEPTUNE_FLY_ID[i] === 'proteus')
-    ? makeIrregularBodyGeo(nepMoonR, 24, 18, 1.05, 0.99, 0.96, { noise: 0.07, seed: 6.3 })
-    : new THREE.SphereGeometry(nepMoonR, nepSegW, nepSegH);
+  // Proteus polyhedral; Nereid irregular; Larissa/Galatea/Despina/Naiad mild potatoes.
+  let nepMoonGeo;
+  if (NEPTUNE_FLY_ID[i] === 'proteus') {
+    nepMoonGeo = makeIrregularBodyGeo(nepMoonR, 24, 18, 1.05, 0.99, 0.96, { noise: 0.07, seed: 6.3 });
+  } else if (nepLayoutId === 'nereid') {
+    nepMoonGeo = makeIrregularBodyGeo(nepMoonR, 24, 18, 1.12, 0.97, 0.90, { noise: 0.08, seed: 6.5 });
+  } else if (NEPTUNE_FLY_ID[i] === 'larissa') {
+    nepMoonGeo = makeIrregularBodyGeo(nepMoonR, 16, 12, 1.10, 0.97, 0.92, { noise: 0.06, seed: 6.7 });
+  } else if (NEPTUNE_FLY_ID[i] === 'galatea') {
+    nepMoonGeo = makeIrregularBodyGeo(nepMoonR, 14, 12, 1.12, 0.96, 0.90, { noise: 0.06, seed: 6.9 });
+  } else if (NEPTUNE_FLY_ID[i] === 'despina') {
+    nepMoonGeo = makeIrregularBodyGeo(nepMoonR, 14, 12, 1.14, 0.95, 0.88, { noise: 0.07, seed: 7.1 });
+  } else if (NEPTUNE_FLY_ID[i] === 'naiad') {
+    nepMoonGeo = makeIrregularBodyGeo(nepMoonR, 12, 10, 1.20, 0.92, 0.84, { noise: 0.08, seed: 7.3 });
+  } else {
+    nepMoonGeo = new THREE.SphereGeometry(nepMoonR, nepSegW, nepSegH);
+  }
   const mesh = new THREE.Mesh(
     nepMoonGeo,
     new THREE.MeshPhongMaterial({ color: g.c, shininess: 4 }),
