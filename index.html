@@ -8350,15 +8350,61 @@ function _helioHalley(T) { return _helioElTime(HALLEY_EL, T); }
 const cometWorld = new THREE.Group();
 cometWorld.visible = false;
 scene.add(cometWorld);
-const cometGeoR = Math.max(HALLEY_EL.r * KM_TO_SCENE, 0.5);
+// True nucleus radius (~5.5 km → ~0.0086 scene). No 0.5 floor: that oversized
+// sphere put the inspect camera inside the mesh (near-plane white cube/wall).
+const cometGeoR = HALLEY_EL.r * KM_TO_SCENE;
+const _cometNucGeo = new THREE.IcosahedronGeometry(cometGeoR, 2);
+{
+  // Irregular peanut/potato dual-lobe dirty-ice nucleus (not a smooth sphere).
+  const pos = _cometNucGeo.attributes.position;
+  const v = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i);
+    // Stretch long axis, then dual-lobe waist + lumpy noise.
+    v.x *= 1.55;
+    v.y *= 0.78;
+    v.z *= 0.88;
+    const lobe = 1 + 0.22 * Math.tanh(v.x / (cometGeoR * 0.55));
+    const waist = 1 - 0.18 * Math.exp(-(v.x * v.x) / (cometGeoR * cometGeoR * 0.55));
+    const n =
+      0.11 * Math.sin(v.x * 520 + v.y * 310) +
+      0.09 * Math.sin(v.y * 470 + v.z * 210) +
+      0.07 * Math.sin(v.z * 390 + v.x * 280);
+    v.multiplyScalar(lobe * waist * (1 + n));
+    pos.setXYZ(i, v.x, v.y, v.z);
+  }
+  pos.needsUpdate = true;
+  _cometNucGeo.computeVertexNormals();
+}
 const cometMesh = new THREE.Mesh(
-  new THREE.SphereGeometry(cometGeoR, 32, 24),
-  new THREE.MeshPhongMaterial({ color: HALLEY_EL.c, shininess: 8, emissive: 0x223344, emissiveIntensity: 0.35 }),
+  _cometNucGeo,
+  new THREE.MeshPhongMaterial({
+    color: 0x7a8478, // dusty gray-ice (not pure white / not pale sky blue)
+    shininess: 4,
+    specular: 0x2a3028,
+    emissive: 0x1c2420,
+    emissiveIntensity: 0.28,
+  }),
 );
 cometMesh.userData.body = 'halley';
 cometWorld.add(cometMesh);
+// Coma sized relative to true nucleus; shown only on inspect (makeInspectAtmo).
 const cometAtmo = makeInspectAtmo(cometMesh, cometGeoR * 2.2, 0xb8e8ff);
 cometAtmo.material.opacity = 0.28;
+// Far-view findability: inflate on-sky size when NOT inspecting (scale=1 on inspect).
+const COMET_FAR_SCALE_K = 0.0035;
+const COMET_FAR_R_MAX = 0.35;
+function syncCometVisualScale() {
+  if (focusedBody === 'halley') {
+    if (cometMesh.scale.x !== 1 || cometMesh.scale.y !== 1 || cometMesh.scale.z !== 1) {
+      cometMesh.scale.set(1, 1, 1);
+    }
+    return;
+  }
+  const camDist = camera.position.distanceTo(cometMesh.position);
+  const worldR = Math.min(COMET_FAR_R_MAX, Math.max(cometGeoR, camDist * COMET_FAR_SCALE_K));
+  cometMesh.scale.setScalar(worldR / Math.max(cometGeoR, 1e-12));
+}
 function updateHalleyComaFade(rHelio) {
   if (!cometAtmo.visible) return;
   if (!(rHelio > 0)) return;
@@ -8425,6 +8471,7 @@ function updateComet(now, lonDeg) {
   const lon = ((RA - gmst + 180) % 360 + 360) % 360 - 180;
   const p = latLonToVec3(Dec, lon, dist, _cometPosScratch);
   cometMesh.position.copy(p);
+  syncCometVisualScale();
   if (focusedBody === 'halley') {
     cometSkyPos[0] = cometSkyPos[1] = cometSkyPos[2] = SKY_DOT_PARK;
   } else {
@@ -9962,6 +10009,17 @@ function polishColorOnlyMesh(mesh) {
   else mesh.material.specular = new THREE.Color(0x2a2a2a);
   mesh.userData.irregularTex = true;
   mesh.material.needsUpdate = true;
+}
+// Halley: cheap shared noise albedo + mild bump (defined after cometMesh).
+{
+  polishColorOnlyMesh(cometMesh);
+  const tex = getSharedIrregularNoiseTex();
+  const bump = tex.clone();
+  bump.colorSpace = THREE.NoColorSpace;
+  applyMapAnisotropy(bump);
+  cometMesh.material.bumpMap = bump;
+  cometMesh.material.bumpScale = Math.max(cometGeoR * 0.4, 0.0008);
+  cometMesh.material.needsUpdate = true;
 }
 function makeMinorMesh(el, id) {
   const hiTopo = (id === 'ceres' || id === 'vesta');
