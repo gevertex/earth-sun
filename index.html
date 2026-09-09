@@ -293,6 +293,25 @@
     background: rgba(50, 90, 150, 0.4);
     border-color: rgba(120, 170, 255, 0.5);
   }
+  #controls .moon-group {
+    flex-basis: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+  }
+  #controls .moon-group.collapsed .moon-fly-row { display: none !important; }
+  #controls .moon-toggle {
+    font: 11px/1.3 system-ui, sans-serif;
+    color: #7f97b8;
+    background: #0c1626;
+    border: 1px solid rgba(120, 170, 255, 0.25);
+    border-radius: 5px;
+    padding: 2px 7px;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  #controls .moon-toggle:hover { color: #cfe8ff; }
   #controls .moon-fly-row {
     flex-basis: 100%;
     display: flex;
@@ -325,7 +344,8 @@
       align-items: center;
     }
     #controls .ctrl-presets button,
-    #controls .body-list button {
+    #controls .body-list button,
+    #controls .moon-toggle {
       min-height: 44px;
       padding: 8px 12px;
     }
@@ -466,13 +486,16 @@
         <button type="button" data-body="venus">Venus</button>
         <button type="button" data-body="earth" class="active">Earth</button>
         <button type="button" data-body="moon">Moon</button>
-        <button type="button" data-body="mars">Mars</button>
-        <span class="moon-fly-row">
+        <span class="moon-group collapsed" data-planet="mars">
+          <button type="button" data-body="mars">Mars</button><button type="button" class="moon-toggle" aria-expanded="false" aria-label="Show Mars moons">▸</button>
+          <span class="moon-fly-row" hidden>
           <button type="button" data-body="phobos">Phobos</button>
           <button type="button" data-body="deimos">Deimos</button>
         </span>
-        <button type="button" data-body="jupiter">Jupiter</button>
-        <span class="moon-fly-row">
+        </span>
+        <span class="moon-group collapsed" data-planet="jupiter">
+          <button type="button" data-body="jupiter">Jupiter</button><button type="button" class="moon-toggle" aria-expanded="false" aria-label="Show Jupiter moons">▸</button>
+          <span class="moon-fly-row" hidden>
           <button type="button" data-body="io">Io</button>
           <button type="button" data-body="europa">Europa</button>
           <button type="button" data-body="ganymede">Ganymede</button>
@@ -589,8 +612,10 @@
           <button type="button" data-body="s2021j7">S/2021 J 7</button>
           <button type="button" data-body="s2021j8">S/2021 J 8</button>
         </span>
-        <button type="button" data-body="saturn">Saturn</button>
-        <span class="moon-fly-row">
+        </span>
+        <span class="moon-group collapsed" data-planet="saturn">
+          <button type="button" data-body="saturn">Saturn</button><button type="button" class="moon-toggle" aria-expanded="false" aria-label="Show Saturn moons">▸</button>
+          <span class="moon-fly-row" hidden>
           <button type="button" data-body="titan">Titan</button>
           <button type="button" data-body="rhea">Rhea</button>
           <button type="button" data-body="enceladus">Enceladus</button>
@@ -825,8 +850,10 @@
           <button type="button" data-body="s2023s62">S/2023 S62</button>
           <button type="button" data-body="s2023s63">S/2023 S63</button>
         </span>
-        <button type="button" data-body="uranus">Uranus</button>
-        <span class="moon-fly-row">
+        </span>
+        <span class="moon-group collapsed" data-planet="uranus">
+          <button type="button" data-body="uranus">Uranus</button><button type="button" class="moon-toggle" aria-expanded="false" aria-label="Show Uranus moons">▸</button>
+          <span class="moon-fly-row" hidden>
           <button type="button" data-body="miranda">Miranda</button>
           <button type="button" data-body="ariel">Ariel</button>
           <button type="button" data-body="umbriel">Umbriel</button>
@@ -857,8 +884,10 @@
           <button type="button" data-body="s2023u1">S/2023 U1</button>
           <button type="button" data-body="s2025u1">S/2025 U1</button>
         </span>
-        <button type="button" data-body="neptune">Neptune</button>
-        <span class="moon-fly-row">
+        </span>
+        <span class="moon-group collapsed" data-planet="neptune">
+          <button type="button" data-body="neptune">Neptune</button><button type="button" class="moon-toggle" aria-expanded="false" aria-label="Show Neptune moons">▸</button>
+          <span class="moon-fly-row" hidden>
           <button type="button" data-body="triton">Triton</button>
           <button type="button" data-body="proteus">Proteus</button>
           <button type="button" data-body="larissa">Larissa</button>
@@ -875,9 +904,12 @@
           <button type="button" data-body="s2002n5">S/2002 N5</button>
           <button type="button" data-body="s2021n1">S/2021 N1</button>
         </span>
-        <button type="button" data-body="pluto">Pluto</button>
-        <span class="moon-fly-row">
+        </span>
+        <span class="moon-group collapsed" data-planet="pluto">
+          <button type="button" data-body="pluto">Pluto</button><button type="button" class="moon-toggle" aria-expanded="false" aria-label="Show Pluto moons">▸</button>
+          <span class="moon-fly-row" hidden>
           <button type="button" data-body="charon">Charon</button>
+        </span>
         </span>
         <button type="button" data-body="halley">Halley</button>
         <button type="button" data-body="ceres">Ceres</button>
@@ -1256,6 +1288,9 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.05;
 controls.minDistance = 12;
 controls.maxDistance = 120;
+controls.rotateSpeed = 1;
+controls.panSpeed = 1;
+controls.zoomSpeed = 1;
 
 const texUrlState = Object.create(null);
 const texByUrl = Object.create(null);
@@ -12190,6 +12225,118 @@ meteorToggle.addEventListener('change', () => {
   if (meteorToggle.checked) meteorPrevT = performance.now();
 });
 
+/* ---------- hyperspace streaks (fly move phase; meteor LineSegments pattern) ---------- */
+const HYPER_COUNT = 72;
+const hyperPos = new Float32Array(HYPER_COUNT * 6);
+const hyperCol = new Float32Array(HYPER_COUNT * 6);
+const hyperGeo = new THREE.BufferGeometry();
+hyperGeo.setAttribute('position', new THREE.BufferAttribute(hyperPos, 3));
+hyperGeo.setAttribute('color', new THREE.BufferAttribute(hyperCol, 3));
+const hyperMat = new THREE.LineBasicMaterial({
+  vertexColors: true, transparent: true, opacity: 1,
+  blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false,
+});
+const hyperWorld = new THREE.Group();
+scene.add(hyperWorld);
+const hyperLines = new THREE.LineSegments(hyperGeo, hyperMat);
+hyperLines.frustumCulled = false;
+hyperLines.raycast = () => {};
+hyperLines.renderOrder = 10;
+hyperWorld.add(hyperLines);
+hyperWorld.visible = false;
+
+const hyperState = [];
+for (let i = 0; i < HYPER_COUNT; i++) {
+  hyperState.push({ x: 0, y: 0, z: 0, len: 4, speed: 40, cr: 1, cg: 1, cb: 1 });
+}
+let hyperOn = false;
+let hyperFade = 0;
+let hyperFadeOut = false;
+let hyperPrevT = performance.now();
+
+function respawnHyper(i) {
+  const s = hyperState[i];
+  s.x = (Math.random() - 0.5) * 48;
+  s.y = (Math.random() - 0.5) * 48;
+  s.z = -12 - Math.random() * 90;
+  s.len = 3 + Math.random() * 16;
+  s.speed = 55 + Math.random() * 120;
+  if (Math.random() < 0.55) { s.cr = 1; s.cg = 1; s.cb = 1; }
+  else { s.cr = 0.55; s.cg = 0.82; s.cb = 1; }
+}
+
+function startHyperspace() {
+  if (prefersReducedMotion()) return;
+  for (let i = 0; i < HYPER_COUNT; i++) respawnHyper(i);
+  hyperOn = true;
+  hyperFade = 0;
+  hyperFadeOut = false;
+  hyperWorld.visible = true;
+  hyperLines.visible = true;
+  hyperPrevT = performance.now();
+}
+
+function fadeHyperspace() {
+  if (!hyperOn && hyperFade <= 0) return;
+  hyperFadeOut = true;
+}
+
+function stopHyperspace() {
+  hyperOn = false;
+  hyperFade = 0;
+  hyperFadeOut = false;
+  hyperWorld.visible = false;
+  hyperLines.visible = false;
+  for (let i = 0; i < HYPER_COUNT; i++) {
+    const vi = i * 6;
+    hyperPos[vi] = hyperPos[vi + 1] = hyperPos[vi + 2] = 0;
+    hyperPos[vi + 3] = hyperPos[vi + 4] = hyperPos[vi + 5] = 0;
+    hyperCol[vi] = hyperCol[vi + 1] = hyperCol[vi + 2] = 0;
+    hyperCol[vi + 3] = hyperCol[vi + 4] = hyperCol[vi + 5] = 0;
+  }
+  hyperGeo.attributes.position.needsUpdate = true;
+  hyperGeo.attributes.color.needsUpdate = true;
+}
+
+function updateHyperspace() {
+  if (!hyperWorld.visible) return;
+  // Keep streaks in camera space without parenting to the camera (camera is not in the scene graph).
+  hyperWorld.position.copy(camera.position);
+  hyperWorld.quaternion.copy(camera.quaternion);
+  const now = performance.now();
+  let dt = (now - hyperPrevT) / 1000;
+  hyperPrevT = now;
+  if (dt <= 0 || dt > 0.5) dt = 0.016;
+  if (hyperFadeOut) {
+    hyperFade = Math.max(0, hyperFade - dt * 2.8);
+    if (hyperFade <= 0) { stopHyperspace(); return; }
+  } else if (hyperOn) {
+    hyperFade = Math.min(1, hyperFade + dt * 3.2);
+  }
+  const fade = hyperFade;
+  for (let i = 0; i < HYPER_COUNT; i++) {
+    const s = hyperState[i];
+    s.z += s.speed * dt;
+    if (s.z > 8) respawnHyper(i);
+    const vi = i * 6;
+    // Camera looks down -Z; streaks rush past (+Z) along travel
+    hyperPos[vi] = s.x;
+    hyperPos[vi + 1] = s.y;
+    hyperPos[vi + 2] = s.z - s.len;
+    hyperPos[vi + 3] = s.x;
+    hyperPos[vi + 4] = s.y;
+    hyperPos[vi + 5] = s.z;
+    hyperCol[vi] = s.cr * fade * 0.2;
+    hyperCol[vi + 1] = s.cg * fade * 0.2;
+    hyperCol[vi + 2] = s.cb * fade * 0.2;
+    hyperCol[vi + 3] = s.cr * fade;
+    hyperCol[vi + 4] = s.cg * fade;
+    hyperCol[vi + 5] = s.cb * fade;
+  }
+  hyperGeo.attributes.position.needsUpdate = true;
+  hyperGeo.attributes.color.needsUpdate = true;
+}
+
 /* ---------- readout + animation ---------- */
 
 const elUtc = document.getElementById('utc');
@@ -14342,6 +14489,7 @@ const AUTO_ORBIT_YAW = 0.12;
 let flyDurMs = FLY_MS;
 let flyLookMs = 0;
 let flyMoveMs = FLY_MS;
+let flyMoveArmed = false;
 let showOrbitT0 = -1;
 const _worldUp = new THREE.Vector3(0, 1, 0);
 const _showOrbitFromOff = new THREE.Vector3();
@@ -14362,17 +14510,8 @@ function setQuarteringTopOffset(out, bodyPos, fromPos, r) {
   out.set(r * ce * Math.sin(az), r * se, r * ce * Math.cos(az));
 }
 function skipFlyLook(bodyPos) {
-  if (prefersReducedMotion()) return true;
-  if (controls.target.distanceToSquared(bodyPos) < 1) return true;
-  _flyToCam.copy(bodyPos).sub(camera.position);
-  const toBody = _flyToCam.length();
-  if (toBody < 1e-6) return true;
-  _flyToCam.multiplyScalar(1 / toBody);
-  _bodyDelta.copy(controls.target).sub(camera.position);
-  const toTgt = _bodyDelta.length();
-  if (toTgt < 1e-6) return false;
-  _bodyDelta.multiplyScalar(1 / toTgt);
-  return _flyToCam.dot(_bodyDelta) > 0.995;
+  // Look/pan phase is skipped only for prefers-reduced-motion.
+  return prefersReducedMotion();
 }
 function flyTravelMs(dist) {
   if (prefersReducedMotion()) return FLY_MS;
@@ -14787,8 +14926,10 @@ function flyToBody(id) {
   }
 
   stopShowOrbit();
+  stopHyperspace();
   _flyFromTgt.copy(controls.target);
   _flyFromCam.copy(camera.position);
+  flyMoveArmed = false;
   if (id === 'earth') {
     _bodyOff.copy(camera.position).sub(controls.target);
     if (_bodyOff.lengthSq() < 1e-6) _bodyOff.set(0, 8, 30);
@@ -14806,6 +14947,7 @@ function flyToBody(id) {
     flyDurMs = flyLookMs + flyMoveMs;
   }
   flyT0 = performance.now();
+  controls.enabled = false;
   controls.minDistance = 1;
   controls.maxDistance = 1e7;
   syncCameraNear(id);
@@ -14825,36 +14967,60 @@ function bodyFilterMatch(btn, q) {
   return name.includes(q) || id.includes(q);
 }
 
+function setMoonGroupExpanded(group, open) {
+  if (!group) return;
+  group.classList.toggle('collapsed', !open);
+  const row = group.querySelector('.moon-fly-row');
+  const toggle = group.querySelector('.moon-toggle');
+  if (row) row.hidden = !open;
+  if (toggle) {
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    const planet = group.dataset.planet || 'planet';
+    const name = planet.charAt(0).toUpperCase() + planet.slice(1);
+    toggle.setAttribute('aria-label', (open ? 'Hide ' : 'Show ') + name + ' moons');
+    toggle.textContent = open ? '▾' : '▸';
+  }
+}
+
 function filterBodyList() {
   const q = (elBodyFilter.value || '').trim().toLowerCase();
   const list = document.getElementById('body-list');
   const kids = list.children;
   if (!q) {
     for (let i = 0; i < kids.length; i++) {
-      kids[i].hidden = false;
-      if (kids[i].classList.contains('moon-fly-row')) {
-        const btns = kids[i].querySelectorAll('button');
+      const el = kids[i];
+      el.hidden = false;
+      if (el.classList.contains('moon-group')) {
+        const planetBtn = el.querySelector(':scope > button[data-body]');
+        const toggle = el.querySelector('.moon-toggle');
+        if (planetBtn) planetBtn.hidden = false;
+        if (toggle) toggle.hidden = false;
+        const btns = el.querySelectorAll('.moon-fly-row button');
         for (let j = 0; j < btns.length; j++) btns[j].hidden = false;
+        setMoonGroupExpanded(el, false);
       }
     }
     return;
   }
   for (let i = 0; i < kids.length; i++) {
     const el = kids[i];
-    if (el.classList.contains('moon-fly-row')) {
-      const btns = el.querySelectorAll('button');
-      let any = false;
-      for (let j = 0; j < btns.length; j++) {
-        const hit = bodyFilterMatch(btns[j], q);
-        btns[j].hidden = !hit;
-        if (hit) any = true;
+    if (el.classList.contains('moon-group')) {
+      const planetBtn = el.querySelector(':scope > button[data-body]');
+      const toggle = el.querySelector('.moon-toggle');
+      const moonBtns = el.querySelectorAll('.moon-fly-row button');
+      const planetHit = !!(planetBtn && bodyFilterMatch(planetBtn, q));
+      let anyMoon = false;
+      for (let j = 0; j < moonBtns.length; j++) {
+        const hit = bodyFilterMatch(moonBtns[j], q);
+        moonBtns[j].hidden = !hit;
+        if (hit) anyMoon = true;
       }
-      el.hidden = !any;
-      if (any) {
-        let prev = el.previousElementSibling;
-        while (prev && prev.classList.contains('moon-fly-row')) prev = prev.previousElementSibling;
-        if (prev && prev.matches && prev.matches('button[data-body]')) prev.hidden = false;
-      }
+      const show = planetHit || anyMoon;
+      el.hidden = !show;
+      if (planetBtn) planetBtn.hidden = !show;
+      if (toggle) toggle.hidden = !show;
+      if (anyMoon) setMoonGroupExpanded(el, true);
+      else if (planetHit) setMoonGroupExpanded(el, false);
     } else if (el.matches && el.matches('button[data-body]')) {
       el.hidden = !bodyFilterMatch(el, q);
     }
@@ -14872,6 +15038,13 @@ elBodyFilter.addEventListener('keydown', (e) => {
 });
 
 document.getElementById('body-list').addEventListener('click', (e) => {
+  const toggle = e.target.closest('.moon-toggle');
+  if (toggle) {
+    e.preventDefault();
+    const group = toggle.closest('.moon-group');
+    if (group) setMoonGroupExpanded(group, group.classList.contains('collapsed'));
+    return;
+  }
   const btn = e.target.closest('button[data-body]');
   if (btn) flyToBody(btn.dataset.body);
 });
@@ -14881,6 +15054,16 @@ function setInspectDistances(id) {
   const near = camera.near || 0.02;
   controls.minDistance = Math.max(r * 1.15, r + near * 1.25, 0.02);
   controls.maxDistance = Math.max(r * 800, 400);
+  // Finger-tracking speeds: scale by body size and camera distance so small
+  // moons are not twitchy while large bodies stay near 1:1 drag feel.
+  const rr = Math.max(r, 1e-6);
+  const dist = Math.max(camera.position.distanceTo(controls.target), rr * 1.2);
+  const sizeK = Math.sqrt(rr / R); // Earth R=10 → 1
+  const distK = Math.min(2.2, Math.max(0.35, dist / (rr * 7.2)));
+  const speed = 0.85 * Math.min(1.35, Math.max(0.12, sizeK * Math.sqrt(distK)));
+  controls.rotateSpeed = speed;
+  controls.panSpeed = speed;
+  controls.zoomSpeed = Math.min(1.05, Math.max(0.35, 0.5 + 0.35 * sizeK));
 }
 
 trueSizeToggle.addEventListener('change', () => {
@@ -14974,17 +15157,31 @@ function tick() {
       camera.position.lerpVectors(_flyFromCam, _flyToCam, e);
       if (t >= 1) {
         flyT0 = -1;
+        flyMoveArmed = false;
+        stopHyperspace();
         controls.minDistance = 12;
         controls.maxDistance = 120;
+        controls.rotateSpeed = 1;
+        controls.panSpeed = 1;
+        controls.zoomSpeed = 1;
         controls.target.set(0, 0, 0);
+        controls.enabled = true;
         syncCameraNear('earth');
       }
     } else if (elapsed < flyLookMs) {
+      // Pan/rotate look-at toward target; camera stays put (no mid-transit snaps).
       const t = Math.min(elapsed / flyLookMs, 1);
       const e = t * t * (3 - 2 * t);
       controls.target.lerpVectors(_flyFromTgt, _bodyPos, e);
       camera.position.copy(_flyFromCam);
     } else {
+      // Direct straight fly after look. Snapshot from-cam once when move starts.
+      if (!flyMoveArmed) {
+        flyMoveArmed = true;
+        _flyFromCam.copy(camera.position);
+        controls.target.copy(_bodyPos);
+        startHyperspace();
+      }
       const t = Math.min((elapsed - flyLookMs) / Math.max(flyMoveMs, 1), 1);
       const e = t * t * (3 - 2 * t);
       controls.target.copy(_bodyPos);
@@ -14992,8 +15189,11 @@ function tick() {
       camera.position.lerpVectors(_flyFromCam, _flyToCam, e);
       if (t >= 1) {
         flyT0 = -1;
+        flyMoveArmed = false;
+        fadeHyperspace();
         setInspectDistances(focusedBody);
         beginShowOrbit();
+        if (showOrbitT0 < 0) controls.enabled = true;
       }
     }
   } else if (showOrbitT0 >= 0) {
@@ -15087,6 +15287,7 @@ function tick() {
   }
 
   tickMeteors();
+  updateHyperspace();
   if (followSat && tappedSat && tappedSat.kind === 'sat' && focusedBody === 'earth' && flyT0 < 0) {
     satWorld.localToWorld(_followWorld.copy(tappedSat.sat.dot.position));
     controls.target.copy(_followWorld);
