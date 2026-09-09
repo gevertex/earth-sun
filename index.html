@@ -1315,9 +1315,10 @@ function subSolarPoint(d) {
 
 // lat/lon (deg) -> vector. Matches the default THREE.SphereGeometry UV
 // mapping for an equirectangular texture (u=0 at 180°W).
-function latLonToVec3(latDeg, lonDeg, radius) {
+function latLonToVec3(latDeg, lonDeg, radius, target) {
   const lat = latDeg * DEG, lon = lonDeg * DEG;
-  return new THREE.Vector3(
+  const v = target || new THREE.Vector3();
+  return v.set(
     radius * Math.cos(lat) * Math.cos(lon),
     radius * Math.sin(lat),
     -radius * Math.cos(lat) * Math.sin(lon),
@@ -2450,7 +2451,7 @@ const jupiterOuterLabels = [];
 for (let jupOuterI = 0; jupOuterI < JUPITER_OUTER_MOONS.length; jupOuterI++) {
   const jupOuterG = JUPITER_OUTER_MOONS[jupOuterI];
   const jupOuterMesh = new THREE.Mesh(
-    new THREE.SphereGeometry(moonSceneRadius(JUPITER_OUTER_FLY_ID[jupOuterI]), 16, 12),
+    new THREE.SphereGeometry(moonSceneRadius(JUPITER_OUTER_FLY_ID[jupOuterI]), 8, 6),
     new THREE.MeshPhongMaterial({ color: jupOuterG.c, shininess: 4 }),
   );
   jupOuterMesh.userData.moon = jupOuterG.name;
@@ -3480,8 +3481,11 @@ const saturnMoonMeshes = [];
 const saturnMoonLabels = [];
 for (let i = 0; i < SATURN_MOONS.length; i++) {
   const g = SATURN_MOONS[i];
+  // Titan..Mimas (0-5) keep 16/12; mid moons 12/10; tiny irregulars 8/6.
+  const satSegW = i <= 5 ? 16 : (i < 15 ? 12 : 8);
+  const satSegH = i <= 5 ? 12 : (i < 15 ? 10 : 6);
   const mesh = new THREE.Mesh(
-    new THREE.SphereGeometry(moonSceneRadius(SATURN_FLY_ID[i]), 16, 12),
+    new THREE.SphereGeometry(moonSceneRadius(SATURN_FLY_ID[i]), satSegW, satSegH),
     new THREE.MeshPhongMaterial({ color: g.c, shininess: 4 }),
   );
   mesh.userData.moon = g.name;
@@ -5103,8 +5107,10 @@ const uranusMoonMeshes = [];
 const uranusMoonLabels = [];
 for (let i = 0; i < URANUS_MOONS.length; i++) {
   const g = URANUS_MOONS[i];
+  const uraSegW = i < 5 ? 16 : 8;
+  const uraSegH = i < 5 ? 12 : 6;
   const mesh = new THREE.Mesh(
-    new THREE.SphereGeometry(moonSceneRadius(URANUS_FLY_ID[i]), 16, 12),
+    new THREE.SphereGeometry(moonSceneRadius(URANUS_FLY_ID[i]), uraSegW, uraSegH),
     new THREE.MeshPhongMaterial({ color: g.c, shininess: 4 }),
   );
   mesh.userData.moon = g.name;
@@ -5379,8 +5385,10 @@ const neptuneMoonLabels = [];
 for (let i = 0; i < NEPTUNE_MOONS.length; i++) {
   const g = NEPTUNE_MOONS[i];
   const nepLayoutId = moonLayoutId(NEPTUNE_FLY_ID[i], g.name);
+  const nepSegW = i < 2 ? 16 : 8;
+  const nepSegH = i < 2 ? 12 : 6;
   const mesh = new THREE.Mesh(
-    new THREE.SphereGeometry(moonSceneRadius(nepLayoutId), 16, 12),
+    new THREE.SphereGeometry(moonSceneRadius(nepLayoutId), nepSegW, nepSegH),
     new THREE.MeshPhongMaterial({ color: g.c, shininess: 4 }),
   );
   mesh.userData.moon = g.name;
@@ -7331,7 +7339,7 @@ function updatePlanets(now, lonDeg) {
     const Dec = Math.atan2(g[2], Math.hypot(g[0], g[1])) / DEG;
     const dist = Math.hypot(g[0], g[1], g[2]) * SUN_DISTANCE;
     const lon = ((RA - gmst + 180) % 360 + 360) % 360 - 180;
-    const p = latLonToVec3(Dec, lon, dist);
+    const p = latLonToVec3(Dec, lon, dist, _planetPosScratch);
     planetMeshes[i].position.copy(p);
     if (planetMeshes[i].userData.body === focusedBody || planetMeshes[i].userData.body === MOON_FLY_PARENT[focusedBody]) {
       pPos[i*3] = pPos[i*3+1] = pPos[i*3+2] = SKY_DOT_PARK;
@@ -7935,7 +7943,7 @@ function updateComet(now, lonDeg) {
   const RA_sun = Math.atan2(se[1], se[0]) / DEG;
   const gmst = RA_sun - lonDeg;
   const lon = ((RA - gmst + 180) % 360 + 360) % 360 - 180;
-  const p = latLonToVec3(Dec, lon, dist);
+  const p = latLonToVec3(Dec, lon, dist, _cometPosScratch);
   cometMesh.position.copy(p);
   if (focusedBody === 'halley') {
     cometSkyPos[0] = cometSkyPos[1] = cometSkyPos[2] = SKY_DOT_PARK;
@@ -9769,8 +9777,11 @@ function _placeMinor(el, mesh, now, lonDeg, skyOff) {
     lbl.visible = showBodyLabel(mesh.userData.body);
   }
 }
+let _minorsLabelsCleared = false;
 function updateMinors(now, lonDeg) {
   if (!minorWorld.visible) {
+    if (_minorsLabelsCleared) return;
+    _minorsLabelsCleared = true;
     if (bodyLabel.ceres) bodyLabel.ceres.visible = false;
     if (bodyLabel.vesta) bodyLabel.vesta.visible = false;
     if (bodyLabel.eris) bodyLabel.eris.visible = false;
@@ -9979,6 +9990,7 @@ function updateMinors(now, lonDeg) {
     if (bodyLabel.qz297) bodyLabel.qz297.visible = false;
     return;
   }
+  _minorsLabelsCleared = false;
   _placeMinor(CERES_EL, ceresMesh, now, lonDeg, 0);
   _placeMinor(VESTA_EL, vestaMesh, now, lonDeg, 3);
   _placeMinor(ERIS_EL, erisMesh, now, lonDeg, 6);
@@ -10575,14 +10587,18 @@ function updateAsteroids(now, lonDeg) {
   const se = _eclToEq(-eh[0], -eh[1], -eh[2], T);
   const RA_sun = Math.atan2(se[1], se[0]) / DEG;
   const gmst = RA_sun - lonDeg;
-  const eclDir = (x, y, z) => {
+  const fillEclDir = (x, y, z, out) => {
     const g = _eclToEq(x, y, z, T);
     const RA = Math.atan2(g[1], g[0]) / DEG;
     const Dec = Math.atan2(g[2], Math.hypot(g[0], g[1])) / DEG;
     const lon = ((RA - gmst + 180) % 360 + 360) % 360 - 180;
-    return latLonToVec3(Dec, lon, 1);
+    return latLonToVec3(Dec, lon, 1, out);
   };
-  asteroidWorld.matrix.makeBasis(eclDir(1, 0, 0), eclDir(0, 1, 0), eclDir(0, 0, 1));
+  asteroidWorld.matrix.makeBasis(
+    fillEclDir(1, 0, 0, _eclBasisX),
+    fillEclDir(0, 1, 0, _eclBasisY),
+    fillEclDir(0, 0, 1, _eclBasisZ),
+  );
   asteroidWorld.matrix.setPosition(sunMesh.position);
   asteroidWorld.matrixWorldNeedsUpdate = true;
   eclipticWorld.matrix.copy(asteroidWorld.matrix);
@@ -10696,12 +10712,14 @@ function updateMoon(now) {
 
   const lonGeo = ((ra - gmstIAU(now) + 180) % 360 + 360) % 360 - 180;
 
-  moonMesh.position.copy(latLonToVec3(dec, lonGeo, dist * KM_TO_SCENE));
+  latLonToVec3(dec, lonGeo, dist * KM_TO_SCENE, _moonPosScratch);
+  moonMesh.position.copy(_moonPosScratch);
   moonMesh.lookAt(0, 0, 0);
 
   const u = (lonGeo + 180) / 360;
   const v = (dec + 90) / 180;
-  const subPos = latLonToVec3(dec, lonGeo, surfaceRadiusAt(u, v) + 0.12);
+  // Reuse moon scratch after position.copy — must not touch _sunDirScratch (tick sun dir).
+  const subPos = latLonToVec3(dec, lonGeo, surfaceRadiusAt(u, v) + 0.12, _moonPosScratch);
   sublunarMarker.position.copy(subPos);
 
   const lp = sublunarLineGeo.attributes.position;
@@ -10930,7 +10948,7 @@ function placeLaunchMarker(item) {
   g.add(marker);
 
   const r = surfaceRadiusAt((item.lon + 180) / 360, (item.lat + 90) / 180);
-  _launchDir.copy(latLonToVec3(item.lat, item.lon, 1)).normalize();
+  latLonToVec3(item.lat, item.lon, 1, _launchDir).normalize();
   const lift = phase === 'upcoming' ? 0 : (phase === 'window' ? 0.9 : 1.8);
   g.position.copy(_launchDir).multiplyScalar(r + lift);
   g.quaternion.setFromUnitVectors(_launchUp, _launchDir);
@@ -10945,7 +10963,7 @@ function placeLaunchMarker(item) {
       if (east.lengthSq() < 1e-8) east.set(1, 0, 0);
       else east.normalize();
       const p = _launchCam.copy(_launchDir).multiplyScalar(h).addScaledVector(east, t * t * 0.55);
-      arcPos.set([p.x, p.y, p.z], i * 3);
+      arcPos[i * 3] = p.x; arcPos[i * 3 + 1] = p.y; arcPos[i * 3 + 2] = p.z;
     }
     const arcGeo = new THREE.BufferGeometry();
     arcGeo.setAttribute('position', new THREE.BufferAttribute(arcPos, 3));
@@ -11138,7 +11156,7 @@ function flyToLaunchPad(latDeg, lonDeg) {
   closeDrawer();
   stopShowOrbit();
   stopHyperspace();
-  _launchDir.copy(latLonToVec3(latDeg, lonDeg, 1)).normalize();
+  latLonToVec3(latDeg, lonDeg, 1, _launchDir).normalize();
   // Camera sits outward from the pad with a slight elevation for framing.
   _bodyOff.copy(_launchDir).multiplyScalar(24).addScaledVector(_worldUp, 5);
   if (_bodyOff.lengthSq() < 1e-6) _bodyOff.set(0, 8, 30);
@@ -11406,10 +11424,10 @@ function hideRegionTip() {
 // Reposition the label to track the tapped region as the globe rotates.
 function updateRegionTip() {
   if (!tapped) return;
-  const dir = tapped.point.clone().normalize();
-  const toCam = camera.position.clone().sub(tapped.point).normalize();
+  const dir = _tipDir.copy(tapped.point).normalize();
+  const toCam = _tipCam.copy(camera.position).sub(tapped.point).normalize();
   if (dir.dot(toCam) <= 0.02) { regionTip.style.display = 'none'; return; }
-  const v = tapped.point.clone().project(camera);
+  const v = _tipNdc.copy(tapped.point).project(camera);
   regionTip.style.display = 'block';
   regionTip.style.left = ((v.x + 1) / 2 * innerWidth) + 'px';
   regionTip.style.top = ((-v.y + 1) / 2 * innerHeight) + 'px';
@@ -11655,8 +11673,9 @@ function orbitType(altKm) {
 
 // ECI position (km) -> group-local coords. The group is rotated by -GMST each
 // frame, which turns these inertial points into the Earth-fixed view.
-function eciToLocal(p) {
-  return new THREE.Vector3(p.x, p.z, -p.y).multiplyScalar(KM_TO_SCENE);
+function eciToLocal(p, target) {
+  const v = target || new THREE.Vector3();
+  return v.set(p.x, p.z, -p.y).multiplyScalar(KM_TO_SCENE);
 }
 
 const satWorld = new THREE.Group();
@@ -11676,6 +11695,18 @@ const _issY = new THREE.Vector3();
 const _issZ = new THREE.Vector3();
 const _issWorld = new THREE.Vector3();
 const _issMat = new THREE.Matrix4();
+const _eciLocal = new THREE.Vector3();
+const _sunDirScratch = new THREE.Vector3();
+const _tipWorld = new THREE.Vector3();
+const _tipDir = new THREE.Vector3();
+const _tipCam = new THREE.Vector3();
+const _tipNdc = new THREE.Vector3();
+const _eclBasisX = new THREE.Vector3();
+const _eclBasisY = new THREE.Vector3();
+const _eclBasisZ = new THREE.Vector3();
+const _moonPosScratch = new THREE.Vector3();
+const _planetPosScratch = new THREE.Vector3();
+const _cometPosScratch = new THREE.Vector3();
 
 // Lightweight ISS-like mesh from primitives (truss + modules + solar arrays).
 // Built at ~unit span; tick applies distance-based scale. No external GLB.
@@ -12193,7 +12224,7 @@ function fillStarlinkOrbitLine(buf, o, b) {
 // every frame, so the shell keeps moving smoothly between updates.
 function tickStarlink(now) {
   const sats = starlink.sats;
-  if (!starlink.points || sats.length === 0) return;
+  if (!starlink.points || !starlink.points.visible || sats.length === 0) return;
   const pos = starlink.pos;
   const n = sats.length;
   const slice = Math.max(1, Math.floor(n / SL_PROPAGATE_FRAMES));
@@ -12756,6 +12787,7 @@ function updateMeteors(dt) {
 }
 
 function tickMeteors() {
+  if (!meteorWorld.visible) return;
   const now = performance.now();
   const dt = (now - meteorPrevT) / 1000;
   meteorPrevT = now;
@@ -13973,6 +14005,12 @@ function restoreBodyLoTexture(id) {
   const lo = bodyLoUrl(id);
   const tex = lo && texByUrl[lo];
   if (tex) {
+    const mesh = BODY_MESH[id];
+    // Already on lo (e.g. hi-load canceled before apply) — skip rebind; keep cached hi URL for reuse.
+    if (mesh && mesh.material && mesh.material.map === tex) {
+      bodyTexState[id] = 'lo';
+      return;
+    }
     applyBodyTexToMesh(id, tex);
     bodyTexState[id] = 'lo';
   } else if (lo) {
@@ -15627,13 +15665,21 @@ function filterBodyList() {
   }
 }
 
-elBodyFilter.addEventListener('input', filterBodyList);
-elBodyFilter.addEventListener('search', filterBodyList);
+let _bodyFilterTimer = 0;
+elBodyFilter.addEventListener('input', () => {
+  clearTimeout(_bodyFilterTimer);
+  _bodyFilterTimer = setTimeout(filterBodyList, 60);
+});
+elBodyFilter.addEventListener('search', () => {
+  clearTimeout(_bodyFilterTimer);
+  filterBodyList();
+});
 elBodyFilter.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
   if (!elBodyFilter.value) return;
   e.stopPropagation();
   elBodyFilter.value = '';
+  clearTimeout(_bodyFilterTimer);
   filterBodyList();
 });
 
@@ -15700,10 +15746,11 @@ addEventListener('keydown', (e) => {
   if (id) flyToBody(id);
 });
 
+let lastHudMs = 0;
 function tick() {
   const now = simNow();
   const { latDeg, lonDeg, eotMin } = subSolarPoint(now);
-  const dir = latLonToVec3(latDeg, lonDeg, 1);
+  const dir = latLonToVec3(latDeg, lonDeg, 1, _sunDirScratch);
 
   // Sun direction in view space, for the night-side city-light mask.
   camera.updateMatrixWorld();
@@ -15850,17 +15897,19 @@ function tick() {
     if (galacticWorld.visible) galacticWorld.rotation.y = -gmst;
     if (extraCloud.points && extraCloud.visibleWanted) tickCloud(extraCloud, now);
     if (debrisCloud.points && debrisCloud.visibleWanted) tickCloud(debrisCloud, now);
-    for (const s of sats) {
-      const pv = sat.propagate(s.satrec, now);
-      if (pv && pv.position) {
-        const p = eciToLocal(pv.position);
-        s.dot.position.copy(p);
-        s.hit.position.copy(p);
-        if (s.model && pv.velocity) {
-          satWorld.localToWorld(_issWorld.copy(p));
-          orientIssModel(s.model, p, pv.velocity, camera.position.distanceTo(_issWorld));
-        } else if (s.model) {
-          s.model.position.copy(p);
+    if (satWorld.visible) {
+      for (const s of sats) {
+        const pv = sat.propagate(s.satrec, now);
+        if (pv && pv.position) {
+          const p = eciToLocal(pv.position, _eciLocal);
+          s.dot.position.copy(p);
+          s.hit.position.copy(p);
+          if (s.model && pv.velocity) {
+            satWorld.localToWorld(_issWorld.copy(p));
+            orientIssModel(s.model, p, pv.velocity, camera.position.distanceTo(_issWorld));
+          } else if (s.model) {
+            s.model.position.copy(p);
+          }
         }
       }
     }
@@ -15880,20 +15929,24 @@ function tick() {
     }
   }
 
-  elUtc.textContent = timeScale === 1
-    ? now.toISOString().slice(11, 19)
-    : now.toISOString().slice(0, 19).replace('T', ' ');
-  elSummary.textContent = timeScale === 1
-    ? `Subsolar ${fmtLat(latDeg)} · ${fmtLon(lonDeg)} · ${now.toISOString().slice(11, 16)} UTC`
-    : `Subsolar ${fmtLat(latDeg)} · ${fmtLon(lonDeg)} · ${now.toISOString().slice(0, 19).replace('T', ' ')} UTC`;
-  elLat.textContent = fmtLat(latDeg);
-  elLon.textContent = fmtLon(lonDeg);
-  elDec.textContent = `${latDeg >= 0 ? '+' : ''}${latDeg.toFixed(2)}°`;
-  elEot.textContent = `${eotMin >= 0 ? '+' : ''}${eotMin.toFixed(1)}`;
-  elTle.textContent = !sat ? 'satellite.js failed to load'
-    : tleRefreshing ? 'updating…'
-    : tleLive ? `updated ${new Date(lastTleUpdate).toISOString().slice(11, 19)} UTC`
-    : 'embedded fallback';
+  const hudMs = performance.now();
+  if (timeScale !== 1 || hudMs - lastHudMs >= 200) {
+    lastHudMs = hudMs;
+    elUtc.textContent = timeScale === 1
+      ? now.toISOString().slice(11, 19)
+      : now.toISOString().slice(0, 19).replace('T', ' ');
+    elSummary.textContent = timeScale === 1
+      ? `Subsolar ${fmtLat(latDeg)} · ${fmtLon(lonDeg)} · ${now.toISOString().slice(11, 16)} UTC`
+      : `Subsolar ${fmtLat(latDeg)} · ${fmtLon(lonDeg)} · ${now.toISOString().slice(0, 19).replace('T', ' ')} UTC`;
+    elLat.textContent = fmtLat(latDeg);
+    elLon.textContent = fmtLon(lonDeg);
+    elDec.textContent = `${latDeg >= 0 ? '+' : ''}${latDeg.toFixed(2)}°`;
+    elEot.textContent = `${eotMin >= 0 ? '+' : ''}${eotMin.toFixed(1)}`;
+    elTle.textContent = !sat ? 'satellite.js failed to load'
+      : tleRefreshing ? 'updating…'
+      : tleLive ? `updated ${new Date(lastTleUpdate).toISOString().slice(11, 19)} UTC`
+      : 'embedded fallback';
+  }
 
   // Keep the labels on the tapped points as the globe rotates.
   if (tapped) updateRegionTip();
@@ -15958,7 +16011,7 @@ function hideSatTip() {
 // Reposition the tag to track the tapped satellite as it moves on its orbit.
 function updateSatTip() {
   if (!tappedSat) return;
-  const world = new THREE.Vector3();
+  const world = _tipWorld;
   if (tappedSat.kind === 'sat') {
     satWorld.localToWorld(world.copy(tappedSat.sat.dot.position));
   } else {
@@ -15966,10 +16019,10 @@ function updateSatTip() {
     world.set(starlink.pos[o], starlink.pos[o + 1], starlink.pos[o + 2]);
     slWorld.localToWorld(world);
   }
-  const dir = world.clone().normalize();
-  const toCam = camera.position.clone().sub(world).normalize();
+  const dir = _tipDir.copy(world).normalize();
+  const toCam = _tipCam.copy(camera.position).sub(world).normalize();
   if (dir.dot(toCam) <= 0.02) { satTip.style.display = 'none'; return; }
-  const v = world.clone().project(camera);
+  const v = _tipNdc.copy(world).project(camera);
   satTip.style.display = 'block';
   satTip.style.left = ((v.x + 1) / 2 * innerWidth) + 'px';
   satTip.style.top = ((-v.y + 1) / 2 * innerHeight) + 'px';
