@@ -10844,34 +10844,41 @@ async function fetchMyLocation() {
 
 fetchMyLocation();
 
-/* ---------- rocket launches: Live upcoming pads on the globe ---------- */
+/* ---------- rocket launches: Live upcoming pads + animated vehicle ascent ---------- */
 // Source: The Space Devs Launch Library 2 public API (CORS: Access-Control-Allow-Origin: *).
-// mode=normal includes pad.latitude/longitude without the heavy detailed payload.
-// Swap LAUNCH_ENDPOINT if a different proxy-free URL is preferred. On fetch failure
-// the curated DEMO list keeps the UI usable; status text explains live vs demo.
+// mode=normal includes pad.latitude/longitude and rocket.configuration without the heavy
+// detailed payload. Soft-fail DEMO list keeps the UI usable; status text explains live vs demo.
 const LAUNCH_ENDPOINT = 'https://ll.thespacedevs.com/2.2.0/launch/upcoming/?limit=15&mode=normal';
 const LAUNCH_REFRESH_MS = 20 * 60 * 1000;
+const LAUNCH_REFRESH_HOT_MS = 90 * 1000; // near NET / In Flight
 const LAUNCH_FETCH_TIMEOUT_MS = 15 * 1000;
 const LAUNCH_RETRY_MS = 90 * 1000;
 const LAUNCH_PAD_COLOR = 0xff9a4a;
 const LAUNCH_FLIGHT_COLOR = 0x6fd3ff;
 const LAUNCH_ARC_COLOR = 0x9dff6f;
+const LAUNCH_ASCENT_MAX_S = 18 * 60; // T+0 .. T+18 min climb window (visual, not orbital)
+const LAUNCH_TRAIL_PTS = 40;
+const LAUNCH_ANIM_MS = 50; // ~20 Hz ascent updates
+const LAUNCH_HOT_HORIZON_MS = 60 * 60 * 1000; // denser LL2 refresh within ~1h of NET/window
 
 const LAUNCH_DEMO = [
-  { id: 'demo-f9-slc40', name: 'Falcon 9 | Demo Starlink', padName: 'SLC-40', site: 'Cape Canaveral, FL, USA', lat: 28.5619, lon: -80.5773, netOffsetH: 18, statusAbbrev: 'Go', statusName: 'Go for Launch', windowH: 2 },
-  { id: 'demo-f9-slc4e', name: 'Falcon 9 | Demo NRO', padName: 'SLC-4E', site: 'Vandenberg SFB, CA, USA', lat: 34.632, lon: -120.611, netOffsetH: 42, statusAbbrev: 'TBC', statusName: 'To Be Confirmed', windowH: 3 },
-  { id: 'demo-starship', name: 'Starship | Demo Flight', padName: 'Orbital Launch Pad A', site: 'Starbase, TX, USA', lat: 25.997, lon: -97.158, netOffsetH: 96, statusAbbrev: 'TBD', statusName: 'To Be Determined', windowH: 6 },
-  { id: 'demo-soyuz', name: 'Soyuz 2.1a | Demo Progress', padName: 'Site 31/6', site: 'Baikonur Cosmodrome, Kazakhstan', lat: 45.996, lon: 63.564, netOffsetH: 30, statusAbbrev: 'Go', statusName: 'Go for Launch', windowH: 1 },
-  { id: 'demo-ariane', name: 'Ariane 6 | Demo Ride Share', padName: 'ELA-4', site: 'Guiana Space Centre, French Guiana', lat: 5.263, lon: -52.805, netOffsetH: 120, statusAbbrev: 'Go', statusName: 'Go for Launch', windowH: 2 },
-  { id: 'demo-hslc', name: 'H3 | Demo JAXA', padName: 'Yoshinobu LP2', site: 'Tanegashima, Japan', lat: 30.401, lon: 130.977, netOffsetH: 70, statusAbbrev: 'TBC', statusName: 'To Be Confirmed', windowH: 2 },
-  { id: 'demo-cslc', name: 'Long March 5 | Demo CNSA', padName: 'LC-101', site: 'Wenchang, China', lat: 19.614, lon: 110.951, netOffsetH: 55, statusAbbrev: 'Go', statusName: 'Go for Launch', windowH: 2 },
-  { id: 'demo-pslv', name: 'PSLV | Demo ISRO', padName: 'First Launch Pad', site: 'Satish Dhawan, India', lat: 13.733, lon: 80.235, netOffsetH: 80, statusAbbrev: 'TBD', statusName: 'To Be Determined', windowH: 2 },
+  // Mid-ascent demo so George can see staging without waiting for a real flight.
+  { id: 'demo-f9-ascent', name: 'Falcon 9 | Demo Ascent', padName: 'SLC-40', site: 'Cape Canaveral, FL, USA', lat: 28.5619, lon: -80.5773, netOffsetH: -0.04, statusAbbrev: 'Flight', statusName: 'In Flight', windowH: 2, vehicle: 'Falcon 9 Block 5' },
+  { id: 'demo-fh-window', name: 'Falcon Heavy | Demo Window', padName: 'LC-39A', site: 'Kennedy Space Center, FL, USA', lat: 28.6082, lon: -80.6041, netOffsetH: 0.15, statusAbbrev: 'Go', statusName: 'Go for Launch', windowH: 2, vehicle: 'Falcon Heavy' },
+  { id: 'demo-starship', name: 'Starship | Demo Flight', padName: 'Orbital Launch Pad A', site: 'Starbase, TX, USA', lat: 25.997, lon: -97.158, netOffsetH: -0.02, statusAbbrev: 'Flight', statusName: 'In Flight', windowH: 6, vehicle: 'Starship' },
+  { id: 'demo-soyuz', name: 'Soyuz 2.1a | Demo Progress', padName: 'Site 31/6', site: 'Baikonur Cosmodrome, Kazakhstan', lat: 45.996, lon: 63.564, netOffsetH: 30, statusAbbrev: 'Go', statusName: 'Go for Launch', windowH: 1, vehicle: 'Soyuz 2.1a' },
+  { id: 'demo-ariane', name: 'Ariane 6 | Demo Ride Share', padName: 'ELA-4', site: 'Guiana Space Centre, French Guiana', lat: 5.263, lon: -52.805, netOffsetH: 120, statusAbbrev: 'Go', statusName: 'Go for Launch', windowH: 2, vehicle: 'Ariane 62' },
+  { id: 'demo-hslc', name: 'H3 | Demo JAXA', padName: 'Yoshinobu LP2', site: 'Tanegashima, Japan', lat: 30.401, lon: 130.977, netOffsetH: 70, statusAbbrev: 'TBC', statusName: 'To Be Confirmed', windowH: 2, vehicle: 'H3-22' },
+  { id: 'demo-cslc', name: 'Long March 5 | Demo CNSA', padName: 'LC-101', site: 'Wenchang, China', lat: 19.614, lon: 110.951, netOffsetH: 55, statusAbbrev: 'Go', statusName: 'Go for Launch', windowH: 2, vehicle: 'Long March 5' },
+  { id: 'demo-pslv', name: 'PSLV | Demo ISRO', padName: 'First Launch Pad', site: 'Satish Dhawan, India', lat: 13.733, lon: 80.235, netOffsetH: 80, statusAbbrev: 'TBD', statusName: 'To Be Determined', windowH: 2, vehicle: 'PSLV-XL' },
+  { id: 'demo-electron', name: 'Electron | Demo Rocket Lab', padName: 'LC-1A', site: 'Mahia, New Zealand', lat: -39.2615, lon: 177.8647, netOffsetH: 24, statusAbbrev: 'Go', statusName: 'Go for Launch', windowH: 2, vehicle: 'Electron' },
 ];
 
 function demoLaunches(nowMs = Date.now()) {
   return LAUNCH_DEMO.map((d) => {
     const netMs = nowMs + d.netOffsetH * 3600 * 1000;
     const win = (d.windowH || 2) * 3600 * 1000;
+    const flight = d.statusAbbrev === 'Flight';
     return {
       id: d.id,
       name: d.name,
@@ -10882,9 +10889,11 @@ function demoLaunches(nowMs = Date.now()) {
       netMs,
       windowStartMs: netMs - win * 0.15,
       windowEndMs: netMs + win,
-      statusId: d.statusAbbrev === 'Go' ? 1 : (d.statusAbbrev === 'TBC' ? 8 : 2),
+      statusId: flight ? 6 : (d.statusAbbrev === 'Go' ? 1 : (d.statusAbbrev === 'TBC' ? 8 : 2)),
       statusAbbrev: d.statusAbbrev,
       statusName: d.statusName,
+      vehicleName: d.vehicle || d.name,
+      vehicleFamily: detectLaunchVehicleFamily(d.vehicle || d.name),
       demo: true,
     };
   });
@@ -10898,89 +10907,939 @@ const launchState = {
   refreshing: false,
   lastUpdate: 0,
   pendingPad: null, // { lat, lon } after flyToBody('earth')
+  _phaseSlot: -1,
+  _animLastMs: 0,
 };
 const launchWorld = new THREE.Group();
 launchWorld.name = 'launchWorld';
 scene.add(launchWorld);
 const launchPadGeo = new THREE.ConeGeometry(0.18, 0.55, 8);
 launchPadGeo.translate(0, 0.28, 0);
-const launchFlightGeo = new THREE.ConeGeometry(0.12, 0.7, 8);
-launchFlightGeo.translate(0, 0.35, 0);
 const _launchUp = new THREE.Vector3(0, 1, 0);
 const _launchDir = new THREE.Vector3();
 const _launchCam = new THREE.Vector3();
 const _launchTmp = new THREE.Vector3();
+const _launchEast = new THREE.Vector3();
+const _launchPos = new THREE.Vector3();
+const _launchFwd = new THREE.Vector3();
+const _launchSepVel = new THREE.Vector3();
 let launchRetryTimer = 0;
+let launchRefreshTimer = 0;
 
-function clearLaunchMarkers() {
-  while (launchWorld.children.length) {
-    const obj = launchWorld.children[0];
-    launchWorld.remove(obj);
-    obj.traverse((o) => {
-      // Pad/flight cone geos are shared; only dispose per-launch arc buffers.
-      if (o.geometry && o.userData && o.userData.kind === 'arc') o.geometry.dispose();
+/* Vehicle family → staging timeline (T+ seconds, approximate / labeled).
+ * Actions: plume_on, plume_off, sep (part key), fairing, done.
+ * Parts are group.userData.parts[key]; sep hides on stack and spawns a drift clone. */
+const LAUNCH_FAMILY_META = {
+  falcon9: {
+    label: 'Falcon 9',
+    // Liftoff 0 · MECO ~148–162 · stage sep ~165 · SES-1 ~171 · fairing ~210 · SECO-1 ~540
+    events: [
+      { t: 0, action: 'plume_on', parts: ['s1plume'] },
+      { t: 155, action: 'plume_off', parts: ['s1plume'] },
+      { t: 162, action: 'sep', part: 's1' },
+      { t: 168, action: 'plume_on', parts: ['s2plume'] },
+      { t: 210, action: 'fairing', parts: ['fairingL', 'fairingR'] },
+      { t: 480, action: 'plume_off', parts: ['s2plume'] },
+      { t: 520, action: 'done' },
+    ],
+  },
+  falconheavy: {
+    label: 'Falcon Heavy',
+    // Side boosters sep ~147 · center MECO ~180 · S2 continue
+    events: [
+      { t: 0, action: 'plume_on', parts: ['s1plume', 'sideLplume', 'sideRplume'] },
+      { t: 147, action: 'plume_off', parts: ['sideLplume', 'sideRplume'] },
+      { t: 150, action: 'sep', part: 'sideL' },
+      { t: 150, action: 'sep', part: 'sideR' },
+      { t: 175, action: 'plume_off', parts: ['s1plume'] },
+      { t: 180, action: 'sep', part: 's1' },
+      { t: 185, action: 'plume_on', parts: ['s2plume'] },
+      { t: 220, action: 'fairing', parts: ['fairingL', 'fairingR'] },
+      { t: 500, action: 'plume_off', parts: ['s2plume'] },
+      { t: 540, action: 'done' },
+    ],
+  },
+  starship: {
+    label: 'Starship',
+    // Hot-stage ~159 · booster sep · ship continues (Ship engines)
+    events: [
+      { t: 0, action: 'plume_on', parts: ['s1plume'] },
+      { t: 155, action: 'plume_on', parts: ['s2plume'] },
+      { t: 159, action: 'plume_off', parts: ['s1plume'] },
+      { t: 170, action: 'sep', part: 's1' },
+      { t: 480, action: 'plume_off', parts: ['s2plume'] },
+      { t: 520, action: 'done' },
+    ],
+  },
+  soyuz: {
+    label: 'Soyuz',
+    // Strap-ons sep ~118 · fairing ~157 · core sep ~288 · Blok-I
+    events: [
+      { t: 0, action: 'plume_on', parts: ['s1plume', 'sideLplume', 'sideRplume', 'sideBplume', 'sideDplume'] },
+      { t: 118, action: 'plume_off', parts: ['sideLplume', 'sideRplume', 'sideBplume', 'sideDplume'] },
+      { t: 120, action: 'sep', part: 'sideL' },
+      { t: 120, action: 'sep', part: 'sideR' },
+      { t: 120, action: 'sep', part: 'sideB' },
+      { t: 120, action: 'sep', part: 'sideD' },
+      { t: 157, action: 'fairing', parts: ['fairingL', 'fairingR'] },
+      { t: 280, action: 'plume_off', parts: ['s1plume'] },
+      { t: 288, action: 'sep', part: 's1' },
+      { t: 290, action: 'plume_on', parts: ['s2plume'] },
+      { t: 520, action: 'plume_off', parts: ['s2plume'] },
+      { t: 560, action: 'done' },
+    ],
+  },
+  atlasv: {
+    label: 'Atlas V',
+    events: [
+      { t: 0, action: 'plume_on', parts: ['s1plume', 'srbLplume', 'srbRplume'] },
+      { t: 90, action: 'plume_off', parts: ['srbLplume', 'srbRplume'] },
+      { t: 94, action: 'sep', part: 'srbL' },
+      { t: 94, action: 'sep', part: 'srbR' },
+      { t: 200, action: 'fairing', parts: ['fairingL', 'fairingR'] },
+      { t: 250, action: 'plume_off', parts: ['s1plume'] },
+      { t: 253, action: 'sep', part: 's1' },
+      { t: 256, action: 'plume_on', parts: ['s2plume'] },
+      { t: 540, action: 'plume_off', parts: ['s2plume'] },
+      { t: 580, action: 'done' },
+    ],
+  },
+  ariane6: {
+    label: 'Ariane 6',
+    events: [
+      { t: 0, action: 'plume_on', parts: ['s1plume', 'sideLplume', 'sideRplume'] },
+      { t: 130, action: 'plume_off', parts: ['sideLplume', 'sideRplume'] },
+      { t: 137, action: 'sep', part: 'sideL' },
+      { t: 137, action: 'sep', part: 'sideR' },
+      { t: 200, action: 'fairing', parts: ['fairingL', 'fairingR'] },
+      { t: 460, action: 'plume_off', parts: ['s1plume'] },
+      { t: 467, action: 'sep', part: 's1' },
+      { t: 470, action: 'plume_on', parts: ['s2plume'] },
+      { t: 1400, action: 'plume_off', parts: ['s2plume'] },
+      { t: 1450, action: 'done' },
+    ],
+  },
+  electron: {
+    label: 'Electron',
+    events: [
+      { t: 0, action: 'plume_on', parts: ['s1plume'] },
+      { t: 150, action: 'plume_off', parts: ['s1plume'] },
+      { t: 153, action: 'sep', part: 's1' },
+      { t: 156, action: 'plume_on', parts: ['s2plume'] },
+      { t: 180, action: 'fairing', parts: ['fairingL', 'fairingR'] },
+      { t: 360, action: 'plume_off', parts: ['s2plume'] },
+      { t: 365, action: 'sep', part: 's2' },
+      { t: 370, action: 'plume_on', parts: ['kickplume'] },
+      { t: 520, action: 'plume_off', parts: ['kickplume'] },
+      { t: 540, action: 'done' },
+    ],
+  },
+  longmarch: {
+    label: 'Long March',
+    events: [
+      { t: 0, action: 'plume_on', parts: ['s1plume', 'sideLplume', 'sideRplume'] },
+      { t: 150, action: 'plume_off', parts: ['sideLplume', 'sideRplume'] },
+      { t: 155, action: 'sep', part: 'sideL' },
+      { t: 155, action: 'sep', part: 'sideR' },
+      { t: 200, action: 'fairing', parts: ['fairingL', 'fairingR'] },
+      { t: 280, action: 'plume_off', parts: ['s1plume'] },
+      { t: 285, action: 'sep', part: 's1' },
+      { t: 290, action: 'plume_on', parts: ['s2plume'] },
+      { t: 540, action: 'plume_off', parts: ['s2plume'] },
+      { t: 580, action: 'done' },
+    ],
+  },
+  h3: {
+    label: 'H3',
+    events: [
+      { t: 0, action: 'plume_on', parts: ['s1plume', 'sideLplume', 'sideRplume'] },
+      { t: 110, action: 'plume_off', parts: ['sideLplume', 'sideRplume'] },
+      { t: 115, action: 'sep', part: 'sideL' },
+      { t: 115, action: 'sep', part: 'sideR' },
+      { t: 210, action: 'fairing', parts: ['fairingL', 'fairingR'] },
+      { t: 300, action: 'plume_off', parts: ['s1plume'] },
+      { t: 305, action: 'sep', part: 's1' },
+      { t: 310, action: 'plume_on', parts: ['s2plume'] },
+      { t: 700, action: 'plume_off', parts: ['s2plume'] },
+      { t: 740, action: 'done' },
+    ],
+  },
+  pslv: {
+    label: 'PSLV/GSLV',
+    events: [
+      { t: 0, action: 'plume_on', parts: ['s1plume', 'sideLplume', 'sideRplume'] },
+      { t: 70, action: 'plume_off', parts: ['sideLplume', 'sideRplume'] },
+      { t: 72, action: 'sep', part: 'sideL' },
+      { t: 72, action: 'sep', part: 'sideR' },
+      { t: 110, action: 'plume_off', parts: ['s1plume'] },
+      { t: 113, action: 'sep', part: 's1' },
+      { t: 115, action: 'plume_on', parts: ['s2plume'] },
+      { t: 160, action: 'fairing', parts: ['fairingL', 'fairingR'] },
+      { t: 250, action: 'plume_off', parts: ['s2plume'] },
+      { t: 253, action: 'sep', part: 's2' },
+      { t: 255, action: 'plume_on', parts: ['s3plume'] },
+      { t: 500, action: 'plume_off', parts: ['s3plume'] },
+      { t: 540, action: 'done' },
+    ],
+  },
+  generic: {
+    label: 'Generic stack',
+    events: [
+      { t: 0, action: 'plume_on', parts: ['s1plume'] },
+      { t: 140, action: 'plume_off', parts: ['s1plume'] },
+      { t: 145, action: 'sep', part: 's1' },
+      { t: 148, action: 'plume_on', parts: ['s2plume'] },
+      { t: 180, action: 'fairing', parts: ['fairingL', 'fairingR'] },
+      { t: 420, action: 'plume_off', parts: ['s2plume'] },
+      { t: 460, action: 'done' },
+    ],
+  },
+};
+
+function detectLaunchVehicleFamily(text) {
+  const s = String(text || '').toLowerCase();
+  if (!s) return 'generic';
+  if (s.includes('falcon heavy') || s.includes('falconheavy') || /\bfh\b/.test(s)) return 'falconheavy';
+  if (s.includes('falcon 9') || s.includes('falcon9') || s.includes('f9 ')) return 'falcon9';
+  if (s.includes('starship') || s.includes('super heavy')) return 'starship';
+  if (s.includes('soyuz')) return 'soyuz';
+  if (s.includes('atlas v') || s.includes('atlas-v') || s.includes('atlas5')) return 'atlasv';
+  if (s.includes('ariane')) return 'ariane6';
+  if (s.includes('electron')) return 'electron';
+  if (s.includes('long march') || s.includes('chang zheng') || s.includes('cz-')) return 'longmarch';
+  if (/\bh3\b/.test(s) || s.includes('h-3')) return 'h3';
+  if (s.includes('pslv') || s.includes('gslv') || s.includes('lvm3') || s.includes('sslv')) return 'pslv';
+  if (s.includes('falcon')) return 'falcon9';
+  return 'generic';
+}
+
+function launchVehicleTextFromRow(row) {
+  const cfg = row && row.rocket && row.rocket.configuration;
+  if (!cfg) return row && row.name || '';
+  return [cfg.full_name, cfg.name, cfg.family, cfg.variant].filter(Boolean).join(' ');
+}
+
+function _mkMat(color, opts = {}) {
+  return new THREE.MeshPhongMaterial({
+    color,
+    shininess: opts.shininess != null ? opts.shininess : 30,
+    emissive: opts.emissive != null ? opts.emissive : 0x22262c,
+    emissiveIntensity: opts.emissiveIntensity != null ? opts.emissiveIntensity : 0.22,
+    transparent: !!opts.transparent,
+    opacity: opts.opacity != null ? opts.opacity : 1,
+    side: opts.side || THREE.FrontSide,
+  });
+}
+
+function _cyl(rTop, rBot, h, seg, mat, y) {
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(rTop, rBot, h, seg), mat);
+  m.position.y = y;
+  return m;
+}
+
+function _cone(r, h, seg, mat, y) {
+  const m = new THREE.Mesh(new THREE.ConeGeometry(r, h, seg), mat);
+  m.position.y = y;
+  return m;
+}
+
+function _box(w, h, d, mat, x, y, z) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  m.position.set(x || 0, y || 0, z || 0);
+  return m;
+}
+
+function _plumeMesh(scale, color) {
+  const g = new THREE.Group();
+  g.name = 'plume';
+  const mat = new THREE.MeshBasicMaterial({
+    color: color || 0xffaa44,
+    transparent: true,
+    opacity: 0.75,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
+  const core = new THREE.Mesh(new THREE.ConeGeometry(0.045 * scale, 0.28 * scale, 6), mat);
+  core.rotation.x = Math.PI;
+  core.position.y = -0.12 * scale;
+  g.add(core);
+  const outer = new THREE.Mesh(
+    new THREE.ConeGeometry(0.08 * scale, 0.4 * scale, 6),
+    new THREE.MeshBasicMaterial({
+      color: 0xff6600, transparent: true, opacity: 0.35,
+      depthWrite: false, blending: THREE.AdditiveBlending,
+    }),
+  );
+  outer.rotation.x = Math.PI;
+  outer.position.y = -0.18 * scale;
+  g.add(outer);
+  // Cheap spark points
+  const n = 10;
+  const pos = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    pos[i * 3] = (Math.random() - 0.5) * 0.06 * scale;
+    pos[i * 3 + 1] = -0.15 * scale - Math.random() * 0.35 * scale;
+    pos[i * 3 + 2] = (Math.random() - 0.5) * 0.06 * scale;
+  }
+  const pts = new THREE.Points(
+    new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(pos, 3)),
+    new THREE.PointsMaterial({
+      color: 0xffcc66, size: 2, sizeAttenuation: false,
+      transparent: true, opacity: 0.7, depthWrite: false, blending: THREE.AdditiveBlending,
+    }),
+  );
+  pts.raycast = () => {};
+  g.add(pts);
+  g.visible = false;
+  return g;
+}
+
+function _registerPart(parts, key, obj) {
+  parts[key] = obj;
+  obj.userData.partKey = key;
+  return obj;
+}
+
+function _addGridFins(parent, y, whiteMat) {
+  for (let i = 0; i < 4; i++) {
+    const ang = (i / 4) * Math.PI * 2 + Math.PI / 4;
+    const fin = _box(0.12, 0.02, 0.08, whiteMat, Math.cos(ang) * 0.12, y, Math.sin(ang) * 0.12);
+    fin.rotation.y = -ang;
+    parent.add(fin);
+  }
+}
+
+function _addLegs(parent, y, darkMat) {
+  for (let i = 0; i < 4; i++) {
+    const ang = (i / 4) * Math.PI * 2;
+    const leg = _box(0.015, 0.22, 0.04, darkMat, Math.cos(ang) * 0.1, y, Math.sin(ang) * 0.1);
+    leg.rotation.z = Math.cos(ang) * 0.55;
+    leg.rotation.x = -Math.sin(ang) * 0.55;
+    parent.add(leg);
+  }
+}
+
+function makeRocketModel(family) {
+  const root = new THREE.Group();
+  root.name = 'rocket:' + family;
+  const parts = {};
+  root.userData.parts = parts;
+  root.userData.family = family;
+  root.userData.sepClones = [];
+
+  const white = _mkMat(0xe8ecf0, { shininess: 50 });
+  const black = _mkMat(0x1a1a1e, { shininess: 20 });
+  const gray = _mkMat(0x8a9098, { shininess: 35 });
+  const orange = _mkMat(0xc45a1a, { shininess: 25 });
+  const steel = _mkMat(0xb0b6be, { shininess: 60 });
+  const green = _mkMat(0x3a5a3a, { shininess: 20 });
+  const blue = _mkMat(0x2a4a7a, { shininess: 30 });
+  const ssSteel = _mkMat(0xc5ccd4, { shininess: 80, emissive: 0x222428, emissiveIntensity: 0.15 });
+
+  if (family === 'falcon9' || family === 'falconheavy') {
+    const s1 = new THREE.Group();
+    s1.add(_cyl(0.105, 0.105, 0.85, 12, white, 0.42));
+    s1.add(_cyl(0.107, 0.107, 0.08, 12, black, 0.88)); // interstage band cue
+    _addGridFins(s1, 0.78, gray);
+    _addLegs(s1, 0.08, gray);
+    s1.add(_cyl(0.09, 0.1, 0.06, 10, black, 0.02)); // engines
+    root.add(_registerPart(parts, 's1', s1));
+    const s1plume = _plumeMesh(1.1, 0xffb040);
+    s1plume.position.y = 0;
+    s1.add(_registerPart(parts, 's1plume', s1plume));
+
+    const s2 = new THREE.Group();
+    s2.add(_cyl(0.105, 0.105, 0.28, 12, white, 1.12));
+    root.add(_registerPart(parts, 's2', s2));
+    const s2plume = _plumeMesh(0.55, 0x88ccff);
+    s2plume.position.y = 0.98;
+    s2.add(_registerPart(parts, 's2plume', s2plume));
+
+    const fL = new THREE.Group();
+    fL.add(_cone(0.105, 0.22, 12, white, 1.42));
+    fL.add(_box(0.02, 0.2, 0.2, white, -0.09, 1.28, 0));
+    const fR = new THREE.Group();
+    fR.add(_box(0.02, 0.2, 0.2, white, 0.09, 1.28, 0));
+    root.add(_registerPart(parts, 'fairingL', fL));
+    root.add(_registerPart(parts, 'fairingR', fR));
+
+    if (family === 'falconheavy') {
+      function sideBooster(sign, key, plumeKey) {
+        const sb = new THREE.Group();
+        sb.add(_cyl(0.1, 0.1, 0.85, 10, white, 0.42));
+        sb.add(_cyl(0.102, 0.102, 0.08, 10, black, 0.88));
+        _addGridFins(sb, 0.78, gray);
+        _addLegs(sb, 0.08, gray);
+        sb.position.x = sign * 0.22;
+        root.add(_registerPart(parts, key, sb));
+        const pl = _plumeMesh(1.0, 0xffb040);
+        pl.position.y = 0;
+        sb.add(_registerPart(parts, plumeKey, pl));
+      }
+      sideBooster(-1, 'sideL', 'sideLplume');
+      sideBooster(1, 'sideR', 'sideRplume');
+    }
+  } else if (family === 'starship') {
+    const s1 = new THREE.Group(); // Super Heavy
+    s1.add(_cyl(0.16, 0.16, 1.05, 14, ssSteel, 0.52));
+    s1.add(_cyl(0.15, 0.16, 0.08, 14, black, 0.02));
+    // Grid-fin-like flaps
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2;
+      s1.add(_box(0.14, 0.03, 0.1, ssSteel, Math.cos(a) * 0.17, 0.95, Math.sin(a) * 0.17));
+    }
+    root.add(_registerPart(parts, 's1', s1));
+    const s1plume = _plumeMesh(1.6, 0xff9933);
+    s1.add(_registerPart(parts, 's1plume', s1plume));
+
+    const s2 = new THREE.Group(); // Ship
+    s2.add(_cyl(0.16, 0.16, 0.7, 14, ssSteel, 1.4));
+    s2.add(_cone(0.16, 0.35, 14, ssSteel, 1.92));
+    // Flaps
+    s2.add(_box(0.35, 0.02, 0.18, ssSteel, 0, 1.55, 0.14));
+    s2.add(_box(0.35, 0.02, 0.18, ssSteel, 0, 1.55, -0.14));
+    root.add(_registerPart(parts, 's2', s2));
+    const s2plume = _plumeMesh(0.9, 0xffaa55);
+    s2plume.position.y = 1.05;
+    s2.add(_registerPart(parts, 's2plume', s2plume));
+  } else if (family === 'soyuz') {
+    const s1 = new THREE.Group();
+    s1.add(_cyl(0.09, 0.1, 0.55, 10, gray, 0.55));
+    root.add(_registerPart(parts, 's1', s1));
+    const s1plume = _plumeMesh(0.9, 0xffaa44);
+    s1.add(_registerPart(parts, 's1plume', s1plume));
+    const strap = [
+      ['sideL', 'sideLplume', -0.14, 0],
+      ['sideR', 'sideRplume', 0.14, 0],
+      ['sideB', 'sideBplume', 0, -0.14],
+      ['sideD', 'sideDplume', 0, 0.14],
+    ];
+    for (const [k, pk, x, z] of strap) {
+      const sb = new THREE.Group();
+      sb.add(_cone(0.07, 0.55, 8, orange, 0.4));
+      sb.position.set(x, 0, z);
+      root.add(_registerPart(parts, k, sb));
+      const pl = _plumeMesh(0.7, 0xff8833);
+      sb.add(_registerPart(parts, pk, pl));
+    }
+    const s2 = new THREE.Group();
+    s2.add(_cyl(0.08, 0.08, 0.35, 10, gray, 1.05));
+    root.add(_registerPart(parts, 's2', s2));
+    const s2plume = _plumeMesh(0.5, 0x99bbff);
+    s2plume.position.y = 0.88;
+    s2.add(_registerPart(parts, 's2plume', s2plume));
+    const fL = new THREE.Group();
+    fL.add(_cone(0.09, 0.28, 10, green, 1.4));
+    const fR = new THREE.Group();
+    fR.add(_box(0.02, 0.22, 0.16, green, 0.08, 1.28, 0));
+    root.add(_registerPart(parts, 'fairingL', fL));
+    root.add(_registerPart(parts, 'fairingR', fR));
+  } else if (family === 'atlasv') {
+    const s1 = new THREE.Group();
+    s1.add(_cyl(0.11, 0.11, 0.7, 12, steel, 0.4));
+    root.add(_registerPart(parts, 's1', s1));
+    s1.add(_registerPart(parts, 's1plume', _plumeMesh(1.0)));
+    for (const [k, pk, x] of [['srbL', 'srbLplume', -0.16], ['srbR', 'srbRplume', 0.16]]) {
+      const sb = new THREE.Group();
+      sb.add(_cyl(0.05, 0.05, 0.55, 8, white, 0.35));
+      sb.position.x = x;
+      root.add(_registerPart(parts, k, sb));
+      sb.add(_registerPart(parts, pk, _plumeMesh(0.55)));
+    }
+    const s2 = new THREE.Group();
+    s2.add(_cyl(0.09, 0.09, 0.3, 10, steel, 0.95)); // Centaur
+    root.add(_registerPart(parts, 's2', s2));
+    const s2plume = _plumeMesh(0.45, 0xaaddff);
+    s2plume.position.y = 0.8;
+    s2.add(_registerPart(parts, 's2plume', s2plume));
+    const fL = new THREE.Group();
+    fL.add(_cone(0.11, 0.32, 12, white, 1.3));
+    const fR = new THREE.Group();
+    fR.add(_box(0.02, 0.28, 0.2, white, 0.1, 1.15, 0));
+    root.add(_registerPart(parts, 'fairingL', fL));
+    root.add(_registerPart(parts, 'fairingR', fR));
+  } else if (family === 'ariane6') {
+    const s1 = new THREE.Group();
+    s1.add(_cyl(0.12, 0.12, 0.75, 12, black, 0.4));
+    s1.add(_cyl(0.12, 0.12, 0.08, 12, orange, 0.78));
+    root.add(_registerPart(parts, 's1', s1));
+    s1.add(_registerPart(parts, 's1plume', _plumeMesh(1.15)));
+    for (const [k, pk, x] of [['sideL', 'sideLplume', -0.2], ['sideR', 'sideRplume', 0.2]]) {
+      const sb = new THREE.Group();
+      sb.add(_cyl(0.055, 0.055, 0.65, 8, white, 0.38));
+      sb.position.x = x;
+      root.add(_registerPart(parts, k, sb));
+      sb.add(_registerPart(parts, pk, _plumeMesh(0.65)));
+    }
+    const s2 = new THREE.Group();
+    s2.add(_cyl(0.11, 0.11, 0.28, 10, black, 1.05));
+    root.add(_registerPart(parts, 's2', s2));
+    const s2plume = _plumeMesh(0.5, 0x99ccff);
+    s2plume.position.y = 0.92;
+    s2.add(_registerPart(parts, 's2plume', s2plume));
+    const fL = new THREE.Group();
+    fL.add(_cone(0.12, 0.35, 12, orange, 1.4));
+    const fR = new THREE.Group();
+    fR.add(_box(0.02, 0.3, 0.22, orange, 0.11, 1.22, 0));
+    root.add(_registerPart(parts, 'fairingL', fL));
+    root.add(_registerPart(parts, 'fairingR', fR));
+  } else if (family === 'electron') {
+    const s1 = new THREE.Group();
+    s1.add(_cyl(0.055, 0.055, 0.55, 10, black, 0.3));
+    root.add(_registerPart(parts, 's1', s1));
+    s1.add(_registerPart(parts, 's1plume', _plumeMesh(0.55)));
+    const s2 = new THREE.Group();
+    s2.add(_cyl(0.05, 0.05, 0.22, 8, black, 0.7));
+    root.add(_registerPart(parts, 's2', s2));
+    const s2plume = _plumeMesh(0.35, 0xaaccff);
+    s2plume.position.y = 0.58;
+    s2.add(_registerPart(parts, 's2plume', s2plume));
+    const kick = new THREE.Group();
+    kick.add(_cyl(0.04, 0.04, 0.1, 8, gray, 0.88));
+    root.add(_registerPart(parts, 'kick', kick));
+    const kickplume = _plumeMesh(0.25, 0x88aaff);
+    kickplume.position.y = 0.82;
+    kick.add(_registerPart(parts, 'kickplume', kickplume));
+    const fL = new THREE.Group();
+    fL.add(_cone(0.055, 0.16, 10, black, 1.05));
+    const fR = new THREE.Group();
+    fR.add(_box(0.015, 0.12, 0.1, black, 0.05, 0.95, 0));
+    root.add(_registerPart(parts, 'fairingL', fL));
+    root.add(_registerPart(parts, 'fairingR', fR));
+  } else if (family === 'longmarch') {
+    const s1 = new THREE.Group();
+    s1.add(_cyl(0.12, 0.12, 0.7, 12, white, 0.4));
+    s1.add(_cyl(0.12, 0.12, 0.06, 12, _mkMat(0xb01020), 0.72));
+    root.add(_registerPart(parts, 's1', s1));
+    s1.add(_registerPart(parts, 's1plume', _plumeMesh(1.1)));
+    for (const [k, pk, x] of [['sideL', 'sideLplume', -0.18], ['sideR', 'sideRplume', 0.18]]) {
+      const sb = new THREE.Group();
+      sb.add(_cyl(0.06, 0.06, 0.6, 8, white, 0.35));
+      sb.position.x = x;
+      root.add(_registerPart(parts, k, sb));
+      sb.add(_registerPart(parts, pk, _plumeMesh(0.6)));
+    }
+    const s2 = new THREE.Group();
+    s2.add(_cyl(0.11, 0.11, 0.3, 10, white, 1.0));
+    root.add(_registerPart(parts, 's2', s2));
+    const s2plume = _plumeMesh(0.5);
+    s2plume.position.y = 0.85;
+    s2.add(_registerPart(parts, 's2plume', s2plume));
+    const fL = new THREE.Group();
+    fL.add(_cone(0.11, 0.3, 12, white, 1.35));
+    const fR = new THREE.Group();
+    fR.add(_box(0.02, 0.25, 0.2, white, 0.1, 1.18, 0));
+    root.add(_registerPart(parts, 'fairingL', fL));
+    root.add(_registerPart(parts, 'fairingR', fR));
+  } else if (family === 'h3') {
+    const s1 = new THREE.Group();
+    s1.add(_cyl(0.115, 0.115, 0.7, 12, white, 0.4));
+    s1.add(_cyl(0.115, 0.115, 0.05, 12, blue, 0.72));
+    root.add(_registerPart(parts, 's1', s1));
+    s1.add(_registerPart(parts, 's1plume', _plumeMesh(1.05)));
+    for (const [k, pk, x] of [['sideL', 'sideLplume', -0.18], ['sideR', 'sideRplume', 0.18]]) {
+      const sb = new THREE.Group();
+      sb.add(_cyl(0.05, 0.05, 0.55, 8, white, 0.32));
+      sb.position.x = x;
+      root.add(_registerPart(parts, k, sb));
+      sb.add(_registerPart(parts, pk, _plumeMesh(0.55)));
+    }
+    const s2 = new THREE.Group();
+    s2.add(_cyl(0.1, 0.1, 0.28, 10, white, 1.0));
+    root.add(_registerPart(parts, 's2', s2));
+    const s2plume = _plumeMesh(0.45, 0x99ddff);
+    s2plume.position.y = 0.86;
+    s2.add(_registerPart(parts, 's2plume', s2plume));
+    const fL = new THREE.Group();
+    fL.add(_cone(0.11, 0.32, 12, white, 1.35));
+    const fR = new THREE.Group();
+    fR.add(_box(0.02, 0.28, 0.2, white, 0.1, 1.18, 0));
+    root.add(_registerPart(parts, 'fairingL', fL));
+    root.add(_registerPart(parts, 'fairingR', fR));
+  } else if (family === 'pslv') {
+    const s1 = new THREE.Group();
+    s1.add(_cyl(0.1, 0.1, 0.5, 10, white, 0.3));
+    root.add(_registerPart(parts, 's1', s1));
+    s1.add(_registerPart(parts, 's1plume', _plumeMesh(0.9)));
+    for (const [k, pk, x] of [['sideL', 'sideLplume', -0.14], ['sideR', 'sideRplume', 0.14]]) {
+      const sb = new THREE.Group();
+      sb.add(_cyl(0.045, 0.045, 0.4, 8, orange, 0.28));
+      sb.position.x = x;
+      root.add(_registerPart(parts, k, sb));
+      sb.add(_registerPart(parts, pk, _plumeMesh(0.45)));
+    }
+    const s2 = new THREE.Group();
+    s2.add(_cyl(0.095, 0.095, 0.25, 10, white, 0.7));
+    root.add(_registerPart(parts, 's2', s2));
+    const s2plume = _plumeMesh(0.4);
+    s2plume.position.y = 0.58;
+    s2.add(_registerPart(parts, 's2plume', s2plume));
+    const s3 = new THREE.Group();
+    s3.add(_cyl(0.08, 0.08, 0.2, 8, white, 0.95));
+    root.add(_registerPart(parts, 's3', s3));
+    const s3plume = _plumeMesh(0.3, 0xaabbff);
+    s3plume.position.y = 0.85;
+    s3.add(_registerPart(parts, 's3plume', s3plume));
+    const fL = new THREE.Group();
+    fL.add(_cone(0.09, 0.25, 10, white, 1.2));
+    const fR = new THREE.Group();
+    fR.add(_box(0.02, 0.2, 0.16, white, 0.08, 1.05, 0));
+    root.add(_registerPart(parts, 'fairingL', fL));
+    root.add(_registerPart(parts, 'fairingR', fR));
+  } else {
+    // Generic multi-stage stack
+    const s1 = new THREE.Group();
+    s1.add(_cyl(0.1, 0.1, 0.65, 10, gray, 0.35));
+    root.add(_registerPart(parts, 's1', s1));
+    s1.add(_registerPart(parts, 's1plume', _plumeMesh(0.95)));
+    const s2 = new THREE.Group();
+    s2.add(_cyl(0.09, 0.09, 0.28, 10, steel, 0.9));
+    root.add(_registerPart(parts, 's2', s2));
+    const s2plume = _plumeMesh(0.45);
+    s2plume.position.y = 0.76;
+    s2.add(_registerPart(parts, 's2plume', s2plume));
+    const fL = new THREE.Group();
+    fL.add(_cone(0.09, 0.25, 10, white, 1.2));
+    const fR = new THREE.Group();
+    fR.add(_box(0.02, 0.2, 0.16, white, 0.08, 1.05, 0));
+    root.add(_registerPart(parts, 'fairingL', fL));
+    root.add(_registerPart(parts, 'fairingR', fR));
+  }
+
+  // Scale up slightly for globe readability (real F9 ~70m → ~0.11 scene units).
+  root.scale.setScalar(1.15);
+  root.userData.disposeRocket = () => {
+    const gone = []
+      .concat(root.userData.sepClones || [])
+      .concat(root.userData.sepGone || []);
+    for (const c of gone) {
+      if (c.parent) c.parent.remove(c);
+      c.traverse((o) => {
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) {
+          if (Array.isArray(o.material)) o.material.forEach((m) => m.dispose());
+          else o.material.dispose();
+        }
+      });
+    }
+    root.userData.sepClones = [];
+    root.userData.sepGone = [];
+    root.traverse((o) => {
+      if (o.geometry) o.geometry.dispose();
       if (o.material) {
         if (Array.isArray(o.material)) o.material.forEach((m) => m.dispose());
         else o.material.dispose();
       }
     });
+  };
+  return root;
+}
+
+function disposeLaunchObject(obj) {
+  if (!obj) return;
+  if (obj.userData && typeof obj.userData.disposeRocket === 'function') {
+    obj.userData.disposeRocket();
+    return;
+  }
+  obj.traverse((o) => {
+    if (o.geometry && o.userData && (o.userData.kind === 'arc' || o.userData.kind === 'trail')) {
+      o.geometry.dispose();
+    } else if (o.geometry && o.userData && o.userData.partKey) {
+      o.geometry.dispose();
+    }
+    if (o.material && o.userData && (o.userData.kind === 'arc' || o.userData.kind === 'trail' || o.userData.kind === 'pad')) {
+      if (Array.isArray(o.material)) o.material.forEach((m) => m.dispose());
+      else o.material.dispose();
+    }
+  });
+}
+
+function clearLaunchMarkers() {
+  while (launchWorld.children.length) {
+    const obj = launchWorld.children[0];
+    launchWorld.remove(obj);
+    if (obj.userData && obj.userData.disposeRocket) {
+      obj.userData.disposeRocket();
+    } else {
+      obj.traverse((o) => {
+        // Pad cone geos are shared; only dispose per-launch arc/trail buffers & unique mats.
+        if (o.geometry && o.userData && (o.userData.kind === 'arc' || o.userData.kind === 'trail')) {
+          o.geometry.dispose();
+        }
+        if (o.material && o.userData && (o.userData.kind === 'arc' || o.userData.kind === 'trail' || o.userData.kind === 'pad')) {
+          if (Array.isArray(o.material)) o.material.forEach((m) => m.dispose());
+          else o.material.dispose();
+        }
+        // Rocket part meshes (unique geos)
+        if (o.geometry && o.parent && o.parent.userData && o.parent.userData.family) {
+          o.geometry.dispose();
+          if (o.material) {
+            if (Array.isArray(o.material)) o.material.forEach((m) => m.dispose());
+            else o.material.dispose();
+          }
+        }
+      });
+    }
   }
 }
 
 function launchPhase(item, nowMs = Date.now()) {
+  if (isLaunchAscending(item, nowMs)) return 'flight';
   if (item.statusId === 6) return 'flight';
   if (nowMs >= item.windowStartMs && nowMs <= item.windowEndMs) return 'window';
   return 'upcoming';
 }
 
-function placeLaunchMarker(item) {
-  if (!Number.isFinite(item.lat) || !Number.isFinite(item.lon)) return null;
-  const g = new THREE.Group();
-  g.userData.launchId = item.id;
-  const phase = launchPhase(item);
-  const mat = new THREE.MeshBasicMaterial({
-    color: phase === 'upcoming' ? LAUNCH_PAD_COLOR : (phase === 'flight' ? LAUNCH_FLIGHT_COLOR : LAUNCH_ARC_COLOR),
-    transparent: true,
-    opacity: 0.95,
-  });
-  const marker = new THREE.Mesh(phase === 'upcoming' ? launchPadGeo : launchFlightGeo, mat);
-  marker.userData.kind = 'pad';
-  g.add(marker);
+/** T+0 epoch: NET when past/known; window_start if In Flight without usable NET. */
+function ascentT0Ms(item, nowMs = Date.now()) {
+  if (item.statusId === 6) {
+    if (Number.isFinite(item.netMs) && item.netMs <= nowMs + 5000) return item.netMs;
+    if (Number.isFinite(item.windowStartMs)) return Math.min(item.windowStartMs, nowMs);
+    return nowMs;
+  }
+  if (Number.isFinite(item.netMs)) return item.netMs;
+  return item.windowStartMs;
+}
 
+function isLaunchAscending(item, nowMs = Date.now()) {
+  const t0 = ascentT0Ms(item, nowMs);
+  if (!Number.isFinite(t0)) return false;
+  const tPlus = (nowMs - t0) / 1000;
+  if (tPlus < 0 || tPlus > LAUNCH_ASCENT_MAX_S) return false;
+  if (item.statusId === 6) return true;
+  // Past NET within climb window (live or demo soft-fail).
+  if (nowMs >= t0) return true;
+  return false;
+}
+
+/**
+ * Map T+ seconds → altitude (scene) + eastward along-track (scene).
+ * Fast early climb then eastward arc; exaggerated vs real km for globe readability.
+ * progress u in [0,1] over LAUNCH_ASCENT_MAX_S.
+ */
+function launchAscentKinematics(tPlusS) {
+  const u = Math.max(0, Math.min(1, tPlusS / LAUNCH_ASCENT_MAX_S));
+  // Altitude: rapid rise then asymptote (~0.2 → ~4.8 scene units ≈ 130–3000 km visual).
+  const alt = 0.2 + 4.6 * (1 - Math.exp(-2.6 * u)) + 0.4 * u;
+  // Eastward: slow then accelerating downrange (u^2).
+  const east = 3.2 * u * u;
+  // Pitch from vertical (0) toward ~70° downrange.
+  const pitch = u * 1.22;
+  const thrusting = tPlusS < 500; // most profiles SECO before this; refined per-event
+  return { u, alt, east, pitch, tPlusS, thrusting };
+}
+
+function launchPadBasis(item) {
   const r = surfaceRadiusAt((item.lon + 180) / 360, (item.lat + 90) / 180);
   latLonToVec3(item.lat, item.lon, 1, _launchDir).normalize();
-  const lift = phase === 'upcoming' ? 0 : (phase === 'window' ? 0.9 : 1.8);
-  g.position.copy(_launchDir).multiplyScalar(r + lift);
-  g.quaternion.setFromUnitVectors(_launchUp, _launchDir);
+  _launchEast.set(-_launchDir.z, 0, _launchDir.x);
+  if (_launchEast.lengthSq() < 1e-8) _launchEast.set(1, 0, 0);
+  else _launchEast.normalize();
+  return r;
+}
 
-  if (phase !== 'upcoming') {
-    const arcPos = new Float32Array(8 * 3);
-    for (let i = 0; i < 8; i++) {
-      const t = i / 7;
-      const h = r + t * (phase === 'flight' ? 3.2 : 2.2);
-      // Slight eastward drift for a readable ascending path.
-      const east = _launchTmp.set(-_launchDir.z, 0, _launchDir.x);
-      if (east.lengthSq() < 1e-8) east.set(1, 0, 0);
-      else east.normalize();
-      const p = _launchCam.copy(_launchDir).multiplyScalar(h).addScaledVector(east, t * t * 0.55);
-      arcPos[i * 3] = p.x; arcPos[i * 3 + 1] = p.y; arcPos[i * 3 + 2] = p.z;
+function applyStagingAtT(rocket, family, tPlusS) {
+  const meta = LAUNCH_FAMILY_META[family] || LAUNCH_FAMILY_META.generic;
+  const parts = rocket.userData.parts || {};
+  // Reset visibility/plume each apply (idempotent from events up to tPlus)
+  for (const k of Object.keys(parts)) {
+    const p = parts[k];
+    if (!p || p.userData.separated) continue;
+    if (k.includes('plume')) p.visible = false;
+    else p.visible = true;
+  }
+  let thrusting = false;
+  for (const ev of meta.events) {
+    if (ev.t > tPlusS) break;
+    if (ev.action === 'plume_on') {
+      for (const pk of (ev.parts || [])) {
+        if (parts[pk]) { parts[pk].visible = true; thrusting = true; }
+      }
+    } else if (ev.action === 'plume_off') {
+      for (const pk of (ev.parts || [])) {
+        if (parts[pk]) parts[pk].visible = false;
+      }
+    } else if (ev.action === 'sep' || ev.action === 'fairing') {
+      const key = ev.part;
+      const keys = key ? [key] : (ev.parts || []);
+      for (const k of keys) {
+        const part = parts[k];
+        if (!part || part.userData.separated) continue;
+        part.userData.separated = true;
+        // Reparent into launchWorld (preserve world TF); drift away visually.
+        part.updateWorldMatrix(true, true);
+        const wp = new THREE.Vector3();
+        const wq = new THREE.Quaternion();
+        const ws = new THREE.Vector3();
+        part.matrixWorld.decompose(wp, wq, ws);
+        if (part.parent) part.parent.remove(part);
+        launchWorld.add(part);
+        part.position.copy(wp);
+        part.quaternion.copy(wq);
+        part.scale.copy(ws);
+        part.userData.sepDrift = true;
+        part.userData.sepT0 = performance.now();
+        const radial = _launchCam.copy(wp).normalize();
+        part.userData.sepVel = new THREE.Vector3()
+          .addScaledVector(_launchEast, -0.35 - Math.random() * 0.2)
+          .addScaledVector(radial, -0.15);
+        if (ev.action === 'fairing') {
+          part.userData.sepVel.addScaledVector(_launchEast, (k.includes('L') ? -1 : 1) * 0.25);
+          part.userData.sepSpin = (k.includes('L') ? -1 : 1) * 1.5;
+        } else {
+          part.userData.sepSpin = (Math.random() - 0.5) * 0.8;
+        }
+        // Kill plumes on the separated piece
+        part.traverse((o) => { if (o.name === 'plume') o.visible = false; });
+        rocket.userData.sepClones.push(part);
+      }
     }
-    const arcGeo = new THREE.BufferGeometry();
-    arcGeo.setAttribute('position', new THREE.BufferAttribute(arcPos, 3));
-    const arc = new THREE.Line(arcGeo, new THREE.LineBasicMaterial({
-      color: phase === 'flight' ? LAUNCH_FLIGHT_COLOR : LAUNCH_ARC_COLOR,
-      transparent: true,
-      opacity: 0.75,
+  }
+  // Any visible plume ⇒ thrusting
+  for (const k of Object.keys(parts)) {
+    if (k.includes('plume') && parts[k] && parts[k].visible) thrusting = true;
+  }
+  return thrusting;
+}
+
+function tickSepClones(dt) {
+  for (const item of launchState.items) {
+    const rocket = item._rocket;
+    if (!rocket) continue;
+    const clones = rocket.userData.sepClones || [];
+    for (let i = clones.length - 1; i >= 0; i--) {
+      const c = clones[i];
+      if (!c.parent) { clones.splice(i, 1); continue; }
+      const age = (performance.now() - (c.userData.sepT0 || 0)) / 1000;
+      if (c.userData.sepVel) {
+        c.position.addScaledVector(c.userData.sepVel, dt);
+        // Gravity-ish pull back toward Earth
+        _launchTmp.copy(c.position).normalize().multiplyScalar(-0.25 * dt);
+        c.position.add(_launchTmp);
+        c.userData.sepVel.multiplyScalar(0.995);
+      }
+      if (c.userData.sepSpin) c.rotation.z += c.userData.sepSpin * dt;
+      // Fade out
+      c.traverse((o) => {
+        if (o.material && o.material.opacity != null) {
+          o.material.transparent = true;
+          o.material.opacity = Math.max(0, 0.9 - age * 0.25);
+        }
+      });
+      if (age > 4) {
+        // Hide until rebuild/disposeRocket; avoid disposing shared subtree geos mid-flight.
+        c.visible = false;
+        if (c.parent) c.parent.remove(c);
+        clones.splice(i, 1);
+        // Keep ref on rocket for disposeRocket cleanup
+        if (!rocket.userData.sepGone) rocket.userData.sepGone = [];
+        rocket.userData.sepGone.push(c);
+      }
+    }
+  }
+}
+
+function updateLaunchTrail(item, pos) {
+  let trail = item._trail;
+  if (!trail) {
+    const arr = new Float32Array(LAUNCH_TRAIL_PTS * 3);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+    geo.setDrawRange(0, 0);
+    trail = new THREE.Line(geo, new THREE.LineBasicMaterial({
+      color: LAUNCH_FLIGHT_COLOR, transparent: true, opacity: 0.8,
     }));
-    arc.userData.kind = 'arc';
-    // Arc is in world/scene space; detach from pad orientation group.
-    launchWorld.add(arc);
-    item._arc = arc;
+    trail.userData.kind = 'trail';
+    trail.frustumCulled = false;
+    launchWorld.add(trail);
+    item._trail = trail;
+    item._trailCount = 0;
+    item._trailBuf = arr;
+  }
+  const buf = item._trailBuf;
+  const n = item._trailCount;
+  if (n < LAUNCH_TRAIL_PTS) {
+    buf[n * 3] = pos.x; buf[n * 3 + 1] = pos.y; buf[n * 3 + 2] = pos.z;
+    item._trailCount = n + 1;
+  } else {
+    buf.copyWithin(0, 3);
+    buf[(LAUNCH_TRAIL_PTS - 1) * 3] = pos.x;
+    buf[(LAUNCH_TRAIL_PTS - 1) * 3 + 1] = pos.y;
+    buf[(LAUNCH_TRAIL_PTS - 1) * 3 + 2] = pos.z;
+  }
+  trail.geometry.attributes.position.needsUpdate = true;
+  trail.geometry.setDrawRange(0, item._trailCount);
+}
+
+function placeLaunchMarker(item) {
+  if (!Number.isFinite(item.lat) || !Number.isFinite(item.lon)) return null;
+  const nowMs = Date.now();
+  const ascending = isLaunchAscending(item, nowMs);
+  const phase = launchPhase(item, nowMs);
+  item._phase = phase;
+  item._ascendMode = ascending;
+
+  const r = launchPadBasis(item);
+
+  if (!ascending) {
+    const g = new THREE.Group();
+    g.userData.launchId = item.id;
+    const mat = new THREE.MeshBasicMaterial({
+      color: phase === 'upcoming' ? LAUNCH_PAD_COLOR : LAUNCH_ARC_COLOR,
+      transparent: true,
+      opacity: 0.95,
+    });
+    const marker = new THREE.Mesh(launchPadGeo, mat);
+    marker.userData.kind = 'pad';
+    g.add(marker);
+    const lift = phase === 'window' ? 0.35 : 0;
+    g.position.copy(_launchDir).multiplyScalar(r + lift);
+    g.quaternion.setFromUnitVectors(_launchUp, _launchDir);
+    launchWorld.add(g);
+    item._marker = g;
+    item._rocket = null;
+    // Short decorative stub only for open window (not yet past NET).
+    if (phase === 'window') {
+      const arcPos = new Float32Array(6 * 3);
+      for (let i = 0; i < 6; i++) {
+        const t = i / 5;
+        const h = r + t * 1.2;
+        const p = _launchCam.copy(_launchDir).multiplyScalar(h).addScaledVector(_launchEast, t * t * 0.25);
+        arcPos[i * 3] = p.x; arcPos[i * 3 + 1] = p.y; arcPos[i * 3 + 2] = p.z;
+      }
+      const arcGeo = new THREE.BufferGeometry();
+      arcGeo.setAttribute('position', new THREE.BufferAttribute(arcPos, 3));
+      const arc = new THREE.Line(arcGeo, new THREE.LineBasicMaterial({
+        color: LAUNCH_ARC_COLOR, transparent: true, opacity: 0.55,
+      }));
+      arc.userData.kind = 'arc';
+      launchWorld.add(arc);
+      item._arc = arc;
+    }
+    return g;
   }
 
-  launchWorld.add(g);
-  item._marker = g;
-  return g;
+  // Active ascent: vehicle model + live trail.
+  const family = item.vehicleFamily || 'generic';
+  const rocket = makeRocketModel(family);
+  rocket.userData.launchId = item.id;
+  launchWorld.add(rocket);
+  item._rocket = rocket;
+  item._marker = rocket;
+  item._stagingApplied = -1;
+  item._trailCount = 0;
+  // Position immediately
+  const t0 = ascentT0Ms(item, nowMs);
+  const tPlus = Math.max(0, (nowMs - t0) / 1000);
+  const kin = launchAscentKinematics(tPlus);
+  _launchPos.copy(_launchDir).multiplyScalar(r + kin.alt).addScaledVector(_launchEast, kin.east);
+  rocket.position.copy(_launchPos);
+  // Orient: local +Y along velocity-ish (radial pitched toward east)
+  _launchFwd.copy(_launchDir).applyAxisAngle(_launchEast, -kin.pitch).normalize();
+  rocket.quaternion.setFromUnitVectors(_launchUp, _launchFwd);
+  applyStagingAtT(rocket, family, tPlus);
+  updateLaunchTrail(item, _launchPos);
+  return rocket;
 }
 
 function rebuildLaunchMarkers() {
@@ -10988,10 +11847,63 @@ function rebuildLaunchMarkers() {
   for (const item of launchState.items) {
     item._marker = null;
     item._arc = null;
+    item._rocket = null;
+    item._trail = null;
+    item._trailBuf = null;
+    item._trailCount = 0;
     placeLaunchMarker(item);
   }
   const toggle = document.getElementById('launches-toggle');
   launchWorld.visible = !toggle || toggle.checked;
+}
+
+function tickLaunchAscent(wallNowMs) {
+  if (!launchWorld.visible || !launchState.items.length) return;
+  if (wallNowMs - (launchState._animLastMs || 0) < LAUNCH_ANIM_MS) return;
+  const dt = Math.min(0.1, (wallNowMs - (launchState._animLastMs || wallNowMs)) / 1000);
+  launchState._animLastMs = wallNowMs;
+  const nowMs = Date.now();
+
+  let needRebuild = false;
+  for (const item of launchState.items) {
+    const ascending = isLaunchAscending(item, nowMs);
+    const phase = launchPhase(item, nowMs);
+    if (!!item._ascendMode !== ascending || (item._phase === 'upcoming' && phase !== 'upcoming')) {
+      needRebuild = true;
+      break;
+    }
+  }
+  if (needRebuild) {
+    rebuildLaunchMarkers();
+    return;
+  }
+
+  for (const item of launchState.items) {
+    if (!item._ascendMode || !item._rocket) continue;
+    const r = launchPadBasis(item);
+    const t0 = ascentT0Ms(item, nowMs);
+    const tPlus = Math.max(0, (nowMs - t0) / 1000);
+    const kin = launchAscentKinematics(tPlus);
+    _launchPos.copy(_launchDir).multiplyScalar(r + kin.alt).addScaledVector(_launchEast, kin.east);
+    item._rocket.position.copy(_launchPos);
+    _launchFwd.copy(_launchDir).applyAxisAngle(_launchEast, -kin.pitch).normalize();
+    item._rocket.quaternion.setFromUnitVectors(_launchUp, _launchFwd);
+    // Re-apply staging only when crossing integer seconds of events (cheap)
+    const stageBucket = Math.floor(tPlus);
+    if (stageBucket !== item._stagingApplied) {
+      item._stagingApplied = stageBucket;
+      applyStagingAtT(item._rocket, item.vehicleFamily || 'generic', tPlus);
+    }
+    // Flicker plumes slightly
+    const parts = item._rocket.userData.parts || {};
+    for (const k of Object.keys(parts)) {
+      if (!k.includes('plume') || !parts[k] || !parts[k].visible) continue;
+      const s = 0.92 + 0.16 * Math.sin(wallNowMs * 0.04 + tPlus);
+      parts[k].scale.setScalar(s);
+    }
+    updateLaunchTrail(item, _launchPos);
+  }
+  tickSepClones(dt);
 }
 
 function fmtLaunchNet(ms) {
@@ -11030,11 +11942,12 @@ function renderLaunchList() {
     btn.dataset.launchId = item.id;
     const pillClass = phase === 'flight' ? 'flight' : (phase === 'window' ? 'window' : '');
     const pillLabel = phase === 'flight' ? 'In flight' : (phase === 'window' ? 'Window' : item.statusAbbrev);
+    const fam = (LAUNCH_FAMILY_META[item.vehicleFamily] || LAUNCH_FAMILY_META.generic).label;
     btn.innerHTML =
       `<div class="launch-name">${escapeLaunchHtml(item.name)}` +
       `<span class="launch-status-pill ${pillClass}">${escapeLaunchHtml(pillLabel)}</span></div>` +
       `<div class="launch-meta">${escapeLaunchHtml(item.padName)} · ${escapeLaunchHtml(item.site)}</div>` +
-      `<div class="launch-meta">NET ${escapeLaunchHtml(fmtLaunchNet(item.netMs))}</div>`;
+      `<div class="launch-meta">NET ${escapeLaunchHtml(fmtLaunchNet(item.netMs))} · ${escapeLaunchHtml(fam)}</div>`;
     btn.addEventListener('click', () => flyToLaunchPad(item.lat, item.lon));
     list.appendChild(btn);
   }
@@ -11065,6 +11978,7 @@ function normalizeLaunchRow(row) {
   const loc = pad.location;
   const site = (loc && loc.name) || pad.name || 'Launch site';
   const status = row.status || {};
+  const vehicleName = launchVehicleTextFromRow(row);
   return {
     id: row.id || `${pad.name}-${row.net}`,
     name: row.name || 'Launch',
@@ -11078,6 +11992,8 @@ function normalizeLaunchRow(row) {
     statusId: status.id || 0,
     statusAbbrev: status.abbrev || status.name || '—',
     statusName: status.name || '',
+    vehicleName,
+    vehicleFamily: detectLaunchVehicleFamily(vehicleName || row.name),
     demo: false,
   };
 }
@@ -11116,6 +12032,25 @@ function applyLaunchItems(items, live, detail = '') {
 function scheduleLaunchRetry() {
   if (launchRetryTimer) clearTimeout(launchRetryTimer);
   launchRetryTimer = setTimeout(() => { refreshLaunches(); }, LAUNCH_RETRY_MS);
+}
+
+function launchNeedsHotRefresh(nowMs = Date.now()) {
+  for (const item of launchState.items) {
+    if (item.statusId === 6) return true;
+    if (isLaunchAscending(item, nowMs)) return true;
+    if (Number.isFinite(item.netMs) && Math.abs(item.netMs - nowMs) <= LAUNCH_HOT_HORIZON_MS) return true;
+    if (nowMs >= (item.windowStartMs - LAUNCH_HOT_HORIZON_MS) && nowMs <= (item.windowEndMs + 10 * 60 * 1000)) return true;
+  }
+  return false;
+}
+
+function armLaunchRefresh() {
+  if (launchRefreshTimer) clearTimeout(launchRefreshTimer);
+  const ms = launchNeedsHotRefresh() ? LAUNCH_REFRESH_HOT_MS : LAUNCH_REFRESH_MS;
+  launchRefreshTimer = setTimeout(async () => {
+    await refreshLaunches();
+    armLaunchRefresh();
+  }, ms);
 }
 
 async function refreshLaunches() {
@@ -11183,7 +12118,7 @@ function maybeFinishPendingLaunchPad() {
 }
 
 refreshLaunches();
-setInterval(refreshLaunches, LAUNCH_REFRESH_MS);
+armLaunchRefresh();
 
 /* ---------- borders: country + US state lines, tap the globe to name a region ---------- */
 // Country borders (world) and US state borders, from GeoJSON. The borders
@@ -15915,19 +16850,8 @@ function tick() {
     }
     tickStarlink(now);
   }
-  // Rebuild launch ascent markers sparingly when window / in-flight phase flips.
-  if (launchWorld.visible && launchState.items.length) {
-    const slot = Math.floor(Date.now() / 30000);
-    if (slot !== (launchState._phaseSlot || -1)) {
-      launchState._phaseSlot = slot;
-      let dirty = false;
-      for (const item of launchState.items) {
-        const ph = launchPhase(item);
-        if (item._phase !== ph) { item._phase = ph; dirty = true; }
-      }
-      if (dirty) rebuildLaunchMarkers();
-    }
-  }
+  // Live rocket ascent / staging (~20 Hz) + phase flips to/from pad markers.
+  tickLaunchAscent(performance.now());
 
   const hudMs = performance.now();
   if (timeScale !== 1 || hudMs - lastHudMs >= 200) {
