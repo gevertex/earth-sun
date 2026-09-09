@@ -12643,59 +12643,180 @@ const _moonPosScratch = new THREE.Vector3();
 const _planetPosScratch = new THREE.Vector3();
 const _cometPosScratch = new THREE.Vector3();
 
-// Lightweight ISS-like mesh from primitives (truss + modules + solar arrays).
-// Built at ~unit span; tick applies distance-based scale. No external GLB.
-function makeIssModel() {
-  const g = new THREE.Group();
-  g.name = 'issModel';
-  const bodyMat = new THREE.MeshPhongMaterial({ color: 0xc8cdd3, shininess: 40 });
-  const darkMat = new THREE.MeshPhongMaterial({ color: 0x5a6270, shininess: 20 });
+// Detailed ISS from shared Three.js primitives (no GLB). Authored in meters;
+// tick applies true-ish KM_TO_SCENE scale near-camera and a visibility LOD when far.
+const ISS_SPAN_M = 109; // approximate PV / truss tip-to-tip span
+const ISS_SCENE_PER_M = KM_TO_SCENE / 1000;
+const ISS_SPAN_SCENE = ISS_SPAN_M * ISS_SCENE_PER_M; // ~0.000171 with R=10
+const ISS_LOD_NEAR = 0.002;   // scene units from craft → true scale
+const ISS_LOD_FAR = 1.15;     // beyond → simplified bright marker only
+const ISS_FAR_SPAN_MIN = 0.05;
+const ISS_FAR_SPAN_MAX = 0.11;
+const ISS_FOLLOW_STANDOFF = Math.max(ISS_SPAN_SCENE * 5.5, 0.00095);
+let issInspectCam = false;
+let issSavedNear = 0.1;
+let issSavedFar = null;
+
+const issShared = (() => {
+  const bodyMat = new THREE.MeshPhongMaterial({ color: 0xc5cad1, shininess: 45 });
+  const darkMat = new THREE.MeshPhongMaterial({ color: 0x4e5664, shininess: 22 });
+  const accentMat = new THREE.MeshPhongMaterial({ color: 0xa8b0bc, shininess: 35 });
+  const rusMat = new THREE.MeshPhongMaterial({ color: 0xb7bec8, shininess: 28 });
   const panelMat = new THREE.MeshPhongMaterial({
-    color: 0x1a3a8a, emissive: 0x0a1a40, emissiveIntensity: 0.4, shininess: 60, side: THREE.DoubleSide
+    color: 0x163a8f, emissive: 0x0a1840, emissiveIntensity: 0.45, shininess: 70, side: THREE.DoubleSide
   });
-  const trussMat = new THREE.MeshPhongMaterial({ color: 0x9aa3ad, shininess: 30 });
-  const radMat = new THREE.MeshPhongMaterial({ color: 0xe8eef5, shininess: 10, side: THREE.DoubleSide });
-
-  // Pressurized stack along +X (ram / flight direction).
-  const core = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.55, 10), bodyMat);
-  core.rotation.z = Math.PI / 2;
-  g.add(core);
-  const aft = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.14, 0.14), darkMat);
-  aft.position.x = -0.34;
-  g.add(aft);
-  const forward = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.2, 8), bodyMat);
-  forward.rotation.z = Math.PI / 2;
-  forward.position.x = 0.36;
-  g.add(forward);
-
-  // Integrated truss along ±Y (port / starboard).
-  const truss = new THREE.Mesh(new THREE.BoxGeometry(0.045, 1.15, 0.045), trussMat);
-  g.add(truss);
-
-  // Four solar-array wings on the truss ends.
-  function addWing(y, zSign) {
-    const wing = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.018, 0.17), panelMat);
-    wing.position.set(0, y, zSign * 0.11);
-    g.add(wing);
-  }
-  addWing(0.48, 1); addWing(0.48, -1);
-  addWing(-0.48, 1); addWing(-0.48, -1);
-
-  // Radiator panel (nadir/zenith face cue).
-  const rad = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.32, 0.2), radMat);
-  rad.position.set(0.12, 0, 0.15);
-  g.add(rad);
-
-  g.userData.disposeIss = () => {
-    g.traverse((o) => {
-      if (o.geometry) o.geometry.dispose();
-      if (o.material) {
-        if (Array.isArray(o.material)) o.material.forEach((m) => m.dispose());
-        else o.material.dispose();
-      }
-    });
+  const radMat = new THREE.MeshPhongMaterial({
+    color: 0xe7eef6, emissive: 0x1a2230, emissiveIntensity: 0.08, shininess: 12, side: THREE.DoubleSide
+  });
+  const trussMat = new THREE.MeshPhongMaterial({ color: 0x8e96a2, shininess: 30 });
+  const portMat = new THREE.MeshPhongMaterial({ color: 0x6d7582, shininess: 50 });
+  const cupolaMat = new THREE.MeshPhongMaterial({ color: 0x2a3340, shininess: 80, transparent: true, opacity: 0.85 });
+  const farMat = new THREE.MeshBasicMaterial({ color: 0x9fd0ff });
+  const farPanelMat = new THREE.MeshBasicMaterial({ color: 0x2a5ccc, side: THREE.DoubleSide });
+  return {
+    bodyMat, darkMat, accentMat, rusMat, panelMat, radMat, trussMat, portMat, cupolaMat, farMat, farPanelMat,
+    // Shared geos (meters). Meshes reuse these; disposeIss must not dispose them.
+    cylMod: new THREE.CylinderGeometry(1, 1, 1, 12),
+    cylModHi: new THREE.CylinderGeometry(1, 1, 1, 16),
+    box: new THREE.BoxGeometry(1, 1, 1),
+    sphere: new THREE.SphereGeometry(1, 12, 10),
+    cone: new THREE.ConeGeometry(1, 1, 10),
+    farCore: new THREE.BoxGeometry(0.35, 0.12, 0.12),
+    farTruss: new THREE.BoxGeometry(0.06, 1, 0.06),
+    farWing: new THREE.BoxGeometry(0.38, 0.02, 0.16),
   };
-  return g;
+})();
+
+function issMesh(geo, mat, sx, sy, sz) {
+  const m = new THREE.Mesh(geo, mat);
+  m.scale.set(sx, sy, sz);
+  return m;
+}
+
+function makeIssModel() {
+  const root = new THREE.Group();
+  root.name = 'issModel';
+  const S = issShared;
+
+  // ----- Far LOD: bright simplified silhouette (unit-ish span ≈ 1 along Y) -----
+  const far = new THREE.Group();
+  far.name = 'issFar';
+  const farCore = new THREE.Mesh(S.farCore, S.farMat);
+  far.add(farCore);
+  const farTruss = new THREE.Mesh(S.farTruss, S.farMat);
+  far.add(farTruss);
+  function farWing(y, zSign) {
+    const w = new THREE.Mesh(S.farWing, S.farPanelMat);
+    w.position.set(0, y, zSign * 0.12);
+    far.add(w);
+  }
+  farWing(0.42, 1); farWing(0.42, -1);
+  farWing(-0.42, 1); farWing(-0.42, -1);
+  root.add(far);
+
+  // ----- Detail LOD: recognizable station in meters (LVLH: +X ram, +Y port, +Z nadir) -----
+  const detail = new THREE.Group();
+  detail.name = 'issDetail';
+
+  function addCyl(parent, mat, len, r, x, y, z, axis) {
+    // CylinderGeometry is Y-up; axis 'x'|'y'|'z' aligns length.
+    const mesh = issMesh(S.cylModHi, mat, r, len, r);
+    if (axis === 'x') mesh.rotation.z = Math.PI / 2;
+    else if (axis === 'z') mesh.rotation.x = Math.PI / 2;
+    mesh.position.set(x, y, z);
+    parent.add(mesh);
+    return mesh;
+  }
+  function addBox(parent, mat, sx, sy, sz, x, y, z) {
+    const mesh = issMesh(S.box, mat, sx, sy, sz);
+    mesh.position.set(x, y, z);
+    parent.add(mesh);
+    return mesh;
+  }
+
+  // Integrated truss (ITS) along ±Y — main visual span ~109 m tip-to-tip with arrays.
+  addBox(detail, S.trussMat, 2.2, 52, 2.2, 0, 0, 0);           // central truss spine
+  addBox(detail, S.darkMat, 2.8, 4.5, 2.8, 0, 0, 0);            // S0 centerpiece
+  addBox(detail, S.accentMat, 2.0, 10, 2.0, 0, 14, 0);          // P1/S1 stubs
+  addBox(detail, S.accentMat, 2.0, 10, 2.0, 0, -14, 0);
+  addBox(detail, S.trussMat, 1.6, 12, 1.6, 0, 28, 0);
+  addBox(detail, S.trussMat, 1.6, 12, 1.6, 0, -28, 0);
+
+  // Solar array wings (4 port / 4 starboard blankets). Long along ±Y so tip-to-tip ≈ 109 m.
+  function addArray(y, zSign) {
+    // sx≈blanket width (ram), sy≈blanket length (outboard), sz≈thickness
+    const wing = addBox(detail, S.panelMat, 11.5, 35, 0.45, 0, y, zSign * 8.0);
+    addBox(detail, S.trussMat, 0.6, 0.6, 4.2, 0, y, zSign * 3.0);
+    return wing;
+  }
+  // Outer tips at |y|+17.5 ≈ 54.5 → span ≈ 109 m
+  addArray(37, 1); addArray(37, -1);
+  addArray(20, 1); addArray(20, -1);
+  addArray(-20, 1); addArray(-20, -1);
+  addArray(-37, 1); addArray(-37, -1);
+
+  // Radiators (HRS) — white panels on truss, mostly ±Z / slight X offset.
+  addBox(detail, S.radMat, 1.0, 14, 11, 3.2, 12, 0);
+  addBox(detail, S.radMat, 1.0, 14, 11, 3.2, -12, 0);
+  addBox(detail, S.radMat, 1.0, 11, 9, -2.8, 8, 0);
+  addBox(detail, S.radMat, 1.0, 11, 9, -2.8, -8, 0);
+
+  // Pressurized stack along +X (forward / ram) and −X (aft / Russian segment).
+  // Approximate module lengths/diameters; readable when camera is close.
+  // Unity (Node 1)
+  addCyl(detail, S.bodyMat, 5.5, 2.2, -2.5, 0, 0, 'x');
+  // Destiny (US Lab)
+  addCyl(detail, S.bodyMat, 8.5, 2.15, 5.5, 0, 0, 'x');
+  // Harmony (Node 2)
+  addCyl(detail, S.accentMat, 5.0, 2.2, 13.5, 0, 0, 'x');
+  // Columbus (starboard / −Y in this LVLH craft frame ≈ orbit-normal; use −Y)
+  addCyl(detail, S.bodyMat, 7.0, 2.05, 13.5, -6.5, 0, 'y');
+  // Kibo PM + ELM (port / +Y)
+  addCyl(detail, S.bodyMat, 10.0, 2.15, 13.5, 7.5, 0, 'y');
+  addBox(detail, S.darkMat, 4.2, 5.5, 3.8, 13.5, 14.5, 0); // EF / exposed facility cue
+  // Tranquility (Node 3) nadir of Unity-ish
+  addCyl(detail, S.accentMat, 5.0, 2.15, -2.5, 0, 5.5, 'z');
+  // Cupola bump on Tranquility (Earth-facing / +Z nadir)
+  {
+    const cup = issMesh(S.sphere, S.cupolaMat, 1.7, 1.1, 1.7);
+    cup.position.set(-2.5, 0, 8.6);
+    detail.add(cup);
+    addCyl(detail, S.darkMat, 1.2, 1.5, -2.5, 0, 7.6, 'z');
+  }
+  // Zarya (FGB)
+  addCyl(detail, S.rusMat, 12.5, 2.05, -12.5, 0, 0, 'x');
+  // Zvezda (Service Module)
+  addCyl(detail, S.rusMat, 13.0, 2.05, -25.5, 0, 0, 'x');
+  addBox(detail, S.darkMat, 3.2, 7.5, 0.4, -25.5, 0, 3.2); // Zvezda solar stub cue
+  addBox(detail, S.darkMat, 3.2, 7.5, 0.4, -25.5, 0, -3.2);
+  // Nauka-ish MLM on Russian segment (nadir / +Z)
+  addCyl(detail, S.rusMat, 9.0, 2.0, -18.0, 0, 5.5, 'z');
+  addBox(detail, S.darkMat, 3.5, 3.5, 2.0, -18.0, 0, 10.5);
+
+  // Docking ports / PMA / IDA cues (forward Harmony, aft Zvezda, nadir/radial).
+  addCyl(detail, S.portMat, 1.8, 1.15, 17.2, 0, 0, 'x');
+  addCyl(detail, S.portMat, 1.6, 1.1, -33.0, 0, 0, 'x');
+  addCyl(detail, S.portMat, 1.4, 1.05, 13.5, 0, -3.6, 'z');
+  addCyl(detail, S.portMat, 1.4, 1.05, -2.5, 3.8, 0, 'y');
+
+  // Quest airlock (slight −Y / USOS)
+  addCyl(detail, S.darkMat, 4.5, 1.9, 1.5, -4.8, 0, 'y');
+
+  root.add(detail);
+  root.userData.detail = detail;
+  root.userData.far = far;
+  root.userData.disposeIss = () => {
+    // Shared geos/mats live in issShared for the app lifetime — only remove graph.
+    root.remove(detail, far);
+    detail.clear();
+    far.clear();
+  };
+  return root;
+}
+
+function issSmoothstep(x, a, b) {
+  const t = Math.max(0, Math.min(1, (x - a) / Math.max(1e-9, b - a)));
+  return t * t * (3 - 2 * t);
 }
 
 function orientIssModel(model, pLocal, vEci, camDist) {
@@ -12710,12 +12831,113 @@ function orientIssModel(model, pLocal, vEci, camDist) {
     _issMat.makeBasis(_issX, _issY, _issZ);
     model.quaternion.setFromRotationMatrix(_issMat);
   }
-  // Distance scale: readable near Earth / follow, not a giant from globe view.
-  // span ≈ scale * 1.15 (truss); clamp keeps it between ~marker and modest craft.
-  const sc = Math.min(0.28, Math.max(0.055, camDist * 0.01));
-  model.scale.setScalar(sc);
   model.position.copy(pLocal);
+
+  const detail = model.userData.detail;
+  const far = model.userData.far;
+  const farSpan = Math.min(ISS_FAR_SPAN_MAX, Math.max(ISS_FAR_SPAN_MIN, camDist * 0.0035));
+
+  // Distance LOD: far = simplified bright marker; near = full detail at true-ish scale.
+  // scale detail (meters→scene): lerp(true, farSpan/ISS_SPAN_M, smoothstep(camDist, NEAR, FAR))
+  // so globe view never uses the old always-huge clamp(camDist*0.01, 0.055, 0.28).
+  if (camDist >= ISS_LOD_FAR) {
+    if (far) { far.visible = true; far.scale.setScalar(farSpan); }
+    if (detail) detail.visible = false;
+    model.scale.setScalar(1);
+  } else {
+    const t = issSmoothstep(camDist, ISS_LOD_NEAR, ISS_LOD_FAR);
+    const farScalePerM = farSpan / ISS_SPAN_M;
+    const sc = ISS_SCENE_PER_M + (farScalePerM - ISS_SCENE_PER_M) * t;
+    if (detail) {
+      detail.visible = true;
+      detail.scale.setScalar(sc);
+    }
+    if (far) {
+      // Keep a faint far cue only while still in the blend band.
+      far.visible = t > 0.35;
+      far.scale.setScalar(farSpan * (0.25 + 0.75 * t));
+    }
+    model.scale.setScalar(1);
+  }
+  model.userData.issCamDist = camDist;
+  model.userData.issHalfSpan = 0.5 * ISS_SPAN_M * ((detail && detail.visible) ? detail.scale.x : farSpan / ISS_SPAN_M);
 }
+
+function isIssSat(s) {
+  return !!(s && s.model && s.model.name === 'issModel');
+}
+
+function restoreIssInspectCamera() {
+  if (!issInspectCam) return;
+  issInspectCam = false;
+  camera.near = issSavedNear;
+  if (issSavedFar != null) camera.far = issSavedFar;
+  camera.updateProjectionMatrix();
+  if (focusedBody === 'earth' && flyT0 < 0) {
+    controls.minDistance = 12;
+    controls.maxDistance = 120;
+    controls.rotateSpeed = 1;
+    controls.panSpeed = 1;
+    controls.zoomSpeed = 1;
+  }
+}
+
+function frameIssFollow(satObj) {
+  if (!isIssSat(satObj) || focusedBody !== 'earth') return;
+  satWorld.localToWorld(_issWorld.copy(satObj.dot.position));
+  if (!issInspectCam) {
+    issSavedNear = camera.near;
+    issSavedFar = camera.far;
+    issInspectCam = true;
+  }
+  // Standoff along current camera offset so orbit-controls can zoom into structure.
+  _issX.copy(camera.position).sub(_issWorld);
+  if (_issX.lengthSq() < 1e-16) _issX.set(0.25, 0.55, 1);
+  const dist = _issX.length();
+  const standoff = ISS_FOLLOW_STANDOFF;
+  // Pull in when still at globe distances; push out if inside the mesh.
+  const half = Math.max(ISS_SPAN_SCENE * 0.55, 1e-5);
+  if (dist > 2.5 || dist < half * 1.8) {
+    _issX.setLength(standoff);
+    camera.position.copy(_issWorld).add(_issX);
+  }
+  controls.target.copy(_issWorld);
+  controls.minDistance = Math.max(ISS_SPAN_SCENE * 1.35, 0.00028);
+  controls.maxDistance = 120;
+  controls.zoomSpeed = 1.15;
+  camera.near = Math.min(0.1, Math.max(0.00004, standoff * 0.1));
+  camera.far = Math.max(400, standoff + 80);
+  camera.updateProjectionMatrix();
+}
+
+function tickIssInspectCamera() {
+  if (!issInspectCam || !followSat || !tappedSat || tappedSat.kind !== 'sat' || !isIssSat(tappedSat.sat)) {
+    if (issInspectCam && (!followSat || !tappedSat || !isIssSat(tappedSat && tappedSat.sat))) {
+      restoreIssInspectCamera();
+    }
+    return;
+  }
+  satWorld.localToWorld(_issWorld.copy(tappedSat.sat.dot.position));
+  const camDist = camera.position.distanceTo(_issWorld);
+  const half = (tappedSat.sat.model.userData.issHalfSpan) || (ISS_SPAN_SCENE * 0.5);
+  controls.minDistance = Math.max(half * 2.2, camera.near * 1.5, 0.00025);
+  // Keep near plane tight enough to resolve meter-scale structure without eating Earth entirely.
+  const near = Math.min(0.1, Math.max(0.00004, camDist * 0.12));
+  const far = camDist < 0.08 ? Math.max(250, camDist + 60) : Math.max(800, camera.far);
+  if (Math.abs(camera.near - near) / near > 0.25 || (camDist < 0.08 && camera.far > far * 1.5)) {
+    camera.near = near;
+    if (camDist < 0.08) camera.far = far;
+    camera.updateProjectionMatrix();
+  }
+  // Never sit inside the craft mesh while following.
+  if (camDist < half * 1.6) {
+    _issX.copy(camera.position).sub(_issWorld);
+    if (_issX.lengthSq() < 1e-16) _issX.set(0, 0.4, 1);
+    _issX.setLength(Math.max(half * 2.6, ISS_FOLLOW_STANDOFF));
+    camera.position.copy(_issWorld).add(_issX);
+  }
+}
+
 const orbitMats = [];       // orbit LineMaterials, for resolution updates on resize
 const raycastTargets = [];  // hit meshes, for tap picking
 const satTip = document.getElementById('sat-tip');
@@ -16495,6 +16717,7 @@ function flyToBody(id) {
     else {
       const fs = document.getElementById('follow-sat-toggle');
       if (fs.checked) { fs.checked = false; followSat = false; }
+      restoreIssInspectCamera();
     }
   }
 
@@ -16741,14 +16964,19 @@ function tick() {
         flyT0 = -1;
         flyMoveArmed = false;
         stopHyperspace();
-        controls.minDistance = 12;
-        controls.maxDistance = 120;
-        controls.rotateSpeed = 1;
-        controls.panSpeed = 1;
-        controls.zoomSpeed = 1;
-        controls.target.set(0, 0, 0);
         controls.enabled = true;
-        syncCameraNear('earth');
+        if (followSat && tappedSat && tappedSat.kind === 'sat' && isIssSat(tappedSat.sat)) {
+          frameIssFollow(tappedSat.sat);
+        } else {
+          controls.minDistance = 12;
+          controls.maxDistance = 120;
+          controls.rotateSpeed = 1;
+          controls.panSpeed = 1;
+          controls.zoomSpeed = 1;
+          controls.target.set(0, 0, 0);
+          syncCameraNear('earth');
+          restoreIssInspectCamera();
+        }
         maybeFinishPendingLaunchPad();
       }
     } else if (elapsed < flyLookMs) {
@@ -16889,6 +17117,7 @@ function tick() {
     satWorld.localToWorld(_followWorld.copy(tappedSat.sat.dot.position));
     controls.target.copy(_followWorld);
   }
+  tickIssInspectCamera();
   controls.update();
   renderer.render(scene, camera);
   requestAnimationFrame(tick);
@@ -16916,11 +17145,14 @@ function showSatTip() {
     if (focusedBody === 'earth') {
       document.getElementById('follow-sat-toggle').checked = true;
       followSat = true;
+      if (isIssSat(tappedSat.sat)) frameIssFollow(tappedSat.sat);
+      else restoreIssInspectCamera();
     }
   } else {
     gtLine.visible = false;
     document.getElementById('follow-sat-toggle').checked = false;
     followSat = false;
+    restoreIssInspectCamera();
   }
 }
 
@@ -16930,6 +17162,7 @@ function hideSatTip() {
   gtLine.visible = false;
   followSat = false;
   document.getElementById('follow-sat-toggle').checked = false;
+  restoreIssInspectCamera();
 }
 
 // Reposition the tag to track the tapped satellite as it moves on its orbit.
@@ -16963,13 +17196,17 @@ document.getElementById('follow-sat-toggle').addEventListener('change', (e) => {
   if (e.target.checked && focusedBody !== 'earth') {
     e.target.checked = false;
     followSat = false;
+    restoreIssInspectCamera();
     return;
   }
   if (e.target.checked && (!tappedSat || tappedSat.kind !== 'sat')) {
     e.target.checked = false;
     followSat = false;
+    restoreIssInspectCamera();
   } else {
     followSat = e.target.checked;
+    if (followSat && isIssSat(tappedSat.sat)) frameIssFollow(tappedSat.sat);
+    else restoreIssInspectCamera();
   }
 });
 const starlinkToggle = document.getElementById('starlink-toggle');
