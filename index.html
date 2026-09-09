@@ -11219,7 +11219,87 @@ const dotGeo = new THREE.SphereGeometry(0.1, 10, 10);
 // Tap target around each dot: large enough to tap, small enough that a tap
 // meant for a nearby Starlink dot or the globe still lands there.
 const hitGeo = new THREE.SphereGeometry(0.4, 8, 8);
-const sats = [];            // { name, satrec, dot, hit, line, lineMat, type, baseOpacity }
+const sats = [];            // { name, satrec, dot, hit, line, lineMat, type, baseOpacity, model? }
+// Scratch for ISS LVLH orientation + distance scale (one mesh; no per-frame alloc).
+const _issX = new THREE.Vector3();
+const _issY = new THREE.Vector3();
+const _issZ = new THREE.Vector3();
+const _issWorld = new THREE.Vector3();
+const _issMat = new THREE.Matrix4();
+
+// Lightweight ISS-like mesh from primitives (truss + modules + solar arrays).
+// Built at ~unit span; tick applies distance-based scale. No external GLB.
+function makeIssModel() {
+  const g = new THREE.Group();
+  g.name = 'issModel';
+  const bodyMat = new THREE.MeshPhongMaterial({ color: 0xc8cdd3, shininess: 40 });
+  const darkMat = new THREE.MeshPhongMaterial({ color: 0x5a6270, shininess: 20 });
+  const panelMat = new THREE.MeshPhongMaterial({
+    color: 0x1a3a8a, emissive: 0x0a1a40, emissiveIntensity: 0.4, shininess: 60, side: THREE.DoubleSide
+  });
+  const trussMat = new THREE.MeshPhongMaterial({ color: 0x9aa3ad, shininess: 30 });
+  const radMat = new THREE.MeshPhongMaterial({ color: 0xe8eef5, shininess: 10, side: THREE.DoubleSide });
+
+  // Pressurized stack along +X (ram / flight direction).
+  const core = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.55, 10), bodyMat);
+  core.rotation.z = Math.PI / 2;
+  g.add(core);
+  const aft = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.14, 0.14), darkMat);
+  aft.position.x = -0.34;
+  g.add(aft);
+  const forward = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.2, 8), bodyMat);
+  forward.rotation.z = Math.PI / 2;
+  forward.position.x = 0.36;
+  g.add(forward);
+
+  // Integrated truss along ±Y (port / starboard).
+  const truss = new THREE.Mesh(new THREE.BoxGeometry(0.045, 1.15, 0.045), trussMat);
+  g.add(truss);
+
+  // Four solar-array wings on the truss ends.
+  function addWing(y, zSign) {
+    const wing = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.018, 0.17), panelMat);
+    wing.position.set(0, y, zSign * 0.11);
+    g.add(wing);
+  }
+  addWing(0.48, 1); addWing(0.48, -1);
+  addWing(-0.48, 1); addWing(-0.48, -1);
+
+  // Radiator panel (nadir/zenith face cue).
+  const rad = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.32, 0.2), radMat);
+  rad.position.set(0.12, 0, 0.15);
+  g.add(rad);
+
+  g.userData.disposeIss = () => {
+    g.traverse((o) => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) {
+        if (Array.isArray(o.material)) o.material.forEach((m) => m.dispose());
+        else o.material.dispose();
+      }
+    });
+  };
+  return g;
+}
+
+function orientIssModel(model, pLocal, vEci, camDist) {
+  // LVLH in satWorld local: +X along-track, +Y orbit-normal, +Z nadir.
+  _issZ.copy(pLocal).normalize().negate();
+  _issX.set(vEci.x, vEci.z, -vEci.y);
+  _issX.addScaledVector(_issZ, -_issX.dot(_issZ));
+  if (_issX.lengthSq() > 1e-12) {
+    _issX.normalize();
+    _issY.crossVectors(_issZ, _issX).normalize();
+    _issX.crossVectors(_issY, _issZ).normalize();
+    _issMat.makeBasis(_issX, _issY, _issZ);
+    model.quaternion.setFromRotationMatrix(_issMat);
+  }
+  // Distance scale: readable near Earth / follow, not a giant from globe view.
+  // span ≈ scale * 1.15 (truss); clamp keeps it between ~marker and modest craft.
+  const sc = Math.min(0.28, Math.max(0.055, camDist * 0.01));
+  model.scale.setScalar(sc);
+  model.position.copy(pLocal);
+}
 const orbitMats = [];       // orbit LineMaterials, for resolution updates on resize
 const raycastTargets = [];  // hit meshes, for tap picking
 const satTip = document.getElementById('sat-tip');
@@ -11292,6 +11372,11 @@ function buildGroundTrack(s, now) {
 function clearSatellites() {
   for (const s of sats) {
     satWorld.remove(s.dot, s.hit, s.line);
+    if (s.model) {
+      satWorld.remove(s.model);
+      if (s.model.userData.disposeIss) s.model.userData.disposeIss();
+      s.model = null;
+    }
     s.dot.material.dispose();
     s.hit.material.dispose();
     s.line.geometry.dispose();
@@ -11344,7 +11429,16 @@ function buildSatellites() {
     satWorld.add(dot, hit, line);
     orbitMats.push(lineMat);
     raycastTargets.push(hit);
-    const s = { name: def.name, satrec: rec, dot, hit, line, lineMat, type, baseOpacity: 0.45 };
+    const s = { name: def.name, satrec: rec, dot, hit, line, lineMat, type, baseOpacity: 0.45, model: null };
+    // Primary ISS (ZARYA): replace the LEO marker sphere with a lightweight 3D craft.
+    // Nauka keeps the ordinary marker (same orbit cloud; avoid a second full mesh).
+    if (def.catnr === 25544) {
+      const model = makeIssModel();
+      model.position.copy(dot.position);
+      satWorld.add(model);
+      s.model = model;
+      dot.visible = false;
+    }
     dot.userData.sat = s;
     hit.userData.sat = s;
     sats.push(s);
@@ -15255,6 +15349,12 @@ function tick() {
         const p = eciToLocal(pv.position);
         s.dot.position.copy(p);
         s.hit.position.copy(p);
+        if (s.model && pv.velocity) {
+          satWorld.localToWorld(_issWorld.copy(p));
+          orientIssModel(s.model, p, pv.velocity, camera.position.distanceTo(_issWorld));
+        } else if (s.model) {
+          s.model.position.copy(p);
+        }
       }
     }
     tickStarlink(now);
