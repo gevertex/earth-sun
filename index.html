@@ -293,6 +293,57 @@
     background: rgba(50, 90, 150, 0.4);
     border-color: rgba(120, 170, 255, 0.5);
   }
+  #controls .launch-status {
+    color: #7f97b8;
+    font-size: 11px;
+    margin: 4px 0 2px;
+    line-height: 1.35;
+  }
+  #controls .launch-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 2px 0 4px;
+    max-height: min(40vh, 16em);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  #controls .launch-list button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    font: 11px/1.35 system-ui, sans-serif;
+    color: #cfe8ff;
+    background: #0c1626;
+    border: 1px solid rgba(120, 170, 255, 0.22);
+    border-radius: 5px;
+    padding: 5px 7px;
+    cursor: pointer;
+  }
+  #controls .launch-list button:hover,
+  #controls .launch-list button:focus-visible {
+    border-color: rgba(255, 180, 90, 0.55);
+    outline: none;
+  }
+  #controls .launch-list .launch-name { color: #ffe0b0; font-weight: 600; }
+  #controls .launch-list .launch-meta { color: #7f97b8; }
+  #controls .launch-list .launch-status-pill {
+    display: inline-block;
+    margin-left: 4px;
+    padding: 0 5px;
+    border-radius: 999px;
+    font-size: 10px;
+    background: rgba(255, 160, 70, 0.18);
+    color: #ffc078;
+  }
+  #controls .launch-list .launch-status-pill.flight {
+    background: rgba(111, 211, 255, 0.18);
+    color: #6fd3ff;
+  }
+  #controls .launch-list .launch-status-pill.window {
+    background: rgba(157, 255, 111, 0.15);
+    color: #9dff6f;
+  }
   #controls .moon-group {
     flex-basis: 100%;
     display: flex;
@@ -460,6 +511,7 @@
       <div class="dim" style="margin-top:6px">Satellites, real orbits (tap a dot):<br><span style="color:#6fd3ff">● LEO</span> &nbsp;·&nbsp; <span style="color:#9dff6f">● MEO</span> &nbsp;·&nbsp; <span style="color:#ff6fb3">● GEO</span></div>
       <div class="dim">TLE data <span id="tle">--</span></div>
       <div class="dim">Starlink <span id="starlink">--</span></div>
+      <div class="dim">Launches <span id="launches-readout">--</span></div>
       <div class="dim">Weather radar <span id="weather">--</span></div>
       <div class="dim">Moon <span id="moon-phase">--</span></div>
       <div class="dim"><span style="color:#ff5450">●</span> Your location <span id="myloc">--</span></div>
@@ -1180,6 +1232,9 @@
       <label><input type="checkbox" id="extra-sats-toggle"> extra sats</label>
       <label><input type="checkbox" id="debris-toggle"> debris</label>
       <label><input type="checkbox" id="geo-ring-toggle"> GEO ring</label>
+      <label><input type="checkbox" id="launches-toggle" checked> launches</label>
+      <div class="launch-status" id="launches-status">Launches: loading…</div>
+      <div class="launch-list" id="launch-list" aria-label="Upcoming launches"></div>
     </div>
   </div>
   <div class="ctrl-section collapsed">
@@ -10717,6 +10772,347 @@ async function fetchMyLocation() {
 
 fetchMyLocation();
 
+/* ---------- rocket launches: Live upcoming pads on the globe ---------- */
+// Source: The Space Devs Launch Library 2 public API (CORS: Access-Control-Allow-Origin: *).
+// mode=normal includes pad.latitude/longitude without the heavy detailed payload.
+// Swap LAUNCH_ENDPOINT if a different proxy-free URL is preferred. On fetch failure
+// the curated DEMO list keeps the UI usable; status text explains live vs demo.
+const LAUNCH_ENDPOINT = 'https://ll.thespacedevs.com/2.2.0/launch/upcoming/?limit=15&mode=normal';
+const LAUNCH_REFRESH_MS = 20 * 60 * 1000;
+const LAUNCH_FETCH_TIMEOUT_MS = 15 * 1000;
+const LAUNCH_RETRY_MS = 90 * 1000;
+const LAUNCH_PAD_COLOR = 0xff9a4a;
+const LAUNCH_FLIGHT_COLOR = 0x6fd3ff;
+const LAUNCH_ARC_COLOR = 0x9dff6f;
+
+const LAUNCH_DEMO = [
+  { id: 'demo-f9-slc40', name: 'Falcon 9 | Demo Starlink', padName: 'SLC-40', site: 'Cape Canaveral, FL, USA', lat: 28.5619, lon: -80.5773, netOffsetH: 18, statusAbbrev: 'Go', statusName: 'Go for Launch', windowH: 2 },
+  { id: 'demo-f9-slc4e', name: 'Falcon 9 | Demo NRO', padName: 'SLC-4E', site: 'Vandenberg SFB, CA, USA', lat: 34.632, lon: -120.611, netOffsetH: 42, statusAbbrev: 'TBC', statusName: 'To Be Confirmed', windowH: 3 },
+  { id: 'demo-starship', name: 'Starship | Demo Flight', padName: 'Orbital Launch Pad A', site: 'Starbase, TX, USA', lat: 25.997, lon: -97.158, netOffsetH: 96, statusAbbrev: 'TBD', statusName: 'To Be Determined', windowH: 6 },
+  { id: 'demo-soyuz', name: 'Soyuz 2.1a | Demo Progress', padName: 'Site 31/6', site: 'Baikonur Cosmodrome, Kazakhstan', lat: 45.996, lon: 63.564, netOffsetH: 30, statusAbbrev: 'Go', statusName: 'Go for Launch', windowH: 1 },
+  { id: 'demo-ariane', name: 'Ariane 6 | Demo Ride Share', padName: 'ELA-4', site: 'Guiana Space Centre, French Guiana', lat: 5.263, lon: -52.805, netOffsetH: 120, statusAbbrev: 'Go', statusName: 'Go for Launch', windowH: 2 },
+  { id: 'demo-hslc', name: 'H3 | Demo JAXA', padName: 'Yoshinobu LP2', site: 'Tanegashima, Japan', lat: 30.401, lon: 130.977, netOffsetH: 70, statusAbbrev: 'TBC', statusName: 'To Be Confirmed', windowH: 2 },
+  { id: 'demo-cslc', name: 'Long March 5 | Demo CNSA', padName: 'LC-101', site: 'Wenchang, China', lat: 19.614, lon: 110.951, netOffsetH: 55, statusAbbrev: 'Go', statusName: 'Go for Launch', windowH: 2 },
+  { id: 'demo-pslv', name: 'PSLV | Demo ISRO', padName: 'First Launch Pad', site: 'Satish Dhawan, India', lat: 13.733, lon: 80.235, netOffsetH: 80, statusAbbrev: 'TBD', statusName: 'To Be Determined', windowH: 2 },
+];
+
+function demoLaunches(nowMs = Date.now()) {
+  return LAUNCH_DEMO.map((d) => {
+    const netMs = nowMs + d.netOffsetH * 3600 * 1000;
+    const win = (d.windowH || 2) * 3600 * 1000;
+    return {
+      id: d.id,
+      name: d.name,
+      padName: d.padName,
+      site: d.site,
+      lat: d.lat,
+      lon: d.lon,
+      netMs,
+      windowStartMs: netMs - win * 0.15,
+      windowEndMs: netMs + win,
+      statusId: d.statusAbbrev === 'Go' ? 1 : (d.statusAbbrev === 'TBC' ? 8 : 2),
+      statusAbbrev: d.statusAbbrev,
+      statusName: d.statusName,
+      demo: true,
+    };
+  });
+}
+
+const launchState = {
+  items: [],
+  live: false,
+  status: 'loading', // loading | live | demo | error
+  detail: '',
+  refreshing: false,
+  lastUpdate: 0,
+  pendingPad: null, // { lat, lon } after flyToBody('earth')
+};
+const launchWorld = new THREE.Group();
+launchWorld.name = 'launchWorld';
+scene.add(launchWorld);
+const launchPadGeo = new THREE.ConeGeometry(0.18, 0.55, 8);
+launchPadGeo.translate(0, 0.28, 0);
+const launchFlightGeo = new THREE.ConeGeometry(0.12, 0.7, 8);
+launchFlightGeo.translate(0, 0.35, 0);
+const _launchUp = new THREE.Vector3(0, 1, 0);
+const _launchDir = new THREE.Vector3();
+const _launchCam = new THREE.Vector3();
+const _launchTmp = new THREE.Vector3();
+let launchRetryTimer = 0;
+
+function clearLaunchMarkers() {
+  while (launchWorld.children.length) {
+    const obj = launchWorld.children[0];
+    launchWorld.remove(obj);
+    obj.traverse((o) => {
+      // Pad/flight cone geos are shared; only dispose per-launch arc buffers.
+      if (o.geometry && o.userData && o.userData.kind === 'arc') o.geometry.dispose();
+      if (o.material) {
+        if (Array.isArray(o.material)) o.material.forEach((m) => m.dispose());
+        else o.material.dispose();
+      }
+    });
+  }
+}
+
+function launchPhase(item, nowMs = Date.now()) {
+  if (item.statusId === 6) return 'flight';
+  if (nowMs >= item.windowStartMs && nowMs <= item.windowEndMs) return 'window';
+  return 'upcoming';
+}
+
+function placeLaunchMarker(item) {
+  if (!Number.isFinite(item.lat) || !Number.isFinite(item.lon)) return null;
+  const g = new THREE.Group();
+  g.userData.launchId = item.id;
+  const phase = launchPhase(item);
+  const mat = new THREE.MeshBasicMaterial({
+    color: phase === 'upcoming' ? LAUNCH_PAD_COLOR : (phase === 'flight' ? LAUNCH_FLIGHT_COLOR : LAUNCH_ARC_COLOR),
+    transparent: true,
+    opacity: 0.95,
+  });
+  const marker = new THREE.Mesh(phase === 'upcoming' ? launchPadGeo : launchFlightGeo, mat);
+  marker.userData.kind = 'pad';
+  g.add(marker);
+
+  const r = surfaceRadiusAt((item.lon + 180) / 360, (item.lat + 90) / 180);
+  _launchDir.copy(latLonToVec3(item.lat, item.lon, 1)).normalize();
+  const lift = phase === 'upcoming' ? 0 : (phase === 'window' ? 0.9 : 1.8);
+  g.position.copy(_launchDir).multiplyScalar(r + lift);
+  g.quaternion.setFromUnitVectors(_launchUp, _launchDir);
+
+  if (phase !== 'upcoming') {
+    const arcPos = new Float32Array(8 * 3);
+    for (let i = 0; i < 8; i++) {
+      const t = i / 7;
+      const h = r + t * (phase === 'flight' ? 3.2 : 2.2);
+      // Slight eastward drift for a readable ascending path.
+      const east = _launchTmp.set(-_launchDir.z, 0, _launchDir.x);
+      if (east.lengthSq() < 1e-8) east.set(1, 0, 0);
+      else east.normalize();
+      const p = _launchCam.copy(_launchDir).multiplyScalar(h).addScaledVector(east, t * t * 0.55);
+      arcPos.set([p.x, p.y, p.z], i * 3);
+    }
+    const arcGeo = new THREE.BufferGeometry();
+    arcGeo.setAttribute('position', new THREE.BufferAttribute(arcPos, 3));
+    const arc = new THREE.Line(arcGeo, new THREE.LineBasicMaterial({
+      color: phase === 'flight' ? LAUNCH_FLIGHT_COLOR : LAUNCH_ARC_COLOR,
+      transparent: true,
+      opacity: 0.75,
+    }));
+    arc.userData.kind = 'arc';
+    // Arc is in world/scene space; detach from pad orientation group.
+    launchWorld.add(arc);
+    item._arc = arc;
+  }
+
+  launchWorld.add(g);
+  item._marker = g;
+  return g;
+}
+
+function rebuildLaunchMarkers() {
+  clearLaunchMarkers();
+  for (const item of launchState.items) {
+    item._marker = null;
+    item._arc = null;
+    placeLaunchMarker(item);
+  }
+  const toggle = document.getElementById('launches-toggle');
+  launchWorld.visible = !toggle || toggle.checked;
+}
+
+function fmtLaunchNet(ms) {
+  try {
+    return new Date(ms).toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
+  } catch {
+    return '--';
+  }
+}
+
+function updateLaunchesStatusUi() {
+  const el = document.getElementById('launches-status');
+  const rd = document.getElementById('launches-readout');
+  let msg = '';
+  if (launchState.status === 'loading') msg = 'Launches: loading…';
+  else if (launchState.status === 'live') msg = `Launches: live · ${launchState.items.length} upcoming (LL2)`;
+  else if (launchState.status === 'demo') msg = `Launches: demo data · live fetch failed${launchState.detail ? ' (' + launchState.detail + ')' : ''}`;
+  else msg = `Launches: unavailable${launchState.detail ? ' · ' + launchState.detail : ''}`;
+  if (el) el.textContent = msg;
+  if (rd) {
+    if (launchState.status === 'live') rd.textContent = `${launchState.items.length} live`;
+    else if (launchState.status === 'demo') rd.textContent = `demo (${launchState.items.length})`;
+    else if (launchState.status === 'loading') rd.textContent = 'loading…';
+    else rd.textContent = 'unavailable';
+  }
+}
+
+function renderLaunchList() {
+  const list = document.getElementById('launch-list');
+  if (!list) return;
+  list.textContent = '';
+  for (const item of launchState.items) {
+    const phase = launchPhase(item);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.dataset.launchId = item.id;
+    const pillClass = phase === 'flight' ? 'flight' : (phase === 'window' ? 'window' : '');
+    const pillLabel = phase === 'flight' ? 'In flight' : (phase === 'window' ? 'Window' : item.statusAbbrev);
+    btn.innerHTML =
+      `<div class="launch-name">${escapeLaunchHtml(item.name)}` +
+      `<span class="launch-status-pill ${pillClass}">${escapeLaunchHtml(pillLabel)}</span></div>` +
+      `<div class="launch-meta">${escapeLaunchHtml(item.padName)} · ${escapeLaunchHtml(item.site)}</div>` +
+      `<div class="launch-meta">NET ${escapeLaunchHtml(fmtLaunchNet(item.netMs))}</div>`;
+    btn.addEventListener('click', () => flyToLaunchPad(item.lat, item.lon));
+    list.appendChild(btn);
+  }
+  if (!launchState.items.length) {
+    const empty = document.createElement('div');
+    empty.className = 'launch-status';
+    empty.textContent = 'No upcoming launches to show.';
+    list.appendChild(empty);
+  }
+}
+
+function escapeLaunchHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[c]);
+}
+
+function normalizeLaunchRow(row) {
+  const pad = row && row.pad;
+  if (!pad) return null;
+  const lat = parseFloat(pad.latitude);
+  const lon = parseFloat(pad.longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  const netMs = Date.parse(row.net);
+  if (!Number.isFinite(netMs)) return null;
+  const windowStartMs = Date.parse(row.window_start) || netMs;
+  const windowEndMs = Date.parse(row.window_end) || (netMs + 3600 * 1000);
+  const loc = pad.location;
+  const site = (loc && loc.name) || pad.name || 'Launch site';
+  const status = row.status || {};
+  return {
+    id: row.id || `${pad.name}-${row.net}`,
+    name: row.name || 'Launch',
+    padName: pad.name || 'Pad',
+    site,
+    lat,
+    lon,
+    netMs,
+    windowStartMs,
+    windowEndMs,
+    statusId: status.id || 0,
+    statusAbbrev: status.abbrev || status.name || '—',
+    statusName: status.name || '',
+    demo: false,
+  };
+}
+
+async function fetchLaunchesLive() {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), LAUNCH_FETCH_TIMEOUT_MS);
+  try {
+    const r = await fetch(LAUNCH_ENDPOINT, { signal: ctrl.signal });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    const rows = Array.isArray(data.results) ? data.results : [];
+    const items = [];
+    for (const row of rows) {
+      const n = normalizeLaunchRow(row);
+      if (n) items.push(n);
+    }
+    if (!items.length) throw new Error('no pad coordinates');
+    return items;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function applyLaunchItems(items, live, detail = '') {
+  launchState.items = items;
+  launchState.live = live;
+  launchState.status = live ? 'live' : 'demo';
+  launchState.detail = detail;
+  launchState.lastUpdate = Date.now();
+  rebuildLaunchMarkers();
+  renderLaunchList();
+  updateLaunchesStatusUi();
+}
+
+function scheduleLaunchRetry() {
+  if (launchRetryTimer) clearTimeout(launchRetryTimer);
+  launchRetryTimer = setTimeout(() => { refreshLaunches(); }, LAUNCH_RETRY_MS);
+}
+
+async function refreshLaunches() {
+  if (launchState.refreshing) return;
+  launchState.refreshing = true;
+  updateLaunchesStatusUi();
+  try {
+    const items = await fetchLaunchesLive();
+    applyLaunchItems(items, true, '');
+  } catch (err) {
+    const detail = (err && err.name === 'AbortError') ? 'timeout' : ((err && err.message) || 'fetch failed');
+    if (!launchState.items.length || launchState.live === false) {
+      applyLaunchItems(demoLaunches(), false, detail);
+    } else {
+      launchState.status = 'live';
+      launchState.detail = `refresh failed · ${detail}`;
+      updateLaunchesStatusUi();
+    }
+    scheduleLaunchRetry();
+  } finally {
+    launchState.refreshing = false;
+  }
+}
+
+function flyToLaunchPad(latDeg, lonDeg) {
+  if (!Number.isFinite(latDeg) || !Number.isFinite(lonDeg)) return;
+  const toggle = document.getElementById('launches-toggle');
+  if (toggle && !toggle.checked) {
+    toggle.checked = true;
+    toggle.dispatchEvent(new Event('change'));
+  }
+  if (focusedBody !== 'earth') {
+    launchState.pendingPad = { lat: latDeg, lon: lonDeg };
+    flyToBody('earth');
+    return;
+  }
+  launchState.pendingPad = null;
+  closeDrawer();
+  stopShowOrbit();
+  stopHyperspace();
+  _launchDir.copy(latLonToVec3(latDeg, lonDeg, 1)).normalize();
+  // Camera sits outward from the pad with a slight elevation for framing.
+  _bodyOff.copy(_launchDir).multiplyScalar(24).addScaledVector(_worldUp, 5);
+  if (_bodyOff.lengthSq() < 1e-6) _bodyOff.set(0, 8, 30);
+  _flyFromTgt.copy(controls.target);
+  _flyFromCam.copy(camera.position);
+  flyMoveArmed = false;
+  flyLookMs = 0;
+  flyMoveMs = FLY_MS;
+  flyDurMs = FLY_MS;
+  flyT0 = performance.now();
+  controls.enabled = false;
+  controls.minDistance = 1;
+  controls.maxDistance = 1e7;
+  syncCameraNear('earth');
+  syncOrbitFocus();
+  syncBodyList();
+}
+
+function maybeFinishPendingLaunchPad() {
+  const p = launchState.pendingPad;
+  if (!p) return;
+  launchState.pendingPad = null;
+  flyToLaunchPad(p.lat, p.lon);
+}
+
+refreshLaunches();
+setInterval(refreshLaunches, LAUNCH_REFRESH_MS);
+
 /* ---------- borders: country + US state lines, tap the globe to name a region ---------- */
 // Country borders (world) and US state borders, from GeoJSON. The borders
 // render as 3D line segments that follow the terrain. Tapping the globe shows
@@ -15261,6 +15657,7 @@ function tick() {
         controls.target.set(0, 0, 0);
         controls.enabled = true;
         syncCameraNear('earth');
+        maybeFinishPendingLaunchPad();
       }
     } else if (elapsed < flyLookMs) {
       // Pan/rotate look-at toward target; camera stays put (no mid-transit snaps).
@@ -15358,6 +15755,19 @@ function tick() {
       }
     }
     tickStarlink(now);
+  }
+  // Rebuild launch ascent markers sparingly when window / in-flight phase flips.
+  if (launchWorld.visible && launchState.items.length) {
+    const slot = Math.floor(Date.now() / 30000);
+    if (slot !== (launchState._phaseSlot || -1)) {
+      launchState._phaseSlot = slot;
+      let dirty = false;
+      for (const item of launchState.items) {
+        const ph = launchPhase(item);
+        if (item._phase !== ph) { item._phase = ph; dirty = true; }
+      }
+      if (dirty) rebuildLaunchMarkers();
+    }
   }
 
   elUtc.textContent = timeScale === 1
@@ -15486,6 +15896,12 @@ starlinkToggle.addEventListener('change', () => {
 });
 starlinkOrbitsToggle.addEventListener('change', () => {
   if (starlink.orbits) starlink.orbits.visible = starlinkOrbitsToggle.checked && starlinkToggle.checked;
+});
+
+const launchesToggle = document.getElementById('launches-toggle');
+launchesToggle.addEventListener('change', () => {
+  launchWorld.visible = launchesToggle.checked;
+  if (launchesToggle.checked && !launchState.items.length && !launchState.refreshing) refreshLaunches();
 });
 
 const QUIET_ON = new Set([
