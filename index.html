@@ -1899,6 +1899,11 @@
         <button type="button" data-body="gs54">2015 GS54</button>
         <button type="button" data-body="gt54">2015 GT54</button>
         <button type="button" data-body="gu54">2015 GU54</button>
+        <button type="button" data-body="gv54">2015 GV54</button>
+        <button type="button" data-body="gw54">2015 GW54</button>
+        <button type="button" data-body="gx54">2015 GX54</button>
+        <button type="button" data-body="gy54">2015 GY54</button>
+        <button type="button" data-body="gz54">2015 GZ54</button>
       </div>
       <label hidden><input type="checkbox" id="true-size-toggle" checked> true size</label>
       <div class="body-focus" id="body-focus">Earth</div>
@@ -9585,6 +9590,21 @@ const gt54OrbitLine = gt54Orbit.line;
 const gu54Orbit = makeOrbitLine(ORBIT_SAMPLES, 0x6e6054);
 const gu54OrbitPos = gu54Orbit.pos;
 const gu54OrbitLine = gu54Orbit.line;
+const gv54Orbit = makeOrbitLine(ORBIT_SAMPLES, 0x2a221c);
+const gv54OrbitPos = gv54Orbit.pos;
+const gv54OrbitLine = gv54Orbit.line;
+const gw54Orbit = makeOrbitLine(ORBIT_SAMPLES, 0x3a322a);
+const gw54OrbitPos = gw54Orbit.pos;
+const gw54OrbitLine = gw54Orbit.line;
+const gx54Orbit = makeOrbitLine(ORBIT_SAMPLES, 0x4a4238);
+const gx54OrbitPos = gx54Orbit.pos;
+const gx54OrbitLine = gx54Orbit.line;
+const gy54Orbit = makeOrbitLine(ORBIT_SAMPLES, 0x5a5044);
+const gy54OrbitPos = gy54Orbit.pos;
+const gy54OrbitLine = gy54Orbit.line;
+const gz54Orbit = makeOrbitLine(ORBIT_SAMPLES, 0x6e6054);
+const gz54OrbitPos = gz54Orbit.pos;
+const gz54OrbitLine = gz54Orbit.line;
 let lastOrbitWall = 0;
 function fillHelioOrbitLine(el, arr, n, T, eh, gmst) {
   const e = el.e0 + (el.edot || 0) * T;
@@ -11475,6 +11495,16 @@ function buildPlanetOrbits(now) {
   gt54OrbitLine.geometry.attributes.position.needsUpdate = true;
   fillHelioOrbitLine(GU54_EL, gu54OrbitPos, ORBIT_SAMPLES, T, eh, gmst);
   gu54OrbitLine.geometry.attributes.position.needsUpdate = true;
+  fillHelioOrbitLine(GV54_EL, gv54OrbitPos, ORBIT_SAMPLES, T, eh, gmst);
+  gv54OrbitLine.geometry.attributes.position.needsUpdate = true;
+  fillHelioOrbitLine(GW54_EL, gw54OrbitPos, ORBIT_SAMPLES, T, eh, gmst);
+  gw54OrbitLine.geometry.attributes.position.needsUpdate = true;
+  fillHelioOrbitLine(GX54_EL, gx54OrbitPos, ORBIT_SAMPLES, T, eh, gmst);
+  gx54OrbitLine.geometry.attributes.position.needsUpdate = true;
+  fillHelioOrbitLine(GY54_EL, gy54OrbitPos, ORBIT_SAMPLES, T, eh, gmst);
+  gy54OrbitLine.geometry.attributes.position.needsUpdate = true;
+  fillHelioOrbitLine(GZ54_EL, gz54OrbitPos, ORBIT_SAMPLES, T, eh, gmst);
+  gz54OrbitLine.geometry.attributes.position.needsUpdate = true;
   lastOrbitWall = Date.now();
 }
 function syncOrbitFocus() {
@@ -12417,6 +12447,11 @@ function syncOrbitFocus() {
   gs54OrbitLine.visible = focusedBody !== 'gs54';
   gt54OrbitLine.visible = focusedBody !== 'gt54';
   gu54OrbitLine.visible = focusedBody !== 'gu54';
+  gv54OrbitLine.visible = focusedBody !== 'gv54';
+  gw54OrbitLine.visible = focusedBody !== 'gw54';
+  gx54OrbitLine.visible = focusedBody !== 'gx54';
+  gy54OrbitLine.visible = focusedBody !== 'gy54';
+  gz54OrbitLine.visible = focusedBody !== 'gz54';
 }
 const orbitsToggle = document.getElementById('orbits-toggle');
 orbitsToggle.addEventListener('change', () => {
@@ -13505,6 +13540,11 @@ const BODY_TITLE = {
   gs54: '2015 GS54',
   gt54: '2015 GT54',
   gu54: '2015 GU54',
+  gv54: '2015 GV54',
+  gw54: '2015 GW54',
+  gx54: '2015 GX54',
+  gy54: '2015 GY54',
+  gz54: '2015 GZ54',
 };
 const bodyLabel = {};
 for (const id of Object.keys(BODY_TITLE)) {
@@ -18180,6 +18220,26 @@ const GU54_EL = {
   a0: 39.36920195067869, e0: 0.1010762493565147, I0: 5.586498018672359,
   Omega0: 46.7379310083058, w0: 26.62943236210419, tPeri: 2426670.850015842509, r: 20, c: 0x6e6054,
 };
+const GV54_EL = {
+  a0: 39.45943778185624, e0: 0.232631922825965, I0: 3.10247928244822,
+  Omega0: 114.7697053428332, w0: 175.2290172798751, tPeri: 2472207.393639842439, r: 20, c: 0x2a221c,
+};
+const GW54_EL = {
+  a0: 39.29628400029501, e0: 0.1830297652904059, I0: 3.396498675794981,
+  Omega0: 103.9462405184472, w0: 147.1440815305724, tPeri: 2465071.123789674212, r: 20, c: 0x3a322a,
+};
+const GX54_EL = {
+  a0: 39.29327628008907, e0: 0.159390681289894, I0: 13.52005499506244,
+  Omega0: 36.18690252206652, w0: 174.1465586526239, tPeri: 2458021.331836230030, r: 20, c: 0x4a4238,
+};
+const GY54_EL = {
+  a0: 39.25677633255882, e0: 0.1192103497593775, I0: 3.57585354918346,
+  Omega0: 70.29464557684328, w0: 107.9970926917376, tPeri: 2451712.548429673210, r: 20, c: 0x5a5044,
+};
+const GZ54_EL = {
+  a0: 47.79211538386831, e0: 0.2789131317152595, I0: 1.957651647028776,
+  Omega0: 95.61303978302105, w0: 357.7521967988692, tPeri: 2431587.818679436215, r: 20, c: 0x6e6054,
+};
 const minorWorld = new THREE.Group();
 minorWorld.visible = false;
 scene.add(minorWorld);
@@ -19270,7 +19330,12 @@ const gr54Mesh = makeMinorMesh(GR54_EL, 'gr54');
 const gs54Mesh = makeMinorMesh(GS54_EL, 'gs54');
 const gt54Mesh = makeMinorMesh(GT54_EL, 'gt54');
 const gu54Mesh = makeMinorMesh(GU54_EL, 'gu54');
-const minorSkyPos = new Float32Array(2805);
+const gv54Mesh = makeMinorMesh(GV54_EL, 'gv54');
+const gw54Mesh = makeMinorMesh(GW54_EL, 'gw54');
+const gx54Mesh = makeMinorMesh(GX54_EL, 'gx54');
+const gy54Mesh = makeMinorMesh(GY54_EL, 'gy54');
+const gz54Mesh = makeMinorMesh(GZ54_EL, 'gz54');
+const minorSkyPos = new Float32Array(2820);
 const minorSkyCol = new Float32Array([
   0.72, 0.70, 0.66, 0.77, 0.66, 0.47,
   0.83, 0.86, 0.91, 0.91, 0.82, 0.72,
@@ -19780,6 +19845,11 @@ const minorSkyCol = new Float32Array([
   0.43, 0.38, 0.33,
 0.16, 0.13, 0.11, 0.23, 0.20, 0.17,
   0.29, 0.26, 0.22, 0.35, 0.31, 0.27,
+  0.43, 0.38, 0.33,
+  0.16, 0.13, 0.11,
+  0.23, 0.20, 0.17,
+  0.29, 0.26, 0.22,
+  0.35, 0.31, 0.27,
   0.43, 0.38, 0.33,
   0.16, 0.13, 0.11,
   0.23, 0.20, 0.17,
@@ -20995,6 +21065,11 @@ function updateMinors(now, lonDeg) {
   _placeMinor(GS54_EL, gs54Mesh, now, lonDeg, 2796);
   _placeMinor(GT54_EL, gt54Mesh, now, lonDeg, 2799);
   _placeMinor(GU54_EL, gu54Mesh, now, lonDeg, 2802);
+  _placeMinor(GV54_EL, gv54Mesh, now, lonDeg, 2805);
+  _placeMinor(GW54_EL, gw54Mesh, now, lonDeg, 2808);
+  _placeMinor(GX54_EL, gx54Mesh, now, lonDeg, 2811);
+  _placeMinor(GY54_EL, gy54Mesh, now, lonDeg, 2814);
+  _placeMinor(GZ54_EL, gz54Mesh, now, lonDeg, 2817);
   minorSkyGeo.attributes.position.needsUpdate = true;
 }
 const minorsToggle = document.getElementById('minors-toggle');
@@ -25195,6 +25270,11 @@ const BODY_MESH = {
   gs54: gs54Mesh,
   gt54: gt54Mesh,
   gu54: gu54Mesh,
+  gv54: gv54Mesh,
+  gw54: gw54Mesh,
+  gx54: gx54Mesh,
+  gy54: gy54Mesh,
+  gz54: gz54Mesh,
   io: galileanMeshes[0], europa: galileanMeshes[1],
   ganymede: galileanMeshes[2], callisto: galileanMeshes[3], amalthea: jupiterInnerMeshes[0], thebe: jupiterInnerMeshes[1], metis: jupiterInnerMeshes[2], adrastea: jupiterInnerMeshes[3], himalia: jupiterOuterMeshes[0], elara: jupiterOuterMeshes[1], lysithea: jupiterOuterMeshes[2], leda: jupiterOuterMeshes[3], ananke: jupiterOuterMeshes[4], carme: jupiterOuterMeshes[5], pasiphae: jupiterOuterMeshes[6], sinope: jupiterOuterMeshes[7], callirrhoe: jupiterOuterMeshes[8], megaclite: jupiterOuterMeshes[9], autonoe: jupiterOuterMeshes[10], thyone: jupiterOuterMeshes[11], iocaste: jupiterOuterMeshes[12], praxidike: jupiterOuterMeshes[13], harpalyke: jupiterOuterMeshes[14], hermippe: jupiterOuterMeshes[15], euanthe: jupiterOuterMeshes[16], mneme: jupiterOuterMeshes[17], orthosie: jupiterOuterMeshes[18], euporie: jupiterOuterMeshes[19], thelxinoe: jupiterOuterMeshes[20], helike: jupiterOuterMeshes[21], aitne: jupiterOuterMeshes[22], kale: jupiterOuterMeshes[23], taygete: jupiterOuterMeshes[24], erinome: jupiterOuterMeshes[25], isonoe: jupiterOuterMeshes[26], kalyke: jupiterOuterMeshes[27], pasithee: jupiterOuterMeshes[28], chaldene: jupiterOuterMeshes[29], eukelade: jupiterOuterMeshes[30], kallichore: jupiterOuterMeshes[31], arche: jupiterOuterMeshes[32], herse: jupiterOuterMeshes[33], kore: jupiterOuterMeshes[34], eirene: jupiterOuterMeshes[35], aoede: jupiterOuterMeshes[36], hegemone: jupiterOuterMeshes[37], cyllene: jupiterOuterMeshes[38], sponde: jupiterOuterMeshes[39], eurydome: jupiterOuterMeshes[40], themisto: jupiterOuterMeshes[41], carpo: jupiterOuterMeshes[42], dia: jupiterOuterMeshes[43], eupheme: jupiterOuterMeshes[44], philophrosyne: jupiterOuterMeshes[45], pandia: jupiterOuterMeshes[46], ersa: jupiterOuterMeshes[47], valetudo: jupiterOuterMeshes[48], s2017j9: jupiterOuterMeshes[49], s2017j6: jupiterOuterMeshes[50], s2018j2: jupiterOuterMeshes[51], s2017j5: jupiterOuterMeshes[52], s2016j1: jupiterOuterMeshes[53], s2017j7: jupiterOuterMeshes[54], s2017j8: jupiterOuterMeshes[55], s2017j3: jupiterOuterMeshes[56], s2011j2: jupiterOuterMeshes[57], s2017j2: jupiterOuterMeshes[58], s2010j2: jupiterOuterMeshes[59], s2017j1: jupiterOuterMeshes[60], s2011j1: jupiterOuterMeshes[61], s2003j9: jupiterOuterMeshes[62], s2003j10: jupiterOuterMeshes[63], s2003j12: jupiterOuterMeshes[64], s2003j16: jupiterOuterMeshes[65], s2003j18: jupiterOuterMeshes[66], s2003j19: jupiterOuterMeshes[67], s2003j2: jupiterOuterMeshes[68], s2003j4: jupiterOuterMeshes[69], s2010j1: jupiterOuterMeshes[70], s2003j23: jupiterOuterMeshes[71], s2011j3: jupiterOuterMeshes[72], s2003j24: jupiterOuterMeshes[73], s2018j3: jupiterOuterMeshes[74], s2016j3: jupiterOuterMeshes[75], s2018j4: jupiterOuterMeshes[76], s2017j10: jupiterOuterMeshes[77], s2016j4: jupiterOuterMeshes[78], s2017j11: jupiterOuterMeshes[79], s2021j1: jupiterOuterMeshes[80], s2018j5: jupiterOuterMeshes[81], s2021j2: jupiterOuterMeshes[82], s2021j3: jupiterOuterMeshes[83], s2021j4: jupiterOuterMeshes[84], s2021j5: jupiterOuterMeshes[85], s2021j6: jupiterOuterMeshes[86], s2022j1: jupiterOuterMeshes[87], s2022j2: jupiterOuterMeshes[88], s2022j3: jupiterOuterMeshes[89], s2011j4: jupiterOuterMeshes[90], s2024j1: jupiterOuterMeshes[91], s2011j5: jupiterOuterMeshes[92], s2010j3: jupiterOuterMeshes[93], s2010j4: jupiterOuterMeshes[94], s2010j5: jupiterOuterMeshes[95], s2010j6: jupiterOuterMeshes[96], s2011j6: jupiterOuterMeshes[97], s2017j12: jupiterOuterMeshes[98], s2017j13: jupiterOuterMeshes[99], s2017j14: jupiterOuterMeshes[100], s2017j15: jupiterOuterMeshes[101], s2017j16: jupiterOuterMeshes[102], s2017j17: jupiterOuterMeshes[103], s2017j18: jupiterOuterMeshes[104], s2021j7: jupiterOuterMeshes[105], s2021j8: jupiterOuterMeshes[106],
   titan: saturnMoonMeshes[0], rhea: saturnMoonMeshes[1], enceladus: saturnMoonMeshes[4],
@@ -26202,6 +26282,11 @@ function bodyRealR(id) {
   if (id === 'gs54') return GS54_EL.r * KM_TO_SCENE;
   if (id === 'gt54') return GT54_EL.r * KM_TO_SCENE;
   if (id === 'gu54') return GU54_EL.r * KM_TO_SCENE;
+  if (id === 'gv54') return GV54_EL.r * KM_TO_SCENE;
+  if (id === 'gw54') return GW54_EL.r * KM_TO_SCENE;
+  if (id === 'gx54') return GX54_EL.r * KM_TO_SCENE;
+  if (id === 'gy54') return GY54_EL.r * KM_TO_SCENE;
+  if (id === 'gz54') return GZ54_EL.r * KM_TO_SCENE;
   if (MOON_FLY_KM[id]) return MOON_FLY_KM[id] * KM_TO_SCENE;
   const idx = PLANET_IDS.indexOf(id);
   if (idx >= 0) return PLANET_EL[idx].r * KM_TO_SCENE;
@@ -27146,6 +27231,11 @@ function bodyGeoR(id) {
   if (id === 'gs54') return Math.max(GS54_EL.r * KM_TO_SCENE, 0.5);
   if (id === 'gt54') return Math.max(GT54_EL.r * KM_TO_SCENE, 0.5);
   if (id === 'gu54') return Math.max(GU54_EL.r * KM_TO_SCENE, 0.5);
+  if (id === 'gv54') return Math.max(GV54_EL.r * KM_TO_SCENE, 0.5);
+  if (id === 'gw54') return Math.max(GW54_EL.r * KM_TO_SCENE, 0.5);
+  if (id === 'gx54') return Math.max(GX54_EL.r * KM_TO_SCENE, 0.5);
+  if (id === 'gy54') return Math.max(GY54_EL.r * KM_TO_SCENE, 0.5);
+  if (id === 'gz54') return Math.max(GZ54_EL.r * KM_TO_SCENE, 0.5);
   if (MOON_FLY_KM[id]) return MOON_FLY_KM[id] * KM_TO_SCENE;
   const idx = PLANET_IDS.indexOf(id);
   if (idx >= 0) return Math.max(PLANET_EL[idx].r * KM_TO_SCENE, 0.5);
