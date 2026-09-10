@@ -2164,6 +2164,11 @@
         <button type="button" data-body="up44">2013 UP44</button>
         <button type="button" data-body="uw16">2013 UW16</button>
         <button type="button" data-body="ux16">2013 UX16</button>
+        <button type="button" data-body="uy16">2013 UY16</button>
+        <button type="button" data-body="uz16">2013 UZ16</button>
+        <button type="button" data-body="va72">2013 VA72</button>
+        <button type="button" data-body="vb72">2013 VB72</button>
+        <button type="button" data-body="vc72">2013 VC72</button>
       </div>
       <label hidden><input type="checkbox" id="true-size-toggle" checked> true size</label>
       <div class="body-focus" id="body-focus">Earth</div>
@@ -10645,6 +10650,21 @@ const uw16OrbitLine = uw16Orbit.line;
 const ux16Orbit = makeOrbitLine(ORBIT_SAMPLES, 0x6e6054);
 const ux16OrbitPos = ux16Orbit.pos;
 const ux16OrbitLine = ux16Orbit.line;
+const uy16Orbit = makeOrbitLine(ORBIT_SAMPLES, 0x2a221c);
+const uy16OrbitPos = uy16Orbit.pos;
+const uy16OrbitLine = uy16Orbit.line;
+const uz16Orbit = makeOrbitLine(ORBIT_SAMPLES, 0x3a322c);
+const uz16OrbitPos = uz16Orbit.pos;
+const uz16OrbitLine = uz16Orbit.line;
+const va72Orbit = makeOrbitLine(ORBIT_SAMPLES, 0x4a423c);
+const va72OrbitPos = va72Orbit.pos;
+const va72OrbitLine = va72Orbit.line;
+const vb72Orbit = makeOrbitLine(ORBIT_SAMPLES, 0x5a524c);
+const vb72OrbitPos = vb72Orbit.pos;
+const vb72OrbitLine = vb72Orbit.line;
+const vc72Orbit = makeOrbitLine(ORBIT_SAMPLES, 0x6e6054);
+const vc72OrbitPos = vc72Orbit.pos;
+const vc72OrbitLine = vc72Orbit.line;
 let lastOrbitWall = 0;
 function fillHelioOrbitLine(el, arr, n, T, eh, gmst) {
   const e = el.e0 + (el.edot || 0) * T;
@@ -13065,6 +13085,16 @@ function buildPlanetOrbits(now) {
   uw16OrbitLine.geometry.attributes.position.needsUpdate = true;
   fillHelioOrbitLine(UX16_EL, ux16OrbitPos, ORBIT_SAMPLES, T, eh, gmst);
   ux16OrbitLine.geometry.attributes.position.needsUpdate = true;
+  fillHelioOrbitLine(UY16_EL, uy16OrbitPos, ORBIT_SAMPLES, T, eh, gmst);
+  uy16OrbitLine.geometry.attributes.position.needsUpdate = true;
+  fillHelioOrbitLine(UZ16_EL, uz16OrbitPos, ORBIT_SAMPLES, T, eh, gmst);
+  uz16OrbitLine.geometry.attributes.position.needsUpdate = true;
+  fillHelioOrbitLine(VA72_EL, va72OrbitPos, ORBIT_SAMPLES, T, eh, gmst);
+  va72OrbitLine.geometry.attributes.position.needsUpdate = true;
+  fillHelioOrbitLine(VB72_EL, vb72OrbitPos, ORBIT_SAMPLES, T, eh, gmst);
+  vb72OrbitLine.geometry.attributes.position.needsUpdate = true;
+  fillHelioOrbitLine(VC72_EL, vc72OrbitPos, ORBIT_SAMPLES, T, eh, gmst);
+  vc72OrbitLine.geometry.attributes.position.needsUpdate = true;
   lastOrbitWall = Date.now();
 }
 function syncOrbitFocus() {
@@ -14272,6 +14302,11 @@ function syncOrbitFocus() {
   up44OrbitLine.visible = focusedBody !== 'up44';
   uw16OrbitLine.visible = focusedBody !== 'uw16';
   ux16OrbitLine.visible = focusedBody !== 'ux16';
+  uy16OrbitLine.visible = focusedBody !== 'uy16';
+  uz16OrbitLine.visible = focusedBody !== 'uz16';
+  va72OrbitLine.visible = focusedBody !== 'va72';
+  vb72OrbitLine.visible = focusedBody !== 'vb72';
+  vc72OrbitLine.visible = focusedBody !== 'vc72';
 }
 const orbitsToggle = document.getElementById('orbits-toggle');
 orbitsToggle.addEventListener('change', () => {
@@ -15625,6 +15660,11 @@ const BODY_TITLE = {
   up44: '2013 UP44',
   uw16: '2013 UW16',
   ux16: '2013 UX16',
+  uy16: '2013 UY16',
+  uz16: '2013 UZ16',
+  va72: '2013 VA72',
+  vb72: '2013 VB72',
+  vc72: '2013 VC72',
 };
 const bodyLabel = {};
 for (const id of Object.keys(BODY_TITLE)) {
@@ -21360,6 +21400,26 @@ const UX16_EL = {
   a0: 39.28221650344162, e0: 0.235082868262056, I0: 4.414502048069229,
   Omega0: 37.29954015135067, w0: 199.4098037953264, tPeri: 2427538.980029039594, r: 20, c: 0x6e6054,
 };
+const UY16_EL = {
+  a0: 44.10323186663393, e0: 0.09300211718916535, I0: 2.356873977553823,
+  Omega0: 52.93472213917922, w0: 222.3953204421901, tPeri: 2430294.056884601800, r: 20, c: 0x2a221c,
+};
+const UZ16_EL = {
+  a0: 44.81912819201602, e0: 0.280724335679708, I0: 11.2055833246381,
+  Omega0: 23.08515028409972, w0: 99.17651247063063, tPeri: 2479595.944503719780, r: 20, c: 0x3a322c,
+};
+const VA72_EL = {
+  a0: 41.7608312965617, e0: 0.1128865963834105, I0: 15.04534193786228,
+  Omega0: 159.1367128892418, w0: 202.8112341152312, tPeri: 2451472.329237524029, r: 20, c: 0x4a423c,
+};
+const VB72_EL = {
+  a0: 65.39215089037233, e0: 0.4508126898893733, I0: 17.97566407200646,
+  Omega0: 56.51391734288097, w0: 276.4513110792025, tPeri: 2446377.034493975021, r: 20, c: 0x5a524c,
+};
+const VC72_EL = {
+  a0: 39.72700749894543, e0: 0.2576373851307939, I0: 13.31625841877144,
+  Omega0: 103.5272448248385, w0: 332.5993447341952, tPeri: 2463798.301162447455, r: 20, c: 0x6e6054,
+};
 const minorWorld = new THREE.Group();
 minorWorld.visible = false;
 scene.add(minorWorld);
@@ -22715,7 +22775,12 @@ const ul49Mesh = makeMinorMesh(UL49_EL, 'ul49');
 const up44Mesh = makeMinorMesh(UP44_EL, 'up44');
 const uw16Mesh = makeMinorMesh(UW16_EL, 'uw16');
 const ux16Mesh = makeMinorMesh(UX16_EL, 'ux16');
-const minorSkyPos = new Float32Array(3600);
+const uy16Mesh = makeMinorMesh(UY16_EL, 'uy16');
+const uz16Mesh = makeMinorMesh(UZ16_EL, 'uz16');
+const va72Mesh = makeMinorMesh(VA72_EL, 'va72');
+const vb72Mesh = makeMinorMesh(VB72_EL, 'vb72');
+const vc72Mesh = makeMinorMesh(VC72_EL, 'vc72');
+const minorSkyPos = new Float32Array(3615);
 const minorSkyCol = new Float32Array([
   0.72, 0.70, 0.66, 0.77, 0.66, 0.47,
   0.83, 0.86, 0.91, 0.91, 0.82, 0.72,
@@ -23455,6 +23520,12 @@ const minorSkyCol = new Float32Array([
   0.23, 0.20, 0.17,
   0.29, 0.26, 0.22,
   0.35, 0.31, 0.27,
+  0.43, 0.38, 0.33,
+
+  0.16, 0.13, 0.11,
+  0.23, 0.20, 0.17,
+  0.29, 0.26, 0.24,
+  0.35, 0.32, 0.30,
   0.43, 0.38, 0.33,
 
   0.16, 0.13, 0.11,
@@ -24922,6 +24993,11 @@ function updateMinors(now, lonDeg) {
   _placeMinor(UP44_EL, up44Mesh, now, lonDeg, 3591);
   _placeMinor(UW16_EL, uw16Mesh, now, lonDeg, 3594);
   _placeMinor(UX16_EL, ux16Mesh, now, lonDeg, 3597);
+  _placeMinor(UY16_EL, uy16Mesh, now, lonDeg, 3600);
+  _placeMinor(UZ16_EL, uz16Mesh, now, lonDeg, 3603);
+  _placeMinor(VA72_EL, va72Mesh, now, lonDeg, 3606);
+  _placeMinor(VB72_EL, vb72Mesh, now, lonDeg, 3609);
+  _placeMinor(VC72_EL, vc72Mesh, now, lonDeg, 3612);
   minorSkyGeo.attributes.position.needsUpdate = true;
 }
 const minorsToggle = document.getElementById('minors-toggle');
@@ -29388,6 +29464,11 @@ const BODY_MESH = {
   up44: up44Mesh,
   uw16: uw16Mesh,
   ux16: ux16Mesh,
+  uy16: uy16Mesh,
+  uz16: uz16Mesh,
+  va72: va72Mesh,
+  vb72: vb72Mesh,
+  vc72: vc72Mesh,
   io: galileanMeshes[0], europa: galileanMeshes[1],
   ganymede: galileanMeshes[2], callisto: galileanMeshes[3], amalthea: jupiterInnerMeshes[0], thebe: jupiterInnerMeshes[1], metis: jupiterInnerMeshes[2], adrastea: jupiterInnerMeshes[3], himalia: jupiterOuterMeshes[0], elara: jupiterOuterMeshes[1], lysithea: jupiterOuterMeshes[2], leda: jupiterOuterMeshes[3], ananke: jupiterOuterMeshes[4], carme: jupiterOuterMeshes[5], pasiphae: jupiterOuterMeshes[6], sinope: jupiterOuterMeshes[7], callirrhoe: jupiterOuterMeshes[8], megaclite: jupiterOuterMeshes[9], autonoe: jupiterOuterMeshes[10], thyone: jupiterOuterMeshes[11], iocaste: jupiterOuterMeshes[12], praxidike: jupiterOuterMeshes[13], harpalyke: jupiterOuterMeshes[14], hermippe: jupiterOuterMeshes[15], euanthe: jupiterOuterMeshes[16], mneme: jupiterOuterMeshes[17], orthosie: jupiterOuterMeshes[18], euporie: jupiterOuterMeshes[19], thelxinoe: jupiterOuterMeshes[20], helike: jupiterOuterMeshes[21], aitne: jupiterOuterMeshes[22], kale: jupiterOuterMeshes[23], taygete: jupiterOuterMeshes[24], erinome: jupiterOuterMeshes[25], isonoe: jupiterOuterMeshes[26], kalyke: jupiterOuterMeshes[27], pasithee: jupiterOuterMeshes[28], chaldene: jupiterOuterMeshes[29], eukelade: jupiterOuterMeshes[30], kallichore: jupiterOuterMeshes[31], arche: jupiterOuterMeshes[32], herse: jupiterOuterMeshes[33], kore: jupiterOuterMeshes[34], eirene: jupiterOuterMeshes[35], aoede: jupiterOuterMeshes[36], hegemone: jupiterOuterMeshes[37], cyllene: jupiterOuterMeshes[38], sponde: jupiterOuterMeshes[39], eurydome: jupiterOuterMeshes[40], themisto: jupiterOuterMeshes[41], carpo: jupiterOuterMeshes[42], dia: jupiterOuterMeshes[43], eupheme: jupiterOuterMeshes[44], philophrosyne: jupiterOuterMeshes[45], pandia: jupiterOuterMeshes[46], ersa: jupiterOuterMeshes[47], valetudo: jupiterOuterMeshes[48], s2017j9: jupiterOuterMeshes[49], s2017j6: jupiterOuterMeshes[50], s2018j2: jupiterOuterMeshes[51], s2017j5: jupiterOuterMeshes[52], s2016j1: jupiterOuterMeshes[53], s2017j7: jupiterOuterMeshes[54], s2017j8: jupiterOuterMeshes[55], s2017j3: jupiterOuterMeshes[56], s2011j2: jupiterOuterMeshes[57], s2017j2: jupiterOuterMeshes[58], s2010j2: jupiterOuterMeshes[59], s2017j1: jupiterOuterMeshes[60], s2011j1: jupiterOuterMeshes[61], s2003j9: jupiterOuterMeshes[62], s2003j10: jupiterOuterMeshes[63], s2003j12: jupiterOuterMeshes[64], s2003j16: jupiterOuterMeshes[65], s2003j18: jupiterOuterMeshes[66], s2003j19: jupiterOuterMeshes[67], s2003j2: jupiterOuterMeshes[68], s2003j4: jupiterOuterMeshes[69], s2010j1: jupiterOuterMeshes[70], s2003j23: jupiterOuterMeshes[71], s2011j3: jupiterOuterMeshes[72], s2003j24: jupiterOuterMeshes[73], s2018j3: jupiterOuterMeshes[74], s2016j3: jupiterOuterMeshes[75], s2018j4: jupiterOuterMeshes[76], s2017j10: jupiterOuterMeshes[77], s2016j4: jupiterOuterMeshes[78], s2017j11: jupiterOuterMeshes[79], s2021j1: jupiterOuterMeshes[80], s2018j5: jupiterOuterMeshes[81], s2021j2: jupiterOuterMeshes[82], s2021j3: jupiterOuterMeshes[83], s2021j4: jupiterOuterMeshes[84], s2021j5: jupiterOuterMeshes[85], s2021j6: jupiterOuterMeshes[86], s2022j1: jupiterOuterMeshes[87], s2022j2: jupiterOuterMeshes[88], s2022j3: jupiterOuterMeshes[89], s2011j4: jupiterOuterMeshes[90], s2024j1: jupiterOuterMeshes[91], s2011j5: jupiterOuterMeshes[92], s2010j3: jupiterOuterMeshes[93], s2010j4: jupiterOuterMeshes[94], s2010j5: jupiterOuterMeshes[95], s2010j6: jupiterOuterMeshes[96], s2011j6: jupiterOuterMeshes[97], s2017j12: jupiterOuterMeshes[98], s2017j13: jupiterOuterMeshes[99], s2017j14: jupiterOuterMeshes[100], s2017j15: jupiterOuterMeshes[101], s2017j16: jupiterOuterMeshes[102], s2017j17: jupiterOuterMeshes[103], s2017j18: jupiterOuterMeshes[104], s2021j7: jupiterOuterMeshes[105], s2021j8: jupiterOuterMeshes[106],
   titan: saturnMoonMeshes[0], rhea: saturnMoonMeshes[1], enceladus: saturnMoonMeshes[4],
@@ -30661,6 +30742,11 @@ function bodyRealR(id) {
   if (id === 'up44') return UP44_EL.r * KM_TO_SCENE;
   if (id === 'uw16') return UW16_EL.r * KM_TO_SCENE;
   if (id === 'ux16') return UX16_EL.r * KM_TO_SCENE;
+  if (id === 'uy16') return UY16_EL.r * KM_TO_SCENE;
+  if (id === 'uz16') return UZ16_EL.r * KM_TO_SCENE;
+  if (id === 'va72') return VA72_EL.r * KM_TO_SCENE;
+  if (id === 'vb72') return VB72_EL.r * KM_TO_SCENE;
+  if (id === 'vc72') return VC72_EL.r * KM_TO_SCENE;
   if (MOON_FLY_KM[id]) return MOON_FLY_KM[id] * KM_TO_SCENE;
   const idx = PLANET_IDS.indexOf(id);
   if (idx >= 0) return PLANET_EL[idx].r * KM_TO_SCENE;
@@ -31871,6 +31957,11 @@ function bodyGeoR(id) {
   if (id === 'up44') return Math.max(UP44_EL.r * KM_TO_SCENE, 0.5);
   if (id === 'uw16') return Math.max(UW16_EL.r * KM_TO_SCENE, 0.5);
   if (id === 'ux16') return Math.max(UX16_EL.r * KM_TO_SCENE, 0.5);
+  if (id === 'uy16') return Math.max(UY16_EL.r * KM_TO_SCENE, 0.5);
+  if (id === 'uz16') return Math.max(UZ16_EL.r * KM_TO_SCENE, 0.5);
+  if (id === 'va72') return Math.max(VA72_EL.r * KM_TO_SCENE, 0.5);
+  if (id === 'vb72') return Math.max(VB72_EL.r * KM_TO_SCENE, 0.5);
+  if (id === 'vc72') return Math.max(VC72_EL.r * KM_TO_SCENE, 0.5);
   if (MOON_FLY_KM[id]) return MOON_FLY_KM[id] * KM_TO_SCENE;
   const idx = PLANET_IDS.indexOf(id);
   if (idx >= 0) return Math.max(PLANET_EL[idx].r * KM_TO_SCENE, 0.5);
