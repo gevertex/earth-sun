@@ -1984,6 +1984,11 @@
         <button type="button" data-body="gc58">2015 GC58</button>
         <button type="button" data-body="gd58">2015 GD58</button>
         <button type="button" data-body="ge58">2015 GE58</button>
+        <button type="button" data-body="gf58">2015 GF58</button>
+        <button type="button" data-body="gg58">2015 GG58</button>
+        <button type="button" data-body="gh58">2015 GH58</button>
+        <button type="button" data-body="gj58">2015 GJ58</button>
+        <button type="button" data-body="gk58">2015 GK58</button>
       </div>
       <label hidden><input type="checkbox" id="true-size-toggle" checked> true size</label>
       <div class="body-focus" id="body-focus">Earth</div>
@@ -9925,6 +9930,21 @@ const gd58OrbitLine = gd58Orbit.line;
 const ge58Orbit = makeOrbitLine(ORBIT_SAMPLES, 0x6e6054);
 const ge58OrbitPos = ge58Orbit.pos;
 const ge58OrbitLine = ge58Orbit.line;
+const gf58Orbit = makeOrbitLine(ORBIT_SAMPLES, 0x2a221c);
+const gf58OrbitPos = gf58Orbit.pos;
+const gf58OrbitLine = gf58Orbit.line;
+const gg58Orbit = makeOrbitLine(ORBIT_SAMPLES, 0x3a3228);
+const gg58OrbitPos = gg58Orbit.pos;
+const gg58OrbitLine = gg58Orbit.line;
+const gh58Orbit = makeOrbitLine(ORBIT_SAMPLES, 0x4a4238);
+const gh58OrbitPos = gh58Orbit.pos;
+const gh58OrbitLine = gh58Orbit.line;
+const gj58Orbit = makeOrbitLine(ORBIT_SAMPLES, 0x5a5044);
+const gj58OrbitPos = gj58Orbit.pos;
+const gj58OrbitLine = gj58Orbit.line;
+const gk58Orbit = makeOrbitLine(ORBIT_SAMPLES, 0x6e6054);
+const gk58OrbitPos = gk58Orbit.pos;
+const gk58OrbitLine = gk58Orbit.line;
 let lastOrbitWall = 0;
 function fillHelioOrbitLine(el, arr, n, T, eh, gmst) {
   const e = el.e0 + (el.edot || 0) * T;
@@ -11985,6 +12005,16 @@ function buildPlanetOrbits(now) {
   gd58OrbitLine.geometry.attributes.position.needsUpdate = true;
   fillHelioOrbitLine(GE58_EL, ge58OrbitPos, ORBIT_SAMPLES, T, eh, gmst);
   ge58OrbitLine.geometry.attributes.position.needsUpdate = true;
+  fillHelioOrbitLine(GF58_EL, gf58OrbitPos, ORBIT_SAMPLES, T, eh, gmst);
+  gf58OrbitLine.geometry.attributes.position.needsUpdate = true;
+  fillHelioOrbitLine(GG58_EL, gg58OrbitPos, ORBIT_SAMPLES, T, eh, gmst);
+  gg58OrbitLine.geometry.attributes.position.needsUpdate = true;
+  fillHelioOrbitLine(GH58_EL, gh58OrbitPos, ORBIT_SAMPLES, T, eh, gmst);
+  gh58OrbitLine.geometry.attributes.position.needsUpdate = true;
+  fillHelioOrbitLine(GJ58_EL, gj58OrbitPos, ORBIT_SAMPLES, T, eh, gmst);
+  gj58OrbitLine.geometry.attributes.position.needsUpdate = true;
+  fillHelioOrbitLine(GK58_EL, gk58OrbitPos, ORBIT_SAMPLES, T, eh, gmst);
+  gk58OrbitLine.geometry.attributes.position.needsUpdate = true;
   lastOrbitWall = Date.now();
 }
 function syncOrbitFocus() {
@@ -13012,6 +13042,11 @@ function syncOrbitFocus() {
   gc58OrbitLine.visible = focusedBody !== 'gc58';
   gd58OrbitLine.visible = focusedBody !== 'gd58';
   ge58OrbitLine.visible = focusedBody !== 'ge58';
+  gf58OrbitLine.visible = focusedBody !== 'gf58';
+  gg58OrbitLine.visible = focusedBody !== 'gg58';
+  gh58OrbitLine.visible = focusedBody !== 'gh58';
+  gj58OrbitLine.visible = focusedBody !== 'gj58';
+  gk58OrbitLine.visible = focusedBody !== 'gk58';
 }
 const orbitsToggle = document.getElementById('orbits-toggle');
 orbitsToggle.addEventListener('change', () => {
@@ -14185,6 +14220,11 @@ const BODY_TITLE = {
   gc58: '2015 GC58',
   gd58: '2015 GD58',
   ge58: '2015 GE58',
+  gf58: '2015 GF58',
+  gg58: '2015 GG58',
+  gh58: '2015 GH58',
+  gj58: '2015 GJ58',
+  gk58: '2015 GK58',
 };
 const bodyLabel = {};
 for (const id of Object.keys(BODY_TITLE)) {
@@ -19200,6 +19240,26 @@ const GE58_EL = {
   a0: 42.74710189711283, e0: 0.02798848165824621, I0: 3.54917297278462,
   Omega0: 78.95566246695738, w0: 219.5754503971345, tPeri: 2483617.893040214145, r: 20, c: 0x6e6054,
 };
+const GF58_EL = {
+  a0: 43.90452878213921, e0: 0.08113833602864255, I0: 3.130453618652435,
+  Omega0: 83.57960195577344, w0: 142.2933054943317, tPeri: 2463010.3730935887, r: 20, c: 0x2a221c,
+};
+const GG58_EL = {
+  a0: 44.12648119816998, e0: 0.06567121073828784, I0: 1.9765721365483,
+  Omega0: 85.80394778024588, w0: 293.5644403409678, tPeri: 2509393.36496175, r: 20, c: 0x3a3228,
+};
+const GH58_EL = {
+  a0: 43.45827140313823, e0: 0.02870829298339102, I0: 2.190139103915476,
+  Omega0: 82.93971107233325, w0: 121.5507251982005, tPeri: 2457448.670953182, r: 20, c: 0x4a4238,
+};
+const GJ58_EL = {
+  a0: 45.24617973110485, e0: 0.1166311103542324, I0: 3.565998134497536,
+  Omega0: 58.69212187517309, w0: 218.062027390323, tPeri: 2475928.683722718, r: 20, c: 0x5a5044,
+};
+const GK58_EL = {
+  a0: 44.06540846094418, e0: 0.09469133892023343, I0: 5.576817912502312,
+  Omega0: 185.6782982201317, w0: 271.0820254465137, tPeri: 2428414.1371598067, r: 20, c: 0x6e6054,
+};
 const minorWorld = new THREE.Group();
 minorWorld.visible = false;
 scene.add(minorWorld);
@@ -20375,7 +20435,12 @@ const gb58Mesh = makeMinorMesh(GB58_EL, 'gb58');
 const gc58Mesh = makeMinorMesh(GC58_EL, 'gc58');
 const gd58Mesh = makeMinorMesh(GD58_EL, 'gd58');
 const ge58Mesh = makeMinorMesh(GE58_EL, 'ge58');
-const minorSkyPos = new Float32Array(3060);
+const gf58Mesh = makeMinorMesh(GF58_EL, 'gf58');
+const gg58Mesh = makeMinorMesh(GG58_EL, 'gg58');
+const gh58Mesh = makeMinorMesh(GH58_EL, 'gh58');
+const gj58Mesh = makeMinorMesh(GJ58_EL, 'gj58');
+const gk58Mesh = makeMinorMesh(GK58_EL, 'gk58');
+const minorSkyPos = new Float32Array(3075);
 const minorSkyCol = new Float32Array([
   0.72, 0.70, 0.66, 0.77, 0.66, 0.47,
   0.83, 0.86, 0.91, 0.91, 0.82, 0.72,
@@ -20885,6 +20950,11 @@ const minorSkyCol = new Float32Array([
   0.43, 0.38, 0.33,
 0.16, 0.13, 0.11, 0.23, 0.20, 0.17,
   0.29, 0.26, 0.22, 0.35, 0.31, 0.27,
+  0.43, 0.38, 0.33,
+  0.16, 0.13, 0.11,
+  0.23, 0.20, 0.17,
+  0.29, 0.26, 0.22,
+  0.35, 0.31, 0.27,
   0.43, 0.38, 0.33,
   0.16, 0.13, 0.11,
   0.23, 0.20, 0.17,
@@ -22235,6 +22305,11 @@ function updateMinors(now, lonDeg) {
   _placeMinor(GC58_EL, gc58Mesh, now, lonDeg, 3051);
   _placeMinor(GD58_EL, gd58Mesh, now, lonDeg, 3054);
   _placeMinor(GE58_EL, ge58Mesh, now, lonDeg, 3057);
+  _placeMinor(GF58_EL, gf58Mesh, now, lonDeg, 3060);
+  _placeMinor(GG58_EL, gg58Mesh, now, lonDeg, 3063);
+  _placeMinor(GH58_EL, gh58Mesh, now, lonDeg, 3066);
+  _placeMinor(GJ58_EL, gj58Mesh, now, lonDeg, 3069);
+  _placeMinor(GK58_EL, gk58Mesh, now, lonDeg, 3072);
   minorSkyGeo.attributes.position.needsUpdate = true;
 }
 const minorsToggle = document.getElementById('minors-toggle');
@@ -26521,6 +26596,11 @@ const BODY_MESH = {
   gc58: gc58Mesh,
   gd58: gd58Mesh,
   ge58: ge58Mesh,
+  gf58: gf58Mesh,
+  gg58: gg58Mesh,
+  gh58: gh58Mesh,
+  gj58: gj58Mesh,
+  gk58: gk58Mesh,
   io: galileanMeshes[0], europa: galileanMeshes[1],
   ganymede: galileanMeshes[2], callisto: galileanMeshes[3], amalthea: jupiterInnerMeshes[0], thebe: jupiterInnerMeshes[1], metis: jupiterInnerMeshes[2], adrastea: jupiterInnerMeshes[3], himalia: jupiterOuterMeshes[0], elara: jupiterOuterMeshes[1], lysithea: jupiterOuterMeshes[2], leda: jupiterOuterMeshes[3], ananke: jupiterOuterMeshes[4], carme: jupiterOuterMeshes[5], pasiphae: jupiterOuterMeshes[6], sinope: jupiterOuterMeshes[7], callirrhoe: jupiterOuterMeshes[8], megaclite: jupiterOuterMeshes[9], autonoe: jupiterOuterMeshes[10], thyone: jupiterOuterMeshes[11], iocaste: jupiterOuterMeshes[12], praxidike: jupiterOuterMeshes[13], harpalyke: jupiterOuterMeshes[14], hermippe: jupiterOuterMeshes[15], euanthe: jupiterOuterMeshes[16], mneme: jupiterOuterMeshes[17], orthosie: jupiterOuterMeshes[18], euporie: jupiterOuterMeshes[19], thelxinoe: jupiterOuterMeshes[20], helike: jupiterOuterMeshes[21], aitne: jupiterOuterMeshes[22], kale: jupiterOuterMeshes[23], taygete: jupiterOuterMeshes[24], erinome: jupiterOuterMeshes[25], isonoe: jupiterOuterMeshes[26], kalyke: jupiterOuterMeshes[27], pasithee: jupiterOuterMeshes[28], chaldene: jupiterOuterMeshes[29], eukelade: jupiterOuterMeshes[30], kallichore: jupiterOuterMeshes[31], arche: jupiterOuterMeshes[32], herse: jupiterOuterMeshes[33], kore: jupiterOuterMeshes[34], eirene: jupiterOuterMeshes[35], aoede: jupiterOuterMeshes[36], hegemone: jupiterOuterMeshes[37], cyllene: jupiterOuterMeshes[38], sponde: jupiterOuterMeshes[39], eurydome: jupiterOuterMeshes[40], themisto: jupiterOuterMeshes[41], carpo: jupiterOuterMeshes[42], dia: jupiterOuterMeshes[43], eupheme: jupiterOuterMeshes[44], philophrosyne: jupiterOuterMeshes[45], pandia: jupiterOuterMeshes[46], ersa: jupiterOuterMeshes[47], valetudo: jupiterOuterMeshes[48], s2017j9: jupiterOuterMeshes[49], s2017j6: jupiterOuterMeshes[50], s2018j2: jupiterOuterMeshes[51], s2017j5: jupiterOuterMeshes[52], s2016j1: jupiterOuterMeshes[53], s2017j7: jupiterOuterMeshes[54], s2017j8: jupiterOuterMeshes[55], s2017j3: jupiterOuterMeshes[56], s2011j2: jupiterOuterMeshes[57], s2017j2: jupiterOuterMeshes[58], s2010j2: jupiterOuterMeshes[59], s2017j1: jupiterOuterMeshes[60], s2011j1: jupiterOuterMeshes[61], s2003j9: jupiterOuterMeshes[62], s2003j10: jupiterOuterMeshes[63], s2003j12: jupiterOuterMeshes[64], s2003j16: jupiterOuterMeshes[65], s2003j18: jupiterOuterMeshes[66], s2003j19: jupiterOuterMeshes[67], s2003j2: jupiterOuterMeshes[68], s2003j4: jupiterOuterMeshes[69], s2010j1: jupiterOuterMeshes[70], s2003j23: jupiterOuterMeshes[71], s2011j3: jupiterOuterMeshes[72], s2003j24: jupiterOuterMeshes[73], s2018j3: jupiterOuterMeshes[74], s2016j3: jupiterOuterMeshes[75], s2018j4: jupiterOuterMeshes[76], s2017j10: jupiterOuterMeshes[77], s2016j4: jupiterOuterMeshes[78], s2017j11: jupiterOuterMeshes[79], s2021j1: jupiterOuterMeshes[80], s2018j5: jupiterOuterMeshes[81], s2021j2: jupiterOuterMeshes[82], s2021j3: jupiterOuterMeshes[83], s2021j4: jupiterOuterMeshes[84], s2021j5: jupiterOuterMeshes[85], s2021j6: jupiterOuterMeshes[86], s2022j1: jupiterOuterMeshes[87], s2022j2: jupiterOuterMeshes[88], s2022j3: jupiterOuterMeshes[89], s2011j4: jupiterOuterMeshes[90], s2024j1: jupiterOuterMeshes[91], s2011j5: jupiterOuterMeshes[92], s2010j3: jupiterOuterMeshes[93], s2010j4: jupiterOuterMeshes[94], s2010j5: jupiterOuterMeshes[95], s2010j6: jupiterOuterMeshes[96], s2011j6: jupiterOuterMeshes[97], s2017j12: jupiterOuterMeshes[98], s2017j13: jupiterOuterMeshes[99], s2017j14: jupiterOuterMeshes[100], s2017j15: jupiterOuterMeshes[101], s2017j16: jupiterOuterMeshes[102], s2017j17: jupiterOuterMeshes[103], s2017j18: jupiterOuterMeshes[104], s2021j7: jupiterOuterMeshes[105], s2021j8: jupiterOuterMeshes[106],
   titan: saturnMoonMeshes[0], rhea: saturnMoonMeshes[1], enceladus: saturnMoonMeshes[4],
@@ -27614,6 +27694,11 @@ function bodyRealR(id) {
   if (id === 'gc58') return GC58_EL.r * KM_TO_SCENE;
   if (id === 'gd58') return GD58_EL.r * KM_TO_SCENE;
   if (id === 'ge58') return GE58_EL.r * KM_TO_SCENE;
+  if (id === 'gf58') return GF58_EL.r * KM_TO_SCENE;
+  if (id === 'gg58') return GG58_EL.r * KM_TO_SCENE;
+  if (id === 'gh58') return GH58_EL.r * KM_TO_SCENE;
+  if (id === 'gj58') return GJ58_EL.r * KM_TO_SCENE;
+  if (id === 'gk58') return GK58_EL.r * KM_TO_SCENE;
   if (MOON_FLY_KM[id]) return MOON_FLY_KM[id] * KM_TO_SCENE;
   const idx = PLANET_IDS.indexOf(id);
   if (idx >= 0) return PLANET_EL[idx].r * KM_TO_SCENE;
@@ -28644,6 +28729,11 @@ function bodyGeoR(id) {
   if (id === 'gc58') return Math.max(GC58_EL.r * KM_TO_SCENE, 0.5);
   if (id === 'gd58') return Math.max(GD58_EL.r * KM_TO_SCENE, 0.5);
   if (id === 'ge58') return Math.max(GE58_EL.r * KM_TO_SCENE, 0.5);
+  if (id === 'gf58') return Math.max(GF58_EL.r * KM_TO_SCENE, 0.5);
+  if (id === 'gg58') return Math.max(GG58_EL.r * KM_TO_SCENE, 0.5);
+  if (id === 'gh58') return Math.max(GH58_EL.r * KM_TO_SCENE, 0.5);
+  if (id === 'gj58') return Math.max(GJ58_EL.r * KM_TO_SCENE, 0.5);
+  if (id === 'gk58') return Math.max(GK58_EL.r * KM_TO_SCENE, 0.5);
   if (MOON_FLY_KM[id]) return MOON_FLY_KM[id] * KM_TO_SCENE;
   const idx = PLANET_IDS.indexOf(id);
   if (idx >= 0) return Math.max(PLANET_EL[idx].r * KM_TO_SCENE, 0.5);
