@@ -2316,6 +2316,7 @@ controls.zoomSpeed = 1;
 const texUrlState = Object.create(null);
 const texByUrl = Object.create(null);
 const texUrlWaiters = Object.create(null);
+const bodyTexState = Object.create(null);
 function applyMapAnisotropy(tex) {
   if (!tex) return;
   tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
@@ -21481,19 +21482,33 @@ function polishColorOnlyMesh(mesh) {
   cometMesh.material.bumpScale = Math.max(cometGeoR * 0.4, 0.0008);
   cometMesh.material.needsUpdate = true;
 }
+// One unit sphere for all color-only minors — avoids ~1200 SphereGeometry + Phong/noise programs (CONTEXT_LOST).
+const SHARED_MINOR_GEO = new THREE.SphereGeometry(1, 16, 12);
 function makeMinorMesh(el, id) {
   const hiTopo = (id === 'ceres' || id === 'vesta');
-  const mesh = new THREE.Mesh(
-    new THREE.SphereGeometry(Math.max(el.r * KM_TO_SCENE, 0.5), hiTopo ? 64 : 32, hiTopo ? 48 : 24),
-    new THREE.MeshPhongMaterial({
-      color: el.c,
-      shininess: hiTopo ? 12 : 8,
-      specular: 0x2a2a2a,
-    }),
-  );
-  mesh.userData.body = id;
-  // Color-only TNOs/irregulars get a shared noisy albedo; ceres/vesta maps replace this via LOD.
-  polishColorOnlyMesh(mesh);
+  const r = Math.max(el.r * KM_TO_SCENE, 0.5);
+  let mesh;
+  if (hiTopo) {
+    // Ceres/Vesta keep dedicated Phong + topo segs so Dawn maps/bumps still apply via LOD.
+    mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(r, 64, 48),
+      new THREE.MeshPhongMaterial({
+        color: el.c,
+        shininess: 12,
+        specular: 0x2a2a2a,
+      }),
+    );
+    mesh.userData.body = id;
+    polishColorOnlyMesh(mesh);
+  } else {
+    mesh = new THREE.Mesh(
+      SHARED_MINOR_GEO,
+      new THREE.MeshBasicMaterial({ color: el.c }),
+    );
+    mesh.userData.body = id;
+    mesh.userData.baseScale = r;
+    mesh.scale.setScalar(r);
+  }
   minorWorld.add(mesh);
   return mesh;
 }
@@ -21578,7 +21593,9 @@ const haumeaMesh = makeMinorMesh(HAUMEA_EL, 'haumea');
   const oldGeo = haumeaMesh.geometry;
   const hr = Math.max(HAUMEA_EL.r * KM_TO_SCENE, 0.5);
   haumeaMesh.geometry = makeIrregularBodyGeo(hr, 48, 32, HAUMEA_INSPECT_X, 1, HAUMEA_INSPECT_Z, { noise: 0.02, seed: 7.1 });
-  oldGeo.dispose();
+  if (oldGeo !== SHARED_MINOR_GEO) oldGeo.dispose();
+  haumeaMesh.scale.set(1, 1, 1);
+  delete haumeaMesh.userData.baseScale;
 }
 const makemakeMesh = makeMinorMesh(MAKEMAKE_EL, 'makemake');
 const pallasMesh = makeMinorMesh(PALLAS_EL, 'pallas');
@@ -32502,8 +32519,9 @@ function inspectViewR(id) {
 function applyInspectScale(id) {
   const mesh = BODY_MESH[id];
   if (!mesh) return;
-  // Haumea elongation is baked into geometry (far + inspect); keep uniform scale.
-  mesh.scale.set(1, 1, 1);
+  // Shared unit-sphere minors store radius in userData.baseScale; others keep baked geo at scale 1.
+  if (mesh.userData.baseScale != null) mesh.scale.setScalar(mesh.userData.baseScale);
+  else mesh.scale.set(1, 1, 1);
 }
 function applyBodyTilt(id, mesh) {
   if (!mesh) return;
@@ -32734,7 +32752,6 @@ function syncCometTailScale(rHelio) {
   cometTail.material.size = inspecting ? Math.max(viewR * 0.08, viewR * 0.35) : 0.35;
   cometTail.material.opacity = 0.22 + 0.73 * k * k;
 }
-const bodyTexState = Object.create(null);
 function ensureBodyBump(id) {
   const url = BODY_BUMP[id];
   if (!url) return;
@@ -34756,7 +34773,8 @@ function flyToBody(id) {
   const prev = focusedBody;
   const prevMesh = BODY_MESH[prev];
   if (prevMesh) {
-    prevMesh.scale.set(1, 1, 1);
+    if (prevMesh.userData.baseScale != null) prevMesh.scale.setScalar(prevMesh.userData.baseScale);
+    else prevMesh.scale.set(1, 1, 1);
     prevMesh.rotation.set(0, 0, 0);
   }
   if (moonFlyFamily(prev) === 'saturn') {
